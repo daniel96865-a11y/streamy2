@@ -387,67 +387,177 @@ public class EpgGuide {
         parseFile(file, false);
     }
 
+    private static final long EPG_MIN_BYTES = 100 * 1024L;
+    private static final long EPG_MAX_BYTES = 90 * 1024 * 1024L;
+    private static final int EPG_DOWNLOAD_ATTEMPTS = 3;
+
     private void download(String str, File file) throws Exception {
-        HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-        httpURLConnection.setConnectTimeout(10000);
-        httpURLConnection.setReadTimeout(120000);
-        httpURLConnection.setInstanceFollowRedirects(true);
-        httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36");
-        httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "application/xml,text/xml,application/gzip,*/*");
-        httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT_ENCODING, "identity");
-        int responseCode = httpURLConnection.getResponseCode();
-        InputStream errorStream = responseCode >= 400 ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream();
-        if (errorStream == null) {
-            throw new Exception("HTTP " + responseCode);
-        }
-        String contentEncoding = httpURLConnection.getContentEncoding();
-        boolean z = contentEncoding != null && contentEncoding.toLowerCase(Locale.US).contains("gzip");
-        boolean contains = str.toLowerCase(Locale.US).contains(".gz");
-        if (z && !contains) {
+        Exception last = null;
+        for (int attempt = 1; attempt <= EPG_DOWNLOAD_ATTEMPTS; attempt++) {
             try {
-                errorStream = new GZIPInputStream(errorStream);
+                downloadOnce(str, file);
+                return;
+            } catch (Exception e) {
+                last = e;
+                String msg = e.getMessage() == null ? "" : e.getMessage().toLowerCase(Locale.US);
+                boolean retryable = e instanceof java.io.IOException
+                        || e instanceof java.net.SocketException
+                        || msg.contains("closed")
+                        || msg.contains("connection")
+                        || msg.contains("reset")
+                        || msg.contains("timeout");
+                if (!retryable || attempt >= EPG_DOWNLOAD_ATTEMPTS) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(400L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+        throw new Exception("EPG-Download fehlgeschlagen");
+    }
+
+    private void downloadOnce(String str, File file) throws Exception {
+        HttpURLConnection conn = null;
+        InputStream in = null;
+        FileOutputStream out = null;
+        File part = null;
+        try {
+            conn = (HttpURLConnection) new URL(str).openConnection();
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(120000);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty(HttpHeaders.USER_AGENT,
+                    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36");
+            conn.setRequestProperty(HttpHeaders.ACCEPT, "application/xml,text/xml,application/gzip,*/*");
+            conn.setRequestProperty(HttpHeaders.ACCEPT_ENCODING, "identity");
+            int code = conn.getResponseCode();
+            in = code >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            if (in == null) {
+                throw new Exception("HTTP " + code);
+            }
+            // Keep compressed body as-is when URL/encoding is gzip; parseFile handles gzip magic.
+            // Only unwrap transport-level gzip when the URL is not already a .gz file.
+            String encoding = conn.getContentEncoding();
+            boolean transportGzip = encoding != null && encoding.toLowerCase(Locale.US).contains("gzip");
+            boolean urlGz = str.toLowerCase(Locale.US).contains(".gz");
+            if (transportGzip && !urlGz) {
+                try {
+                    in = new GZIPInputStream(in);
+                } catch (Exception unused) {
+                }
+            }
+            File parent = file.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
+            part = new File(file.getPath() + ".part");
+            out = new FileOutputStream(part);
+            byte[] buf = new byte[16384];
+            long total = 0;
+            while (true) {
+                int n = in.read(buf);
+                if (n < 0) {
+                    break;
+                }
+                out.write(buf, 0, n);
+                total += n;
+                if (total > EPG_MAX_BYTES) {
+                    throw new Exception("EPG-Datei zu groß");
+                }
+            }
+            out.flush();
+            try {
+                out.close();
+            } catch (Exception unused) {
+            }
+            out = null;
+            if (code >= 400 || total < 40) {
+                throw new Exception("HTTP " + code);
+            }
+            if (total < EPG_MIN_BYTES) {
+                throw new Exception("EPG zu klein (" + total + " Bytes)");
+            }
+            // Validate gzip magic or XML/text start so we do not cache HTML error pages.
+            // Body stays gzip only for .gz URLs; transport gzip was already unwrapped above.
+            validateEpgPart(part, urlGz);
+            if (file.exists()) {
+                file.delete();
+            }
+            if (!part.renameTo(file)) {
+                throw new Exception("EPG-Cache fehlgeschlagen");
+            }
+            part = null;
+        } finally {
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (Exception unused) {
+                }
+            }
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Exception unused) {
+                }
+            }
+            if (conn != null) {
+                try {
+                    conn.disconnect();
+                } catch (Exception unused) {
+                }
+            }
+            if (part != null && part.exists()) {
+                try {
+                    part.delete();
+                } catch (Exception unused) {
+                }
+            }
+        }
+    }
+
+    private static void validateEpgPart(File part, boolean expectGzip) throws Exception {
+        FileInputStream fis = new FileInputStream(part);
+        try {
+            int b0 = fis.read();
+            int b1 = fis.read();
+            if (b0 < 0 || b1 < 0) {
+                throw new Exception("EPG leer");
+            }
+            boolean gzipMagic = b0 == 0x1f && b1 == 0x8b;
+            if (gzipMagic) {
+                return;
+            }
+            if (expectGzip) {
+                throw new Exception("EPG kein gültiges GZIP");
+            }
+            // Plain XMLTV should start with whitespace/'<' / BOM
+            if (b0 == 0xef && b1 == 0xbb) {
+                int b2 = fis.read();
+                if (b2 == 0xbf) {
+                    b0 = fis.read();
+                    b1 = fis.read();
+                }
+            }
+            while (b0 == ' ' || b0 == '\t' || b0 == '\n' || b0 == '\r') {
+                b0 = b1;
+                b1 = fis.read();
+            }
+            if (b0 != '<') {
+                throw new Exception("EPG kein XML/GZIP");
+            }
+        } finally {
+            try {
+                fis.close();
             } catch (Exception unused) {
             }
         }
-        File parentFile = file.getParentFile();
-        if (parentFile != null && !parentFile.exists()) {
-            parentFile.mkdirs();
-        }
-        File file2 = new File(file.getPath() + ".part");
-        FileOutputStream fileOutputStream = new FileOutputStream(file2);
-        byte[] bArr = new byte[16384];
-        long j = 0;
-        do {
-            try {
-                int read = errorStream.read(bArr);
-                if (read < 0) {
-                    if (responseCode >= 400 || j < 40) {
-                        file2.delete();
-                        throw new Exception("HTTP " + responseCode);
-                    }
-                    if (file.exists()) {
-                        file.delete();
-                    }
-                    if (!file2.renameTo(file)) {
-                        throw new Exception("EPG-Cache fehlgeschlagen");
-                    }
-                    return;
-                }
-                fileOutputStream.write(bArr, 0, read);
-                j += read;
-            } finally {
-                try {
-                    fileOutputStream.close();
-                } catch (Exception unused2) {
-                }
-                try {
-                    errorStream.close();
-                } catch (Exception unused3) {
-                }
-                httpURLConnection.disconnect();
-            }
-        } while (j <= 94371840);
-        throw new Exception("EPG-Datei zu groß");
     }
 
     private void parseFile(File file, boolean z) throws Exception {

@@ -10,8 +10,8 @@ android {
         applicationId "app.streamy2"
         minSdk 24
         targetSdk 34
-        versionCode 131
-        versionName "3.11"
+        versionCode 132
+        versionName "3.12"
         vectorDrawables.useSupportLibrary = true
     }
 

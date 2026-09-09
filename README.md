@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.11** (versionCode **131**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.12** (versionCode **132**).
 
 ## Download
 
