@@ -1,0 +1,2426 @@
+package app.streamy2;
+
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.Toast;
+import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.AudioAttributes;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaItem;
+import androidx.media3.common.MimeTypes;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.TrackSelectionOverride;
+import androidx.media3.common.Tracks;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.DefaultRenderersFactory;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory;
+import androidx.media3.exoplayer.hls.HlsMediaSource;
+import androidx.media3.exoplayer.source.MediaSource;
+import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
+import androidx.media3.extractor.DefaultExtractorsFactory;
+import androidx.media3.ui.PlayerView;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import app.streamy2.EpgGuide;
+import app.streamy2.Models;
+import app.streamy2.PlayerActivity;
+import java.util.Iterator;
+import com.google.common.net.HttpHeaders;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/* loaded from: classes.dex */
+public class PlayerActivity extends AppCompatActivity {
+    private static final ExecutorService IO = Executors.newCachedThreadPool();
+    private static final Handler UI = new Handler(Looper.getMainLooper());
+    private TextView archiveHint;
+    private TextView badgeLive;
+    private View bottomBar;
+    private ImageButton btnPlay;
+    private TextView btnPlayer;
+    private TextView btnResize;
+    private boolean catchup;
+    private Models.Channel channel;
+    private TextView clock;
+    private EpgGuide.Listing current;
+    private EpgAdapter epgAdapter;
+    private View epgBtns;
+    private TextView epgEnd;
+    private RecyclerView epgList;
+    private TextView epgNext;
+    private TextView epgNow;
+    private SeekBar epgSeek;
+    private View epgSheet;
+    private TextView epgStart;
+    private TextView errorView;
+    private int freezeTicks;
+    private DefaultHttpDataSource.Factory http;
+    private int index;
+    private long lastPos;
+    private boolean liveMode;
+    private ExoPlayer player;
+    private TextView playerSub;
+    private TextView playerTitle;
+    private PlayerView playerView;
+    private int recoverTries;
+    private boolean resolving;
+    private boolean seeking;
+    private View topBar;
+    private boolean useVlc;
+    private boolean userPaused;
+    private String vavooHot;
+    private String vavooKeep;
+    private boolean vavooTriedVlc;
+    private LiveEngine vlc;
+    private ViewGroup vlcHost;
+    private boolean vlcSoft;
+    private final List<String> queue = new ArrayList();
+    private boolean hud = true;
+    private final List<EpgGuide.Listing> programmes = new ArrayList();
+    private final SimpleDateFormat clockFmt = new SimpleDateFormat("HH:mm", Locale.GERMANY);
+    private final Runnable tick = new Runnable() { // from class: app.streamy2.PlayerActivity.1
+        @Override // java.lang.Runnable
+        public void run() {
+            PlayerActivity.this.updateClockAndBar();
+            PlayerActivity.UI.postDelayed(this, 1000L);
+        }
+    };
+    private final Runnable hideHud = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda14
+        @Override // java.lang.Runnable
+        public final void run() {
+            PlayerActivity.this.lambda$new$10();
+        }
+    };
+    private final Runnable watchdog = new Runnable() { // from class: app.streamy2.PlayerActivity.5
+        @Override // java.lang.Runnable
+        public void run() {
+            if (PlayerActivity.this.useVlc) {
+                if (PlayerActivity.this.vlc == null || !PlayerActivity.this.vlc.isPlaying()) {
+                    PlayerActivity.this.freezeTicks++;
+                } else {
+                    PlayerActivity.this.freezeTicks = 0;
+                    if (PlayerActivity.this.errorView != null) {
+                        PlayerActivity.this.errorView.setVisibility(8);
+                    }
+                }
+                if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.vavooKeep != null && PlayerActivity.this.vavooHot != null) {
+                    PlayerActivity.this.tryExoAfterVlc();
+                }
+            } else if (PlayerActivity.this.player != null && !PlayerActivity.this.userPaused) {
+                int playbackState = PlayerActivity.this.player.getPlaybackState();
+                if (playbackState == 2 || (playbackState == 3 && PlayerActivity.this.player.getPlayWhenReady() && !PlayerActivity.this.player.isPlaying())) {
+                    PlayerActivity.this.freezeTicks++;
+                } else {
+                    PlayerActivity.this.freezeTicks = 0;
+                }
+                if (PlayerActivity.this.freezeTicks == 8) {
+                    try {
+                        PlayerActivity.this.player.seekToDefaultPosition();
+                    } catch (Throwable unused) {
+                    }
+                }
+            } else {
+                PlayerActivity.this.freezeTicks = 0;
+            }
+            if (PlayerActivity.this.freezeTicks >= 18) {
+                PlayerActivity.this.freezeTicks = 0;
+                PlayerActivity.this.recoverStuck();
+            }
+            PlayerActivity.UI.postDelayed(this, 1000L);
+        }
+    };
+    private final Runnable vavooPrefetch = new AnonymousClass6();
+
+    private void maybeVlcIfSilent() {
+    }
+
+    public static void open(Context context, String str, String str2, String str3, String str4, boolean z) {
+        Intent intent = new Intent(context, (Class<?>) PlayerActivity.class);
+        intent.putExtra("url", str);
+        intent.putExtra("alt", str2);
+        intent.putExtra("title", str3);
+        intent.putExtra("sub", str4);
+        intent.putExtra("live", z);
+        context.startActivity(intent);
+    }
+
+    /* JADX WARN: Multi-variable type inference failed */
+    @Override // androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, android.app.Activity
+    protected void onCreate(Bundle bundle) {
+        super.onCreate(bundle);
+        getWindow().addFlags(128);
+        setContentView(R.layout.activity_player);
+        String stringExtra = getIntent().getStringExtra("url");
+        String stringExtra2 = getIntent().getStringExtra("alt");
+        this.liveMode = getIntent().getBooleanExtra("live", false);
+        String stringExtra3 = getIntent().getStringExtra("title");
+        String stringExtra4 = getIntent().getStringExtra("sub");
+        this.channel = App.playing;
+        this.playerTitle = (TextView) findViewById(R.id.playerTitle);
+        this.playerSub = (TextView) findViewById(R.id.playerSub);
+        this.errorView = (TextView) findViewById(R.id.playerError);
+        this.clock = (TextView) findViewById(R.id.clock);
+        this.epgNow = (TextView) findViewById(R.id.epgNow);
+        this.epgNext = (TextView) findViewById(R.id.epgNext);
+        this.epgStart = (TextView) findViewById(R.id.epgStart);
+        this.epgEnd = (TextView) findViewById(R.id.epgEnd);
+        this.epgSeek = (SeekBar) findViewById(R.id.epgSeek);
+        this.badgeLive = (TextView) findViewById(R.id.badgeLive);
+        this.archiveHint = (TextView) findViewById(R.id.archiveHint);
+        this.topBar = findViewById(R.id.topBar);
+        this.bottomBar = findViewById(R.id.bottomBar);
+        this.epgSheet = findViewById(R.id.epgSheet);
+        this.epgBtns = findViewById(R.id.epgBtns);
+        TextView textView = this.playerTitle;
+        if (textView != null) {
+            if (stringExtra3 == null) {
+                stringExtra3 = "Streamy 2";
+            }
+            textView.setText(Text.clean(stringExtra3));
+        }
+        TextView textView2 = this.playerSub;
+        if (textView2 != null) {
+            if (stringExtra4 == null) {
+                stringExtra4 = "";
+            }
+            textView2.setText(Text.clean(stringExtra4));
+        }
+        View view = this.topBar;
+        if (view != null) {
+            view.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda26
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.this.layoutStage();
+                }
+            });
+        }
+        View findViewById = findViewById(R.id.btnBack);
+        if (findViewById != null) {
+            findViewById.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda3
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$0(view2);
+                }
+            });
+        }
+        View findViewById2 = findViewById(R.id.btnEpg);
+        if (findViewById2 != null) {
+            findViewById2.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda4
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$1(view2);
+                }
+            });
+        }
+        View findViewById3 = findViewById(R.id.btnCloseEpg);
+        if (findViewById3 != null) {
+            findViewById3.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda5
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$2(view2);
+                }
+            });
+        }
+        TextView textView3 = this.badgeLive;
+        if (textView3 != null) {
+            textView3.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda6
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$3(view2);
+                }
+            });
+        }
+        ImageButton imageButton = (ImageButton) findViewById(R.id.btnPlay);
+        this.btnPlay = imageButton;
+        if (imageButton != null) {
+            imageButton.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda7
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$4(view2);
+                }
+            });
+        }
+        TextView textView4 = (TextView) findViewById(R.id.btnResize);
+        this.btnResize = textView4;
+        if (textView4 != null) {
+            textView4.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda8
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$5(view2);
+                }
+            });
+        }
+        TextView textView5 = (TextView) findViewById(R.id.btnPlayer);
+        this.btnPlayer = textView5;
+        if (textView5 != null) {
+            paintPlayerBtn();
+            this.btnPlayer.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda9
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$6(view2);
+                }
+            });
+        }
+        View findViewById4 = findViewById(R.id.btnPrevCh);
+        View findViewById5 = findViewById(R.id.btnNextCh);
+        if (findViewById4 != null) {
+            findViewById4.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda10
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$7(view2);
+                }
+            });
+        }
+        if (findViewById5 != null) {
+            findViewById5.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda12
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$8(view2);
+                }
+            });
+        }
+        boolean z = this.liveMode;
+        if (findViewById4 != null) {
+            findViewById4.setVisibility(z ? 0 : 8);
+        }
+        if (findViewById5 != null) {
+            findViewById5.setVisibility(z ? 0 : 8);
+        }
+        if (!this.liveMode) {
+            TextView textView6 = this.badgeLive;
+            if (textView6 != null) {
+                textView6.setVisibility(8);
+            }
+            if (findViewById2 != null) {
+                findViewById2.setVisibility(8);
+            }
+            TextView textView7 = this.epgNow;
+            if (textView7 != null) {
+                textView7.setVisibility(8);
+            }
+            TextView textView8 = this.epgNext;
+            if (textView8 != null) {
+                textView8.setVisibility(8);
+            }
+            TextView textView9 = this.archiveHint;
+            if (textView9 != null) {
+                textView9.setVisibility(8);
+            }
+        }
+        View findViewById6 = findViewById(R.id.tapLayer);
+        if (findViewById6 != null) {
+            findViewById6.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda27
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view2) {
+                    PlayerActivity.this.lambda$onCreate$9(view2);
+                }
+            });
+        }
+        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.epgList);
+        this.epgList = recyclerView;
+        this.epgAdapter = new EpgAdapter();
+        if (recyclerView != null) {
+            recyclerView.setLayoutManager(new LinearLayoutManager(this));
+            recyclerView.setDescendantFocusability(262144);
+            recyclerView.setAdapter(this.epgAdapter);
+        }
+        TextView textView10 = (TextView) findViewById(R.id.epgNavHint);
+        TextView textView11 = (TextView) findViewById(R.id.btnCloseEpg);
+        Tv.phoneX(textView11 instanceof TextView ? textView11 : null);
+        if (textView10 != null) {
+            if (Tv.isTv(this)) {
+                textView10.setText("Hoch/Runter durchs Programm  ·  OK abspielen  ·  Zurück schließt");
+            } else {
+                textView10.setVisibility(8);
+            }
+        }
+        boolean z2 = true;
+        if (this.archiveHint != null) {
+            Models.Channel channel = this.channel;
+            if (channel != null && channel.archive) {
+                this.archiveHint.setText("Archiv " + Math.max(1, this.channel.archiveDays) + " Tage · Programm antippen");
+            } else {
+                this.archiveHint.setText(this.liveMode ? "Kein Catch-up auf diesem Sender" : "");
+            }
+        }
+        SeekBar seekBar = this.epgSeek;
+        if (seekBar != null) {
+            seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() { // from class: app.streamy2.PlayerActivity.2
+                @Override // android.widget.SeekBar.OnSeekBarChangeListener
+                public void onProgressChanged(SeekBar seekBar2, int i, boolean z3) {
+                }
+
+                @Override // android.widget.SeekBar.OnSeekBarChangeListener
+                public void onStartTrackingTouch(SeekBar seekBar2) {
+                    PlayerActivity.this.seeking = true;
+                }
+
+                @Override // android.widget.SeekBar.OnSeekBarChangeListener
+                public void onStopTrackingTouch(SeekBar seekBar2) {
+                    PlayerActivity.this.seeking = false;
+                    PlayerActivity.this.onSeekEpg(seekBar2.getProgress());
+                }
+            });
+        }
+        setVolumeControlStream(3);
+        buildQueue(stringExtra, stringExtra2);
+        HashMap hashMap = new HashMap();
+        hashMap.put(HttpHeaders.USER_AGENT, "VLC/3.0.21 LibVLC/3.0.21");
+        hashMap.put(HttpHeaders.REFERER, originOf(stringExtra));
+        this.http = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.21 LibVLC/3.0.21").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(12000).setReadTimeoutMs(15000).setDefaultRequestProperties((Map<String, String>) hashMap);
+        applyHeaders(stringExtra);
+        DefaultLoadControl build = new DefaultLoadControl.Builder().setBufferDurationsMs(4000, 14000, 1500, DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS).setPrioritizeTimeOverSizeThresholds(true).build();
+        DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
+        DefaultTrackSelector defaultTrackSelector = new DefaultTrackSelector(this);
+        DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(8).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
+        if (Tv.isTv(this)) {
+            exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG);
+        } else {
+            exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC);
+        }
+        defaultTrackSelector.setParameters(exceedAudioConstraintsIfNecessary);
+        ExoPlayer build2 = new ExoPlayer.Builder(this).setRenderersFactory(extensionRendererMode).setTrackSelector(defaultTrackSelector).setLoadControl(build).setWakeMode(2).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), false).setHandleAudioBecomingNoisy(true).build();
+        this.player = build2;
+        build2.setVolume(1.0f);
+        this.player.setVideoScalingMode(1);
+        PlayerView playerView = (PlayerView) findViewById(R.id.playerView);
+        this.playerView = playerView;
+        this.vlcHost = (ViewGroup) findViewById(R.id.vlcHost);
+        if (playerView != null) {
+            playerView.setUseController(false);
+            playerView.setPlayer(this.player);
+        }
+        applyResize();
+        hideSystemBars();
+        if (Tv.isTv(this)) {
+            ImageButton imageButton2 = this.btnPlay;
+            if (imageButton2 != null) {
+                imageButton2.setFocusable(false);
+            }
+            View findViewById7 = findViewById(R.id.tapLayer);
+            if (findViewById7 != null) {
+                findViewById7.setFocusable(false);
+            }
+            Tv.focusTree(this.bottomBar);
+            Tv.focusTree(this.topBar);
+            Tv.focusTree(this.epgSheet);
+        }
+        this.player.addListener(new AnonymousClass3());
+        Handler handler = UI;
+        handler.post(new PlayerActivity$$ExternalSyntheticLambda23(this));
+        handler.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda1
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.loadProgrammes();
+            }
+        }, 400L);
+        PlayerView playerView2 = this.playerView;
+        if (playerView2 != null) {
+            playerView2.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda2
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.this.playCurrent();
+                }
+            });
+        } else {
+            playCurrent();
+        }
+        handler.post(this.tick);
+        handler.post(this.watchdog);
+        scheduleHide();
+        View view2 = this.topBar;
+        if (view2 != null) {
+            view2.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda26
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.this.layoutStage();
+                }
+            });
+        }
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(z2) { // from class: app.streamy2.PlayerActivity.4
+            @Override // androidx.activity.OnBackPressedCallback
+            public void handleOnBackPressed() {
+                if (PlayerActivity.this.epgSheet != null && PlayerActivity.this.epgSheet.getVisibility() == 0) {
+                    PlayerActivity.this.closeEpg();
+                } else {
+                    PlayerActivity.this.leave();
+                }
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$0(View view) {
+        leave();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$1(View view) {
+        toggleEpg();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$2(View view) {
+        closeEpg();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$3(View view) {
+        playLive();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$4(View view) {
+        togglePlay();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$5(View view) {
+        toggleResize();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$6(View view) {
+        cyclePlayer();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$7(View view) {
+        zap(-1);
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$8(View view) {
+        zap(1);
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$onCreate$9(View view) {
+        View view2 = this.epgSheet;
+        if (view2 == null || view2.getVisibility() != 0) {
+            toggleHud();
+        } else {
+            closeEpg();
+        }
+    }
+
+    /* renamed from: app.streamy2.PlayerActivity$3, reason: invalid class name */
+    class AnonymousClass3 implements Player.Listener {
+        AnonymousClass3() {
+        }
+
+        @Override // androidx.media3.common.Player.Listener
+        public void onIsPlayingChanged(boolean z) {
+            PlayerActivity.this.updatePlayIcon();
+            if (!z || PlayerActivity.this.player == null) {
+                return;
+            }
+            PlayerActivity.this.player.setVolume(1.0f);
+            PlayerActivity.this.userPaused = false;
+            PlayerActivity.this.scheduleHide();
+        }
+
+        @Override // androidx.media3.common.Player.Listener
+        public void onPlaybackStateChanged(int i) {
+            if (i == 3) {
+                PlayerActivity.this.freezeTicks = 0;
+            }
+            if (i == 4 && PlayerActivity.this.liveMode && !PlayerActivity.this.userPaused) {
+                PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda1
+                    @Override // java.lang.Runnable
+                    public final void run() {
+                        PlayerActivity.AnonymousClass3.this.lambda$onPlaybackStateChanged$0();
+                    }
+                }, 400L);
+            }
+        }
+
+        /* JADX INFO: Access modifiers changed from: private */
+        public /* synthetic */ void lambda$onPlaybackStateChanged$0() {
+            if (PlayerActivity.this.isFinishing() || PlayerActivity.this.player == null || PlayerActivity.this.userPaused) {
+                return;
+            }
+            PlayerActivity.this.playCurrent();
+        }
+
+        @Override // androidx.media3.common.Player.Listener
+        public void onTracksChanged(Tracks tracks) {
+            try {
+                PlayerActivity.this.pickPlayableAudio(tracks);
+            } catch (Throwable unused) {
+            }
+        }
+
+        @Override // androidx.media3.common.Player.Listener
+        public void onPlayerError(PlaybackException playbackException) {
+            String str;
+            String str2;
+            if (playbackException == null) {
+                str = "kein Bild";
+            } else {
+                str = playbackException.getErrorCodeName();
+                Throwable cause = playbackException.getCause();
+                if (cause != null && cause.getMessage() != null) {
+                    str = str + " · " + cause.getMessage();
+                }
+            }
+            try { PlayerActivity.this.toastPlaybackError("Player: " + str); } catch (Throwable ignored) {}
+            if (PlayerActivity.this.vavooKeep != null && PlayerActivity.this.recoverTries < 2) {
+                PlayerActivity.this.recoverTries++;
+                LocalHls.forget(PlayerActivity.this.vavooKeep);
+                if (PlayerActivity.this.index >= 0 && PlayerActivity.this.index < PlayerActivity.this.queue.size()) {
+                    PlayerActivity.this.queue.set(PlayerActivity.this.index, PlayerActivity.this.vavooKeep);
+                }
+                if (PlayerActivity.this.errorView != null) {
+                    PlayerActivity.this.errorView.setVisibility(0);
+                    PlayerActivity.this.errorView.setText("Vavoo neu…");
+                }
+                PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda0
+                    @Override // java.lang.Runnable
+                    public final void run() {
+                        PlayerActivity.AnonymousClass3.this.lambda$onPlayerError$1();
+                    }
+                }, 400L);
+                return;
+            }
+            if (PlayerActivity.this.errorView != null) {
+                PlayerActivity.this.errorView.setVisibility(0);
+                PlayerActivity.this.errorView.setText("Vavoo: " + str);
+            }
+            if (PlayerActivity.this.index + 1 < PlayerActivity.this.queue.size()) {
+                PlayerActivity.this.index++;
+                if (PlayerActivity.this.errorView != null) {
+                    PlayerActivity.this.errorView.setVisibility(8);
+                }
+                PlayerActivity.this.playCurrent();
+                return;
+            }
+            if (PlayerActivity.this.errorView != null) {
+                PlayerActivity.this.errorView.setVisibility(0);
+                TextView textView = PlayerActivity.this.errorView;
+                if (PlayerActivity.this.catchup) {
+                    str2 = "Catch-up nicht verfügbar für dieses Programm.";
+                } else {
+                    str2 = "Stream konnte nicht geladen werden.\nOben auf VLC tippen oder anderen Sender wählen.";
+                }
+                textView.setText(str2);
+            }
+        }
+
+        /* JADX INFO: Access modifiers changed from: private */
+        public /* synthetic */ void lambda$onPlayerError$1() {
+            if (PlayerActivity.this.isFinishing()) {
+                return;
+            }
+            PlayerActivity.this.playCurrent();
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void leave() {
+        if (isFinishing()) {
+            return;
+        }
+        stopPlayback();
+        releasePlayer();
+        try {
+            Intent intent = new Intent(this, (Class<?>) MainActivity.class);
+            intent.addFlags(604110848);
+            intent.putExtra("fromPlayer", true);
+            startActivity(intent);
+        } catch (Throwable unused) {
+        }
+        finish();
+    }
+
+    private void stopPlayback() {
+        try {
+            UI.removeCallbacks(this.vavooPrefetch);
+        } catch (Throwable unused) {
+        }
+        try {
+            UI.removeCallbacks(this.tick);
+        } catch (Throwable unused2) {
+        }
+        try {
+            UI.removeCallbacks(this.watchdog);
+        } catch (Throwable unused3) {
+        }
+        try {
+            UI.removeCallbacks(this.hideHud);
+        } catch (Throwable unused4) {
+        }
+        try {
+            PlayerView playerView = this.playerView;
+            if (playerView != null) {
+                playerView.setPlayer(null);
+            }
+        } catch (Throwable unused5) {
+        }
+        try {
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine != null) {
+                liveEngine.pause();
+            }
+        } catch (Throwable unused6) {
+        }
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer != null) {
+                exoPlayer.setPlayWhenReady(false);
+            }
+        } catch (Throwable unused7) {
+        }
+    }
+
+    private void releasePlayer() {
+        ExoPlayer exoPlayer = this.player;
+        this.player = null;
+        if (exoPlayer != null) {
+            try {
+                exoPlayer.stop();
+            } catch (Throwable unused) {
+            }
+            try {
+                exoPlayer.clearMediaItems();
+            } catch (Throwable unused2) {
+            }
+            try {
+                exoPlayer.release();
+            } catch (Throwable unused3) {
+            }
+        }
+        try {
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine != null) {
+                liveEngine.stop(true);
+                this.vlc = null;
+            }
+        } catch (Throwable unused4) {
+        }
+    }
+
+    @Override // androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, android.app.Activity
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent == null) {
+            return;
+        }
+        setIntent(intent);
+        String stringExtra = intent.getStringExtra("url");
+        String stringExtra2 = intent.getStringExtra("alt");
+        this.liveMode = intent.getBooleanExtra("live", false);
+        this.catchup = false;
+        this.useVlc = false;
+        this.vlcSoft = false;
+        this.freezeTicks = 0;
+        this.channel = App.playing;
+        ExoPlayer exoPlayer = this.player;
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            this.player.clearMediaItems();
+        }
+        PlayerView playerView = this.playerView;
+        if (playerView != null) {
+            playerView.setVisibility(0);
+        }
+        buildQueue(stringExtra, stringExtra2);
+        playCurrent();
+        seedEpg();
+        loadProgrammes();
+        boolean z = this.liveMode;
+        View findViewById = findViewById(R.id.btnPrevCh);
+        View findViewById2 = findViewById(R.id.btnNextCh);
+        if (findViewById != null) {
+            findViewById.setVisibility(z ? 0 : 8);
+        }
+        if (findViewById2 != null) {
+            findViewById2.setVisibility(z ? 0 : 8);
+        }
+        setHud(true);
+        scheduleHide();
+    }
+
+    @Override // androidx.appcompat.app.AppCompatActivity, androidx.core.app.ComponentActivity, android.app.Activity, android.view.Window.Callback
+    public boolean dispatchKeyEvent(KeyEvent keyEvent) {
+        if (keyEvent.getAction() != 0) {
+            return super.dispatchKeyEvent(keyEvent);
+        }
+        int keyCode = keyEvent.getKeyCode();
+        if (keyCode == 24 || keyCode == 25 || keyCode == 164 || keyCode == 91) {
+            return super.dispatchKeyEvent(keyEvent);
+        }
+        View view = this.epgSheet;
+        if (view != null && view.getVisibility() == 0) {
+            if (keyCode == 4 || keyCode == 111 || keyCode == 172 || keyCode == 165) {
+                closeEpg();
+                return true;
+            }
+            if (keyCode == 85 || keyCode == 126 || keyCode == 127) {
+                togglePlay();
+                return true;
+            }
+            return super.dispatchKeyEvent(keyEvent);
+        }
+        if (keyCode == 4 || keyCode == 111) {
+            leave();
+            return true;
+        }
+        if (keyCode == 85 || keyCode == 126 || keyCode == 127 || keyCode == 79) {
+            togglePlay();
+            return true;
+        }
+        if (keyCode == 23 || keyCode == 66 || keyCode == 160) {
+            if (this.hud) {
+                return super.dispatchKeyEvent(keyEvent);
+            }
+            togglePlay();
+            return true;
+        }
+        if (keyCode == 166 || keyCode == 93) {
+            zap(1);
+            return true;
+        }
+        if (keyCode == 167 || keyCode == 92) {
+            zap(-1);
+            return true;
+        }
+        if ((keyCode == 172 || keyCode == 165) && this.liveMode) {
+            setHud(true);
+            openEpg();
+            return true;
+        }
+        if (keyCode == 20 && this.liveMode && !this.hud) {
+            setHud(true);
+            openEpg();
+            return true;
+        }
+        if (keyCode == 19 && !this.hud) {
+            setHud(true);
+            scheduleHide();
+            return true;
+        }
+        if (keyCode == 21 || keyCode == 89 || keyCode == 22 || keyCode == 90) {
+            setHud(true);
+            scheduleHide();
+            boolean z = keyCode == 21 || keyCode == 89;
+            if (!this.liveMode) {
+                seekBy(z ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
+                return true;
+            }
+            SeekBar seekBar = this.epgSeek;
+            if (seekBar != null) {
+                int max = Math.max(0, Math.min(1000, seekBar.getProgress() + (z ? -40 : 40)));
+                this.epgSeek.setProgress(max);
+                onSeekEpg(max);
+            }
+            return true;
+        }
+        if (!this.hud) {
+            setHud(true);
+            scheduleHide();
+            return true;
+        }
+        return super.dispatchKeyEvent(keyEvent);
+    }
+
+    private void toggleHud() {
+        setHud(!this.hud);
+        if (this.hud) {
+            scheduleHide();
+        }
+    }
+
+    private void setHud(boolean z) {
+        this.hud = z;
+        boolean z2 = false;
+        int i = z ? 0 : 8;
+        View view = this.topBar;
+        if (view != null) {
+            view.setVisibility(i);
+        }
+        ImageButton imageButton = this.btnPlay;
+        if (imageButton != null) {
+            imageButton.setVisibility(i);
+        }
+        View view2 = this.epgBtns;
+        if (view2 != null) {
+            view2.setVisibility(i);
+        }
+        View view3 = this.epgSheet;
+        if (view3 != null && view3.getVisibility() == 0) {
+            z2 = true;
+        }
+        View view4 = this.bottomBar;
+        if (view4 != null) {
+            view4.setVisibility(z2 ? 8 : i);
+        }
+        if (z && this.liveMode) {
+            bindEpg();
+        }
+        if (z) {
+            return;
+        }
+        hideSystemBars();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void scheduleHide() {
+        Handler handler = UI;
+        handler.removeCallbacks(this.hideHud);
+        if (this.useVlc) {
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine == null || !liveEngine.isPlaying()) {
+                return;
+            }
+        } else {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer == null || !exoPlayer.isPlaying()) {
+                return;
+            }
+        }
+        handler.postDelayed(this.hideHud, Tv.isTv(this) ? 5000L : 2000);
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void layoutStage() {
+        hideSystemBars();
+    }
+
+    private void hideSystemBars() {
+        try {
+            getWindow().addFlags(1024);
+            if (Build.VERSION.SDK_INT >= 30) {
+                getWindow().setDecorFitsSystemWindows(false);
+                WindowInsetsController insetsController = getWindow().getInsetsController();
+                if (insetsController != null) {
+                    insetsController.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                    insetsController.setSystemBarsBehavior(2);
+                }
+            } else {
+                getWindow().getDecorView().setSystemUiVisibility(5894);
+            }
+        } catch (Exception unused) {
+        }
+    }
+
+    private void place(View view, int i, int i2, int i3, int i4) {
+        if (view == null) {
+            return;
+        }
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(i, i2);
+        layoutParams.gravity = i3;
+        layoutParams.topMargin = i4;
+        view.setLayoutParams(layoutParams);
+    }
+
+    private int dp(int i) {
+        return Math.round(i * getResources().getDisplayMetrics().density);
+    }
+
+    @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, android.app.Activity, android.content.ComponentCallbacks
+    public void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        layoutStage();
+        setHud(true);
+        scheduleHide();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$new$10() {
+        View view = this.epgSheet;
+        if ((view == null || view.getVisibility() != 0) && !this.userPaused) {
+            setHud(false);
+        }
+    }
+
+    private void togglePlay() {
+        boolean z = false;
+        if (this.useVlc) {
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine != null) {
+                liveEngine.toggle();
+            }
+            LiveEngine liveEngine2 = this.vlc;
+            if (liveEngine2 != null && liveEngine2.isPlaying()) {
+                z = true;
+            }
+            this.userPaused = !z;
+            updatePlayIcon();
+            setHud(true);
+            if (z) {
+                scheduleHide();
+                return;
+            }
+            return;
+        }
+        ExoPlayer exoPlayer = this.player;
+        if (exoPlayer == null) {
+            return;
+        }
+        if (exoPlayer.isPlaying()) {
+            this.player.pause();
+            this.userPaused = true;
+            updatePlayIcon();
+            setHud(true);
+            return;
+        }
+        this.userPaused = false;
+        this.player.play();
+        updatePlayIcon();
+        setHud(true);
+        scheduleHide();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void updatePlayIcon() {
+        ExoPlayer exoPlayer;
+        LiveEngine liveEngine;
+        if (this.btnPlay == null) {
+            return;
+        }
+        boolean z = true;
+        if (!this.useVlc ? (exoPlayer = this.player) == null || !exoPlayer.isPlaying() : (liveEngine = this.vlc) == null || !liveEngine.isPlaying()) {
+            z = false;
+        }
+        this.btnPlay.setImageResource(z ? R.drawable.ic_pause : R.drawable.ic_play);
+        this.btnPlay.setContentDescription(z ? "Pause" : "Play");
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void seedEpg() {
+        Models.Channel channel;
+        if (isFinishing() || (channel = this.channel) == null || this.epgNow == null) {
+            return;
+        }
+        if (channel.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+            Models.Channel channel2 = this.channel;
+            lambda$seedEpg$11(channel2, channel2.epg, null);
+        }
+        final Models.Channel channel3 = this.channel;
+        IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda15
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$seedEpg$12(channel3);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$seedEpg$12(final Models.Channel channel) {
+        final ArrayList arrayList = new ArrayList();
+        Models.Epg epg = null;
+        try {
+            if (App.guide != null) {
+                epg = App.guide.forChannel(channel);
+                arrayList.addAll(App.guide.listingsFor(channel));
+            }
+        } catch (Throwable unused) {
+        }
+        final Models.Epg epgFinal = epg;
+        UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda22
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$seedEpg$11(channel, epgFinal, arrayList);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    /* renamed from: bindSeededEpg, reason: merged with bridge method [inline-methods] */
+    public void lambda$seedEpg$11(Models.Channel channel, Models.Epg epg, List<EpgGuide.Listing> list) {
+        Models.Channel channel2;
+        if (isFinishing() || (channel2 = this.channel) != channel || this.epgNow == null) {
+            return;
+        }
+        if (epg != null) {
+            try {
+                channel2.epg = epg;
+            } catch (Exception unused) {
+                return;
+            }
+        }
+        if (list != null && !list.isEmpty()) {
+            this.programmes.clear();
+            this.programmes.addAll(list);
+        }
+        if (this.programmes.isEmpty() && this.channel.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+            EpgGuide.Listing listing = new EpgGuide.Listing();
+            listing.title = this.channel.epg.title;
+            listing.start = this.channel.epg.start;
+            listing.stop = this.channel.epg.end;
+            this.programmes.add(listing);
+            if (this.channel.epg.nextTitle != null && !this.channel.epg.nextTitle.isEmpty() && this.channel.epg.end > 0) {
+                EpgGuide.Listing listing2 = new EpgGuide.Listing();
+                listing2.title = this.channel.epg.nextTitle;
+                listing2.start = this.channel.epg.end;
+                listing2.stop = this.channel.epg.end + 1800000;
+                this.programmes.add(listing2);
+            }
+        }
+        pickCurrent();
+        RecyclerView recyclerView = this.epgList;
+        if (recyclerView != null && recyclerView.isComputingLayout()) {
+            this.epgList.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda11
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.this.lambda$bindSeededEpg$13();
+                }
+            });
+        } else {
+            EpgAdapter epgAdapter = this.epgAdapter;
+            if (epgAdapter != null) {
+                epgAdapter.notifyDataSetChanged();
+            }
+        }
+        bindEpg();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$bindSeededEpg$13() {
+        EpgAdapter epgAdapter;
+        if (isFinishing() || (epgAdapter = this.epgAdapter) == null) {
+            return;
+        }
+        epgAdapter.notifyDataSetChanged();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void loadProgrammes() {
+        final Models.Channel channel;
+        if (!this.liveMode || (channel = this.channel) == null) {
+            return;
+        }
+        if ((channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) || App.api == null) {
+            Handler handler = UI;
+            handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 600L);
+            handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 2000);
+            handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 5000L);
+            return;
+        }
+        IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda24
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$loadProgrammes$15(channel);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$loadProgrammes$15(final Models.Channel channel) {
+        final List<EpgGuide.Listing> programmes = App.api.programmes(channel);
+        UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda13
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$loadProgrammes$14(programmes, channel);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$loadProgrammes$14(List list, Models.Channel channel) {
+        if (isFinishing()) {
+            return;
+        }
+        if (list != null && !list.isEmpty() && App.guide != null) {
+            App.guide.putListings(channel, list);
+        }
+        seedEpg();
+    }
+
+    private void pickCurrent() {
+        long currentTimeMillis = System.currentTimeMillis();
+        EpgGuide.Listing listing = null;
+        this.current = null;
+        Iterator<EpgGuide.Listing> it = this.programmes.iterator();
+        while (true) {
+            if (!it.hasNext()) {
+                break;
+            }
+            EpgGuide.Listing next = it.next();
+            if (next.start <= currentTimeMillis && next.stop > currentTimeMillis) {
+                this.current = next;
+            } else if (this.current != null && next.start >= this.current.stop) {
+                listing = next;
+                break;
+            }
+        }
+        if (this.current == null) {
+            Iterator<EpgGuide.Listing> it2 = this.programmes.iterator();
+            while (true) {
+                if (!it2.hasNext()) {
+                    break;
+                }
+                EpgGuide.Listing next2 = it2.next();
+                if (next2.stop > currentTimeMillis) {
+                    this.current = next2;
+                    break;
+                }
+            }
+        }
+        if (this.current == null || this.channel == null) {
+            return;
+        }
+        Models.Epg epg = new Models.Epg();
+        epg.title = this.current.title;
+        epg.start = this.current.start;
+        epg.end = this.current.stop;
+        if (listing != null) {
+            epg.nextTitle = listing.title;
+        }
+        this.channel.epg = epg;
+    }
+
+    private void bindEpg() {
+        EpgGuide.Listing listing;
+        Models.Channel channel;
+        Models.Channel channel2;
+        if (this.liveMode) {
+            EpgGuide.Listing listing2 = this.current;
+            if (listing2 == null && (channel2 = this.channel) != null && channel2.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+                listing2 = new EpgGuide.Listing();
+                listing2.title = this.channel.epg.title;
+                listing2.start = this.channel.epg.start;
+                listing2.stop = this.channel.epg.end;
+                this.current = listing2;
+            }
+            if (listing2 != null) {
+                Iterator<EpgGuide.Listing> it = this.programmes.iterator();
+                while (it.hasNext()) {
+                    listing = it.next();
+                    if (listing.start >= listing2.stop) {
+                        break;
+                    }
+                }
+            }
+            listing = null;
+            if (listing2 != null) {
+                TextView textView = this.epgNow;
+                if (textView != null) {
+                    textView.setText(Text.clean(listing2.title));
+                }
+                TextView textView2 = this.epgStart;
+                if (textView2 != null) {
+                    textView2.setText(this.clockFmt.format(new Date(listing2.start)));
+                }
+                TextView textView3 = this.epgEnd;
+                if (textView3 != null) {
+                    textView3.setText(this.clockFmt.format(new Date(listing2.stop)));
+                }
+                TextView textView4 = this.playerSub;
+                if (textView4 != null) {
+                    textView4.setText(Text.clean(listing2.title) + "  ·  " + this.clockFmt.format(new Date(listing2.start)) + "–" + this.clockFmt.format(new Date(listing2.stop)));
+                }
+            } else {
+                TextView textView5 = this.epgNow;
+                if (textView5 != null) {
+                    textView5.setText("Keine EPG-Daten");
+                }
+                TextView textView6 = this.epgStart;
+                if (textView6 != null) {
+                    textView6.setText("--:--");
+                }
+                TextView textView7 = this.epgEnd;
+                if (textView7 != null) {
+                    textView7.setText("--:--");
+                }
+            }
+            if (this.epgNext != null) {
+                String str = listing == null ? "" : "Danach: " + Text.clean(listing.title) + "  " + this.clockFmt.format(new Date(listing.start));
+                if (str.isEmpty() && (channel = this.channel) != null && channel.epg != null && this.channel.epg.nextTitle != null) {
+                    str = "Danach: " + Text.clean(this.channel.epg.nextTitle);
+                }
+                this.epgNext.setText(str);
+            }
+            TextView textView8 = this.badgeLive;
+            if (textView8 != null) {
+                textView8.setText(this.catchup ? "ARCHIV" : "LIVE");
+            }
+            updateClockAndBar();
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void updateClockAndBar() {
+        long currentTimeMillis;
+        ExoPlayer exoPlayer;
+        TextView textView = this.clock;
+        if (textView != null) {
+            textView.setText(this.clockFmt.format(new Date()));
+        }
+        if (this.seeking || this.epgSeek == null) {
+            return;
+        }
+        if (!this.liveMode) {
+            updateVodBar();
+            return;
+        }
+        EpgGuide.Listing listing = this.current;
+        if (listing == null) {
+            return;
+        }
+        long j = listing.start;
+        long max = Math.max(1L, this.current.stop - j);
+        if (this.catchup && (exoPlayer = this.player) != null && exoPlayer.getDuration() > 0) {
+            currentTimeMillis = this.player.getCurrentPosition() + j;
+        } else {
+            currentTimeMillis = System.currentTimeMillis();
+        }
+        this.epgSeek.setProgress((int) Math.max(0L, Math.min(1000L, ((currentTimeMillis - j) * 1000) / max)));
+    }
+
+    private void updateVodBar() {
+        long vodDuration = vodDuration();
+        long vodPosition = vodPosition();
+        TextView textView = this.epgStart;
+        if (textView != null) {
+            textView.setText(fmtMs(vodPosition));
+        }
+        TextView textView2 = this.epgEnd;
+        if (textView2 != null) {
+            textView2.setText(vodDuration > 0 ? fmtMs(vodDuration) : "--:--");
+        }
+        if (vodDuration > 0) {
+            this.epgSeek.setProgress((int) Math.max(0L, Math.min(1000L, (vodPosition * 1000) / vodDuration)));
+        }
+    }
+
+    private long vodDuration() {
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer == null || this.useVlc) {
+                return 0L;
+            }
+            long duration = exoPlayer.getDuration();
+            if (duration <= 0 || duration == -9223372036854775807L) {
+                return 0L;
+            }
+            return duration;
+        } catch (Throwable unused) {
+            return 0L;
+        }
+    }
+
+    private long vodPosition() {
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer == null || this.useVlc) {
+                return 0L;
+            }
+            return Math.max(0L, exoPlayer.getCurrentPosition());
+        } catch (Throwable unused) {
+            return 0L;
+        }
+    }
+
+    private void seekTo(long j) {
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer == null || this.useVlc) {
+                return;
+            }
+            exoPlayer.seekTo(Math.max(0L, j));
+        } catch (Throwable unused) {
+        }
+    }
+
+    private void seekVod(int i) {
+        long vodDuration = vodDuration();
+        if (vodDuration <= 0) {
+            return;
+        }
+        seekTo((vodDuration * Math.max(0, Math.min(1000, i))) / 1000);
+    }
+
+    private void seekBy(long j) {
+        long vodDuration = vodDuration();
+        long max = Math.max(0L, vodPosition() + j);
+        if (vodDuration > 0) {
+            max = Math.min(vodDuration - 1000, max);
+        }
+        seekTo(max);
+        updateVodBar();
+    }
+
+    private static String fmtMs(long j) {
+        if (j < 0) {
+            j = 0;
+        }
+        long j2 = j / 1000;
+        long j3 = j2 / 3600;
+        long j4 = (j2 % 3600) / 60;
+        long j5 = j2 % 60;
+        if (j3 > 0) {
+            return String.format(Locale.GERMANY, "%d:%02d:%02d", Long.valueOf(j3), Long.valueOf(j4), Long.valueOf(j5));
+        }
+        return String.format(Locale.GERMANY, "%02d:%02d", Long.valueOf(j4), Long.valueOf(j5));
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void onSeekEpg(int i) {
+        if (!this.liveMode) {
+            seekVod(i);
+            return;
+        }
+        EpgGuide.Listing listing = this.current;
+        if (listing == null) {
+            return;
+        }
+        long max = this.current.start + ((Math.max(1L, listing.stop - this.current.start) * i) / 1000);
+        if (this.liveMode) {
+            Models.Channel channel = this.channel;
+            if (channel != null && channel.archive && max < System.currentTimeMillis() - C.DEFAULT_SEEK_FORWARD_INCREMENT_MS) {
+                playCatchup(this.current, max);
+            } else {
+                if (this.catchup) {
+                    return;
+                }
+                Toast.makeText(this, "Live-Zeit. Zum Zurückblicken Archiv-Sender in der EPG-Liste wählen.", 0).show();
+            }
+        }
+    }
+
+    private void toggleEpg() {
+        if (this.epgSheet.getVisibility() == 0) {
+            closeEpg();
+        } else {
+            openEpg();
+        }
+    }
+
+    private void openEpg() {
+        this.epgSheet.setVisibility(0);
+        this.bottomBar.setVisibility(8);
+        long currentTimeMillis = System.currentTimeMillis();
+        int i = 0;
+        for (int i2 = 0; i2 < this.programmes.size(); i2++) {
+            if (this.programmes.get(i2).start <= currentTimeMillis && this.programmes.get(i2).stop > currentTimeMillis) {
+                i = i2;
+            }
+        }
+        RecyclerView recyclerView = this.epgList;
+        if (recyclerView == null) {
+            recyclerView = (RecyclerView) findViewById(R.id.epgList);
+        }
+        recyclerView.scrollToPosition(Math.max(0, i - 2));
+        final RecyclerView rvFinal = recyclerView;
+        final int idxFinal = i;
+        recyclerView.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda17
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.lambda$openEpg$16(rvFinal, idxFinal);
+            }
+        });
+    }
+
+    static /* synthetic */ void lambda$openEpg$16(RecyclerView recyclerView, int i) {
+        RecyclerView.ViewHolder findViewHolderForAdapterPosition = recyclerView.findViewHolderForAdapterPosition(i);
+        if (findViewHolderForAdapterPosition != null) {
+            findViewHolderForAdapterPosition.itemView.requestFocus();
+        } else {
+            recyclerView.requestFocus();
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void closeEpg() {
+        this.epgSheet.setVisibility(8);
+        setHud(true);
+        scheduleHide();
+    }
+
+    private void toggleResize() {
+        Prefs prefs = new Prefs(this);
+        prefs.setResize("zoom".equals(prefs.resize()) ^ true ? "zoom" : "fit");
+        applyResize();
+    }
+
+    private void applyResize() {
+        boolean z;
+        if (Tv.isTv(this)) {
+            z = "zoom".equals(new Prefs(this).resize());
+        } else {
+            z = !"fit".equals(new Prefs(this).resize());
+        }
+        PlayerView playerView = this.playerView;
+        if (playerView != null) {
+            playerView.setResizeMode(z ? 4 : 0);
+        }
+        TextView textView = this.btnResize;
+        if (textView != null) {
+            textView.setText(z ? "Füllen" : "Fit");
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void playLive() {
+        if (this.channel == null) {
+            return;
+        }
+        this.catchup = false;
+        this.liveMode = true;
+        this.errorView.setVisibility(8);
+        buildQueue(this.channel.hlsUrl, this.channel.tsUrl);
+        playCurrent();
+        pickCurrent();
+        bindEpg();
+        Toast.makeText(this, "Live", 0).show();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void playCatchup(EpgGuide.Listing listing, long j) {
+        if (this.channel == null || App.api == null || listing == null) {
+            return;
+        }
+        if (!this.channel.archive) {
+            Toast.makeText(this, "Dieser Sender hat kein Archiv.", 0).show();
+            return;
+        }
+        long max = Math.max(listing.start, j);
+        if (max >= listing.stop - 30000) {
+            max = listing.start;
+        }
+        long j2 = max;
+        if (listing.stop < System.currentTimeMillis() - (Math.max(1, this.channel.archiveDays) * 86400000)) {
+            Toast.makeText(this, "Außerhalb des Archivs.", 0).show();
+            return;
+        }
+        this.catchup = true;
+        this.liveMode = true;
+        this.current = listing;
+        this.errorView.setVisibility(8);
+        this.queue.clear();
+        Iterator<String> it = App.api.timeshiftUrls(this.channel, j2, listing.stop).iterator();
+        while (it.hasNext()) {
+            addUrl(it.next());
+        }
+        this.index = 0;
+        playCurrent();
+        bindEpg();
+        this.playerSub.setText("Archiv · " + listing.title);
+        this.epgSheet.setVisibility(8);
+        this.bottomBar.setVisibility(0);
+    }
+
+    private void buildQueue(String str, String str2) {
+        this.queue.clear();
+        addUrl(str);
+        addUrl(str2);
+        if (str != null) {
+            if (str.endsWith(".m3u8")) {
+                addUrl(str.substring(0, str.length() - 5) + ".ts");
+            } else if (str.endsWith(".ts")) {
+                addUrl(str.substring(0, str.length() - 3) + ".m3u8");
+            } else {
+                addUrl(str + ".m3u8");
+                addUrl(str + ".ts");
+            }
+        }
+        this.index = 0;
+    }
+
+    private void addUrl(String str) {
+        if (str == null) {
+            return;
+        }
+        String trim = str.trim();
+        if (trim.isEmpty() || this.queue.contains(trim)) {
+            return;
+        }
+        this.queue.add(trim);
+    }
+
+    private void applyHeaders(String str) {
+        if (this.http == null || str == null) {
+            return;
+        }
+        HashMap hashMap = new HashMap();
+        if (Vavoo.isCdn(str) || Vavoo.isPlayUrl(str)) {
+            hashMap.put(HttpHeaders.USER_AGENT, "okhttp/4.11.0");
+            hashMap.put(HttpHeaders.ACCEPT, "*/*");
+            this.http.setUserAgent("okhttp/4.11.0");
+        } else if (str.contains("gxplayer") || str.contains("/m3u8/") || str.contains("master.txt")) {
+            hashMap.put(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+            hashMap.put(HttpHeaders.REFERER, "https://watch.gxplayer.xyz/");
+            hashMap.put(HttpHeaders.ORIGIN, "https://watch.gxplayer.xyz");
+            this.http.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+        } else {
+            hashMap.put(HttpHeaders.USER_AGENT, "VLC/3.0.21 LibVLC/3.0.21");
+            hashMap.put(HttpHeaders.REFERER, originOf(str));
+            this.http.setUserAgent("VLC/3.0.21 LibVLC/3.0.21");
+        }
+        this.http.setDefaultRequestProperties((Map<String, String>) hashMap);
+    }
+
+    private static String originOf(String str) {
+        if (str != null && !str.isEmpty()) {
+            try {
+                Uri parse = Uri.parse(str);
+                return parse.getScheme() + "://" + parse.getHost() + (parse.getPort() > 0 ? ":" + parse.getPort() : "") + "/";
+            } catch (Exception unused) {
+            }
+        }
+        return "";
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    /* JADX WARN: Removed duplicated region for block: B:15:0x0030 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:17:0x0034 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:19:0x0038 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:28:0x0066 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:52:0x00cb A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:57:0x0110 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:60:0x0118 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:63:0x0163 A[Catch: all -> 0x0169, TRY_LEAVE, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:65:? A[RETURN, SYNTHETIC] */
+    /* JADX WARN: Removed duplicated region for block: B:66:0x0133 A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /* JADX WARN: Removed duplicated region for block: B:67:0x00ef A[Catch: all -> 0x0169, TryCatch #0 {all -> 0x0169, blocks: (B:8:0x0013, B:10:0x0024, B:15:0x0030, B:17:0x0034, B:19:0x0038, B:23:0x003d, B:25:0x0043, B:26:0x004d, B:28:0x0066, B:30:0x006e, B:32:0x0076, B:34:0x0082, B:36:0x008b, B:38:0x0091, B:40:0x0095, B:42:0x009e, B:44:0x00a9, B:45:0x00b0, B:50:0x00c0, B:52:0x00cb, B:54:0x00d4, B:55:0x0103, B:57:0x0110, B:60:0x0118, B:61:0x0149, B:63:0x0163, B:66:0x0133, B:67:0x00ef, B:69:0x00fd, B:71:0x007e), top: B:7:0x0013 }] */
+    /*
+        Code decompiled incorrectly, please refer to instructions dump.
+    */
+
+    private void toastPlaybackError(final String msg) {
+        try {
+            runOnUiThread(new Runnable() {
+                @Override public void run() {
+                    try {
+                        Toast.makeText(PlayerActivity.this, msg, Toast.LENGTH_SHORT).show();
+                        if (errorView != null) {
+                            errorView.setVisibility(0);
+                            errorView.setText(msg);
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            });
+        } catch (Throwable ignored) {}
+    }
+
+    public void playCurrent() {
+        boolean z;
+        boolean z2;
+        MediaSource createMediaSource = null;
+        TextView textView;
+        int i = this.index;
+        if (i < 0 || i >= this.queue.size() || this.player == null) {
+            TextView textView2 = this.errorView;
+            if (textView2 != null) {
+                textView2.setVisibility(0);
+                this.errorView.setText("Keine Stream-URL.");
+                return;
+            }
+            return;
+        }
+        try {
+            String str = this.queue.get(this.index);
+            boolean isPlayUrl = Vavoo.isPlayUrl(str);
+            if (!isPlayUrl && !Vavoo.isCdn(str)) {
+                z = false;
+                if (isPlayUrl) {
+                    this.vavooKeep = str;
+                }
+                if (z) {
+                    this.vavooHot = str;
+                }
+                if (!isPlayUrl) {
+                    if (this.resolving) {
+                        return;
+                    }
+                    this.resolving = true;
+                    TextView textView3 = this.errorView;
+                    if (textView3 != null) {
+                        textView3.setVisibility(0);
+                        this.errorView.setText("Vavoo wird geladen…");
+                    }
+                    this.vavooKeep = str;
+                    final String resolveUrl = str;
+                    final Runnable runnable = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda20
+                        @Override // java.lang.Runnable
+                        public final void run() {
+                            PlayerActivity.this.lambda$playCurrent$17();
+                        }
+                    };
+                    UI.postDelayed(runnable, 10000);
+                    IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
+                        @Override // java.lang.Runnable
+                        public final void run() {
+                            PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable);
+                        }
+                    });
+                    return;
+                }
+                if (str.contains("gxplayer") || str.contains("master.txt") || str.contains("/m3u8/")) {
+                    str = LocalHls.wrap(str);
+                }
+                this.freezeTicks = 0;
+                this.userPaused = false;
+                applyHeaders(str);
+                if (!z && wantVlc()) {
+                    playWithVlc(str);
+                    return;
+                }
+                hideVlc();
+                this.useVlc = false;
+                PlayerView playerView = this.playerView;
+                if (playerView != null) {
+                    playerView.setVisibility(0);
+                    if (this.playerView.getPlayer() == null) {
+                        this.playerView.setPlayer(this.player);
+                    }
+                }
+                Uri parse = Uri.parse(str);
+                if (!isHls(str) && !z) {
+                    z2 = false;
+                    MediaItem.Builder uri = new MediaItem.Builder().setUri(parse);
+                    if (!z2) {
+                        uri.setMimeType(MimeTypes.APPLICATION_M3U8);
+                        if (this.liveMode) {
+                            uri.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
+                        }
+                    } else if (str.toLowerCase(Locale.US).contains(".ts")) {
+                        uri.setMimeType(MimeTypes.VIDEO_MP2T);
+                    }
+                    MediaItem build = uri.build();
+                    LiveRetry liveRetry = new LiveRetry();
+                    DataSource.Factory factory = this.http;
+                    if (z) {
+                        factory = OkPlay.factory();
+                    }
+                    if (!z2) {
+                        createMediaSource = new HlsMediaSource.Factory(factory).setAllowChunklessPreparation(true).setExtractorFactory(new DefaultHlsExtractorFactory(73, true)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
+                    } else {
+                        createMediaSource = new ProgressiveMediaSource.Factory(factory, new DefaultExtractorsFactory().setTsExtractorFlags(73)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
+                    }
+                    this.player.setMediaSource(createMediaSource);
+                    this.player.setVolume(1.0f);
+                    this.player.prepare();
+                    this.player.setPlayWhenReady(true);
+                    textView = this.errorView;
+                    if (textView == null) {
+                        textView.setVisibility(8);
+                        return;
+                    }
+                    return;
+                }
+                z2 = true;
+                MediaItem.Builder uri2 = new MediaItem.Builder().setUri(parse);
+                uri2.setMimeType(MimeTypes.APPLICATION_M3U8);
+                if (this.liveMode) {
+                    uri2.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
+                }
+                MediaItem build2 = uri2.build();
+                LiveRetry liveRetry2 = new LiveRetry();
+                DataSource.Factory factory2 = this.http;
+                if (z) {
+                    factory2 = OkPlay.factory();
+                }
+                createMediaSource = new HlsMediaSource.Factory(factory2).setAllowChunklessPreparation(true).setExtractorFactory(new DefaultHlsExtractorFactory(73, true)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry2).createMediaSource(build2);
+                this.player.setMediaSource(createMediaSource);
+                this.player.setVolume(1.0f);
+                this.player.prepare();
+                this.player.setPlayWhenReady(true);
+                textView = this.errorView;
+                if (textView != null) {
+                    textView.setVisibility(8);
+                }
+            }
+        } catch (Throwable unused) {
+            TextView textView4 = this.errorView;
+            String msg = "Wiedergabe fehlgeschlagen" + (unused.getMessage() != null ? (": " + unused.getMessage()) : ".");
+            if (textView4 != null) {
+                textView4.setVisibility(0);
+                this.errorView.setText(msg);
+            }
+            toastPlaybackError(msg);
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$playCurrent$17() {
+        if (this.resolving) {
+            this.resolving = false;
+            TextView textView = this.errorView;
+            if (textView != null) {
+                textView.setVisibility(0);
+                this.errorView.setText("Vavoo antwortet nicht. Signatur/Resolve prüfen.");
+            }
+            toastPlaybackError("Vavoo antwortet nicht");
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$playCurrent$19(String str, final Runnable runnable) {
+        String resolved = null;
+        try {
+            resolved = Vavoo.resolve(str);
+        } catch (Throwable unused) {
+            resolved = null;
+        }
+        final String str2 = resolved;
+        UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda25
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$playCurrent$18(runnable, str2);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$playCurrent$18(Runnable runnable, String str) {
+        UI.removeCallbacks(runnable);
+        if (isFinishing() || isDestroyed()) {
+            this.resolving = false;
+            return;
+        }
+        this.resolving = false;
+        if (str == null || str.isEmpty()) {
+            TextView textView = this.errorView;
+            String err = "Vavoo-Stream nicht erreichbar. Sender erneut tippen.";
+            if (Vavoo.lastError != null && !Vavoo.lastError.isEmpty()) {
+                err = err + " (" + Vavoo.lastError + ")";
+            }
+            if (textView != null) {
+                textView.setVisibility(0);
+                this.errorView.setText(err);
+            }
+            toastPlaybackError(err);
+            return;
+        }
+        this.vavooHot = str;
+        int i = this.index;
+        if (i >= 0 && i < this.queue.size()) {
+            this.queue.set(this.index, str);
+        }
+        playCurrent();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void pickPlayableAudio(Tracks tracks) {
+        if (this.player == null || tracks == null) {
+            return;
+        }
+        Iterator<Tracks.Group> it = tracks.getGroups().iterator();
+        boolean z = false;
+        boolean z2 = false;
+        while (it.hasNext()) {
+            Tracks.Group next = it.next();
+            if (next.getType() == 1) {
+                if (next.isSelected()) {
+                    for (int i = 0; i < next.length; i++) {
+                        if (next.isTrackSelected(i) && next.isTrackSupported(i)) {
+                            z2 = true;
+                        }
+                    }
+                }
+                z = true;
+            }
+        }
+        if (z && z2) {
+            return;
+        }
+        Iterator<Tracks.Group> it2 = tracks.getGroups().iterator();
+        while (it2.hasNext()) {
+            Tracks.Group next2 = it2.next();
+            if (next2.getType() == 1) {
+                for (int i2 = 0; i2 < next2.length; i2++) {
+                    if (next2.isTrackSupported(i2)) {
+                        ExoPlayer exoPlayer = this.player;
+                        exoPlayer.setTrackSelectionParameters(exoPlayer.getTrackSelectionParameters().buildUpon().setOverrideForType(new TrackSelectionOverride(next2.getMediaTrackGroup(), i2)).build());
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean wantVlc() {
+        if (this.liveMode) {
+            return this.useVlc || "vlc".equals(new Prefs(this).player());
+        }
+        return false;
+    }
+
+    private void hideVlc() {
+        try {
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine != null) {
+                liveEngine.stop(false);
+            }
+        } catch (Throwable unused) {
+        }
+        ViewGroup viewGroup = this.vlcHost;
+        if (viewGroup != null) {
+            viewGroup.setVisibility(8);
+        }
+    }
+
+    private void playWithVlc(final String str) {
+        this.useVlc = true;
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer != null) {
+                exoPlayer.setPlayWhenReady(false);
+                this.player.stop();
+            }
+            PlayerView playerView = this.playerView;
+            if (playerView != null) {
+                playerView.setPlayer(null);
+                this.playerView.setVisibility(8);
+            }
+            if (this.vlcHost == null) {
+                this.vlcHost = (ViewGroup) findViewById(R.id.vlcHost);
+            }
+            LiveEngine liveEngine = this.vlc;
+            if (liveEngine != null) {
+                liveEngine.play(str, true ^ this.vlcSoft);
+                TextView textView = this.errorView;
+                if (textView != null) {
+                    textView.setVisibility(8);
+                    return;
+                }
+                return;
+            }
+            TextView textView2 = this.errorView;
+            if (textView2 != null) {
+                textView2.setVisibility(0);
+                this.errorView.setText("VLC startet…");
+            }
+            IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda18
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.this.lambda$playWithVlc$21(str);
+                }
+            });
+        } catch (Throwable unused) {
+            this.useVlc = false;
+            TextView textView3 = this.errorView;
+            if (textView3 != null) {
+                textView3.setVisibility(0);
+                this.errorView.setText("VLC-Start fehlgeschlagen.");
+            }
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$playWithVlc$21(final String str) {
+        LiveEngine engine = null;
+        try {
+            engine = VlcFactory.create(this, this.vlcHost);
+        } catch (Throwable unused) {
+            engine = null;
+        }
+        final LiveEngine liveEngine = engine;
+        UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda19
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$playWithVlc$20(liveEngine, str);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$playWithVlc$20(LiveEngine liveEngine, String str) {
+        if (isFinishing() || isDestroyed()) {
+            if (liveEngine != null) {
+                try {
+                    liveEngine.stop(true);
+                    return;
+                } catch (Throwable unused) {
+                    return;
+                }
+            }
+            return;
+        }
+        if (liveEngine == null) {
+            this.useVlc = false;
+            TextView textView = this.errorView;
+            if (textView != null) {
+                textView.setText("VLC nicht verfügbar.");
+                return;
+            }
+            return;
+        }
+        this.vlc = liveEngine;
+        liveEngine.play(str, !this.vlcSoft);
+        TextView textView2 = this.errorView;
+        if (textView2 != null) {
+            textView2.setVisibility(8);
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void tryExoAfterVlc() {
+        if (this.vavooTriedVlc) {
+            TextView textView = this.errorView;
+            if (textView != null) {
+                textView.setVisibility(0);
+                this.errorView.setText("Vavoo-Stream kommt nicht.");
+                return;
+            }
+            return;
+        }
+        this.vavooTriedVlc = true;
+        this.freezeTicks = 0;
+        hideVlc();
+        this.useVlc = false;
+        TextView textView2 = this.errorView;
+        if (textView2 != null) {
+            textView2.setVisibility(0);
+            this.errorView.setText("Wechsle zu Exo…");
+        }
+        playCurrent();
+    }
+
+    private boolean isHls(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+        String lowerCase = str.toLowerCase(Locale.US);
+        if ((lowerCase.contains("127.0.0.1") && lowerCase.contains("/p?")) || lowerCase.contains("master.txt") || lowerCase.contains("/m3u8/")) {
+            return true;
+        }
+        if (lowerCase.contains(".mp4") || lowerCase.contains(".mkv") || lowerCase.contains(".avi")) {
+            return false;
+        }
+        if (lowerCase.contains(".m3u8") || lowerCase.contains("timeshift.php") || lowerCase.contains("/hls/") || lowerCase.contains("/m3u8/") || lowerCase.contains("/alternative_stream/") || lowerCase.contains("master.txt") || Vavoo.isCdn(str) || Vavoo.isPlayUrl(str) || lowerCase.contains("/sunshine/")) {
+            return true;
+        }
+        return this.liveMode && !lowerCase.contains(".ts");
+    }
+
+    private boolean allowVlc() {
+        return !"exo".equals(new Prefs(this).player());
+    }
+
+    private boolean audioNeedsVlc(Tracks tracks) {
+        String str;
+        Iterator<Tracks.Group> it = tracks.getGroups().iterator();
+        loop0: while (true) {
+            if (!it.hasNext()) {
+                return false;
+            }
+            Tracks.Group next = it.next();
+            if (next.getType() == 1) {
+                for (int i = 0; i < next.length; i++) {
+                    if (next.isTrackSelected(i) && (str = next.getTrackFormat(i).sampleMimeType) != null) {
+                        String lowerCase = str.toLowerCase(Locale.US);
+                        if (lowerCase.contains("ac3") || lowerCase.contains("eac3") || lowerCase.contains("dts") || lowerCase.contains("mpeg-l") || lowerCase.contains("mp2") || lowerCase.contains("true-hd")) {
+                            break loop0;
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean looksBroadcast(String str) {
+        if (str == null) {
+            return false;
+        }
+        String lowerCase = str.toLowerCase(Locale.US);
+        return lowerCase.contains(".ts") || lowerCase.contains("/live/") || lowerCase.contains("mpegts");
+    }
+
+    private void cyclePlayer() {
+        Prefs prefs = new Prefs(this);
+        String player = prefs.player();
+        String str = "auto";
+        if ("auto".equals(player)) {
+            str = "exo";
+        } else if ("exo".equals(player)) {
+            str = "vlc";
+        }
+        prefs.setPlayer(str);
+        paintPlayerBtn();
+        this.useVlc = "vlc".equals(str);
+        this.vlcSoft = false;
+        ExoPlayer exoPlayer = this.player;
+        if (exoPlayer != null) {
+            try {
+                exoPlayer.stop();
+            } catch (Throwable unused) {
+            }
+        }
+        hideVlc();
+        this.index = 0;
+        playCurrent();
+        Toast.makeText(this, "Player: " + labelPlayer(str), 0).show();
+    }
+
+    private void paintPlayerBtn() {
+        TextView textView = this.btnPlayer;
+        if (textView == null) {
+            return;
+        }
+        textView.setText(labelPlayer(new Prefs(this).player()));
+    }
+
+    private static String labelPlayer(String str) {
+        return "vlc".equals(str) ? "VLC" : "exo".equals(str) ? "Exo" : "Auto";
+    }
+
+    /* JADX WARN: Removed duplicated region for block: B:12:0x0023  */
+    /* JADX WARN: Removed duplicated region for block: B:25:0x004f  */
+    /*
+        Code decompiled incorrectly, please refer to instructions dump.
+    */
+    private void zap(int i) {
+        if (!this.liveMode || App.live == null || App.live.isEmpty()) {
+            return;
+        }
+        Models.Channel channel = this.channel;
+        if (channel == null) {
+            channel = App.playing;
+        }
+        String str = channel != null ? channel.id : null;
+        int i3 = -1;
+        if (str != null) {
+            for (int idx = 0; idx < App.live.size(); idx++) {
+                Models.Channel channel2 = App.live.get(idx);
+                if (channel2 != null && !channel2.header && str.equals(channel2.id)) {
+                    i3 = idx;
+                    break;
+                }
+            }
+        }
+        if (i3 < 0) {
+            i3 = 0;
+        }
+        for (int i2 = 0; i2 < App.live.size(); i2++) {
+            i3 = ((i3 + i) + App.live.size()) % App.live.size();
+            Models.Channel channel3 = App.live.get(i3);
+            if (channel3 != null && !channel3.header) {
+                playChannel(channel3);
+                return;
+            }
+        }
+    }
+
+    private void playChannel(Models.Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        App.playing = channel;
+        this.channel = channel;
+        this.liveMode = true;
+        this.catchup = false;
+        this.useVlc = false;
+        this.vlcSoft = false;
+        this.freezeTicks = 0;
+        ExoPlayer exoPlayer = this.player;
+        if (exoPlayer != null) {
+            exoPlayer.stop();
+            this.player.clearMediaItems();
+        }
+        hideVlc();
+        PlayerView playerView = this.playerView;
+        if (playerView != null) {
+            playerView.setVisibility(0);
+        }
+        this.playerTitle.setText(Text.clean(channel.name));
+        this.playerSub.setText("");
+        buildQueue(channel.hlsUrl, channel.tsUrl);
+        if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+            this.queue.clear();
+            addUrl(channel.vavooUrl);
+            this.index = 0;
+            this.vavooKeep = channel.vavooUrl;
+            this.vavooHot = null;
+            this.vavooTriedVlc = false;
+            this.recoverTries = 0;
+        }
+        playCurrent();
+        seedEpg();
+        loadProgrammes();
+        setHud(true);
+        scheduleHide();
+    }
+
+    private void startVavooPrefetch() {
+        Handler handler = UI;
+        handler.removeCallbacks(this.vavooPrefetch);
+        handler.postDelayed(this.vavooPrefetch, 12000L);
+    }
+
+    /* renamed from: app.streamy2.PlayerActivity$6, reason: invalid class name */
+    class AnonymousClass6 implements Runnable {
+        AnonymousClass6() {
+        }
+
+        @Override // java.lang.Runnable
+        public void run() {
+            final String str = PlayerActivity.this.vavooKeep;
+            if (str == null || PlayerActivity.this.isFinishing()) {
+                return;
+            }
+            PlayerActivity.IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$6$$ExternalSyntheticLambda0
+                @Override // java.lang.Runnable
+                public final void run() {
+                    PlayerActivity.AnonymousClass6.this.lambda$run$0(str);
+                }
+            });
+        }
+
+        /* JADX INFO: Access modifiers changed from: private */
+        public /* synthetic */ void lambda$run$0(String str) {
+            String resolve = Vavoo.resolve(str);
+            if (resolve != null && !resolve.isEmpty()) {
+                PlayerActivity.this.vavooHot = resolve;
+            }
+            if (PlayerActivity.this.isFinishing() || PlayerActivity.this.vavooKeep == null) {
+                return;
+            }
+            PlayerActivity.UI.postDelayed(this, C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
+        }
+    }
+
+    private void swapVavoo(boolean z) {
+        int i;
+        if (this.vavooKeep == null) {
+            return;
+        }
+        String str = this.vavooHot;
+        if (str != null && (i = this.index) >= 0 && i < this.queue.size()) {
+            String str2 = this.queue.get(this.index);
+            if (z || !str.equals(str2)) {
+                this.queue.set(this.index, str);
+                playCurrent();
+                return;
+            }
+        }
+        if (this.resolving) {
+            return;
+        }
+        this.resolving = true;
+        final String str3 = this.vavooKeep;
+        IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda16
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$swapVavoo$23(str3);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$swapVavoo$23(String str) {
+        final String resolve = Vavoo.resolve(str);
+        UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                PlayerActivity.this.lambda$swapVavoo$22(resolve);
+            }
+        });
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public /* synthetic */ void lambda$swapVavoo$22(String str) {
+        this.resolving = false;
+        if (str != null && !str.isEmpty()) {
+            this.vavooHot = str;
+            int i = this.index;
+            if (i >= 0 && i < this.queue.size()) {
+                this.queue.set(this.index, str);
+            }
+        }
+        playCurrent();
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void recoverStuck() {
+        if (this.vavooKeep != null) {
+            swapVavoo(true);
+            return;
+        }
+        int i = this.recoverTries;
+        if (i < 2) {
+            this.recoverTries = i + 1;
+            playCurrent();
+            return;
+        }
+        TextView textView = this.errorView;
+        if (textView != null) {
+            textView.setVisibility(0);
+            this.errorView.setText("Sender hängt. Oben auf VLC oder Exo tippen.");
+        }
+    }
+
+    private boolean switchToVlc() {
+        int i = this.index;
+        if (i < 0 || i >= this.queue.size()) {
+            return false;
+        }
+        playWithVlc(this.queue.get(this.index));
+        return true;
+    }
+
+    @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
+    protected void onResume() {
+        LiveEngine liveEngine;
+        super.onResume();
+        try {
+            if (this.useVlc && (liveEngine = this.vlc) != null) {
+                liveEngine.resume();
+            }
+            PlayerView playerView = this.playerView;
+            if (playerView == null || this.player == null || this.useVlc || playerView.getPlayer() != null) {
+                return;
+            }
+            this.playerView.setPlayer(this.player);
+            this.player.setPlayWhenReady(true);
+        } catch (Throwable unused) {
+        }
+    }
+
+    @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
+    protected void onPause() {
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer != null) {
+                exoPlayer.setPlayWhenReady(false);
+            }
+        } catch (Throwable unused) {
+        }
+        super.onPause();
+    }
+
+    @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
+    protected void onStop() {
+        try {
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer != null) {
+                exoPlayer.setPlayWhenReady(false);
+            }
+        } catch (Throwable unused) {
+        }
+        super.onStop();
+    }
+
+    @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
+    protected void onDestroy() {
+        stopPlayback();
+        releasePlayer();
+        super.onDestroy();
+    }
+
+    private static final class LiveRetry extends DefaultLoadErrorHandlingPolicy {
+        @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+        public int getMinimumLoadableRetryCount(int i) {
+            return 10;
+        }
+
+        @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+        public long getRetryDelayMsFor(LoadErrorHandlingPolicy.LoadErrorInfo loadErrorInfo) {
+            return 700L;
+        }
+
+        LiveRetry() {
+            super(10);
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    class EpgAdapter extends RecyclerView.Adapter<EpgAdapter.VH> {
+        private EpgAdapter() {
+        }
+
+        @Override // androidx.recyclerview.widget.RecyclerView.Adapter
+        public VH onCreateViewHolder(ViewGroup viewGroup, int i) {
+            View inflate = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.item_epg, viewGroup, false);
+            inflate.setFocusable(true);
+            inflate.setClickable(true);
+            return new VH(inflate);
+        }
+
+        @Override // androidx.recyclerview.widget.RecyclerView.Adapter
+        public void onBindViewHolder(VH vh, int i) {
+            final EpgGuide.Listing listing = (EpgGuide.Listing) PlayerActivity.this.programmes.get(i);
+            long currentTimeMillis = System.currentTimeMillis();
+            vh.time.setText(PlayerActivity.this.clockFmt.format(new Date(listing.start)));
+            vh.title.setText(Text.clean(listing.title));
+            boolean z = false;
+            boolean z2 = listing.start <= currentTimeMillis && listing.stop > currentTimeMillis;
+            final boolean z3 = listing.stop <= currentTimeMillis;
+            if (PlayerActivity.this.channel != null && PlayerActivity.this.channel.archive && z3) {
+                z = true;
+            }
+            if (z2) {
+                vh.state.setText("LIVE  ·  " + PlayerActivity.this.clockFmt.format(new Date(listing.start)) + "–" + PlayerActivity.this.clockFmt.format(new Date(listing.stop)));
+            } else if (z) {
+                vh.state.setText("Zurückblicken  ·  " + PlayerActivity.this.clockFmt.format(new Date(listing.start)) + "–" + PlayerActivity.this.clockFmt.format(new Date(listing.stop)));
+            } else {
+                vh.state.setText(PlayerActivity.this.clockFmt.format(new Date(listing.start)) + "–" + PlayerActivity.this.clockFmt.format(new Date(listing.stop)));
+            }
+            vh.title.setAlpha((!z3 || z) ? 1.0f : 0.45f);
+            final boolean z4 = z2;
+            final boolean zArchive = z;
+            vh.itemView.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.PlayerActivity$EpgAdapter$$ExternalSyntheticLambda0
+                @Override // android.view.View.OnClickListener
+                public final void onClick(View view) {
+                    PlayerActivity.EpgAdapter.this.lambda$onBindViewHolder$0(z4, zArchive, listing, z3, view);
+                }
+            });
+        }
+
+        /* JADX INFO: Access modifiers changed from: private */
+        public /* synthetic */ void lambda$onBindViewHolder$0(boolean z, boolean z2, EpgGuide.Listing listing, boolean z3, View view) {
+            if (z) {
+                PlayerActivity.this.playLive();
+            } else if (z2) {
+                PlayerActivity.this.playCatchup(listing, listing.start);
+            } else if (z3) {
+                Toast.makeText(PlayerActivity.this, "Kein Archiv auf diesem Sender.", 0).show();
+            }
+        }
+
+        @Override // androidx.recyclerview.widget.RecyclerView.Adapter
+        public int getItemCount() {
+            return PlayerActivity.this.programmes.size();
+        }
+
+        static class VH extends RecyclerView.ViewHolder {
+            TextView state;
+            TextView time;
+            TextView title;
+
+            VH(View view) {
+                super(view);
+                this.time = (TextView) view.findViewById(R.id.epgTime);
+                this.title = (TextView) view.findViewById(R.id.epgTitle);
+                this.state = (TextView) view.findViewById(R.id.epgState);
+            }
+        }
+    }
+}

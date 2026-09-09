@@ -1,0 +1,7 @@
+{
+  "versionCode": 124,
+  "versionName": "3.04",
+  "title": "Streamy 2 Update",
+  "changelog": "Version 3.04: Update-Feeds repariert, Vavoo-Client gehärtet, Player-Fehler sichtbar, LocalHls-Port robuster, Megakino-Hosts aktualisiert, Demo klar gekennzeichnet, Xtream-HTTPS-Standard, Netzwerk-Sicherheit verbessert.",
+  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
+}
