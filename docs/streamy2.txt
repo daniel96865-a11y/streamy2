@@ -1,5 +1,5 @@
-versionCode 132
-versionName 3.12
+versionCode 133
+versionName 3.13
 title Streamy 2 Update
-message EPG-Download-Bugfix (Connection closed)
+message Browser startet leer
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
