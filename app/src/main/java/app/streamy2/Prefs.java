@@ -134,10 +134,15 @@ public class Prefs {
         this.p.edit().putString("playerLive", normPlayer(str)).apply();
     }
 
-    /** Fixed player for Vavoo. Migrates from legacy player() when unset. */
+    /** Fixed player for Vavoo. Migrates from legacy player() when unset.
+     * Legacy "vlc" migrates to auto so users are not stuck without Exo fallback. */
     public String playerVavoo() {
         if (!this.p.contains("playerVavoo")) {
-            return player();
+            String legacy = player();
+            if ("vlc".equals(legacy)) {
+                return "auto";
+            }
+            return legacy;
         }
         return normPlayer(this.p.getString("playerVavoo", "auto"));
     }
