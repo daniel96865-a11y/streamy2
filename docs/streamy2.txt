@@ -1,5 +1,5 @@
-versionCode 129
-versionName 3.09
+versionCode 130
+versionName 3.10
 title Streamy 2 Update
-message VLC→Exo Fallback, TV-Remote UX, EPG-Suffixe
+message TV Direkt-Update + Vavoo-EPG Handy/TV
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

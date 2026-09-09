@@ -20,6 +20,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
@@ -161,6 +162,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private String query = "";
     private final Set<String> plotFetch = new HashSet();
     private long updateDownloadId = -1;
+    private boolean resumeUpdateAfterSettings = false;
+    private boolean updateBusy = false;
     private final Runnable searchRun = new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda35
         @Override // java.lang.Runnable
         public final void run() {
@@ -678,6 +681,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$43(view6);
             }
         });
+        if (this.updateBanner != null) {
+            this.updateBanner.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public final void onClick(View view6) {
+                    MainActivity.this.installUpdate();
+                }
+            });
+        }
         findViewById(R.id.btnCheckUpdate).setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda108
             @Override // android.view.View.OnClickListener
             public final void onClick(View view6) {
@@ -700,7 +711,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         TextView textView7 = this.appVersion;
         if (textView7 != null) {
-            textView7.setText("Version 3.07  (127)");
+            textView7.setText("Version " + BuildConfig.VERSION_NAME + "  (" + BuildConfig.VERSION_CODE + ")");
         }
         TextView textView8 = (TextView) findViewById(R.id.pickerHint);
         if (textView8 != null) {
@@ -1195,6 +1206,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         super.onResume();
         this.resumeAt = SystemClock.uptimeMillis();
         try {
+            if (this.resumeUpdateAfterSettings) {
+                boolean allowed = Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
+                if (allowed) {
+                    this.resumeUpdateAfterSettings = false;
+                    installUpdate();
+                }
+            }
             BrowserController browserController = this.browser;
             if (browserController != null && browserController.visible()) {
                 this.browser.resume();
@@ -1675,11 +1693,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
             if (i == 4) {
                 loadVavoo();
+                // Phone + TV: always (re)bind EPG for Vavoo rows — do not rely on loadVavoo busy path alone
+                ensureVavooEpg(false);
             }
             renderList();
             RecyclerView recyclerView = this.list;
             if (recyclerView != null) {
                 recyclerView.scrollToPosition(0);
+            }
+            if (i == 4) {
+                try { loadVisibleEpg(); } catch (Throwable ignored) {}
             }
         }
         AppBarLayout appBarLayout = this.appBar;
@@ -2219,6 +2242,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 this.updateBanner.setVisibility(0);
                 this.updateText.setText("Version " + info.versionName + " verfügbar");
                 Tv.focusTree(this.updateBanner);
+                View btnNow = findViewById(R.id.btnUpdateNow);
+                if (btnNow != null) {
+                    btnNow.setFocusable(true);
+                    btnNow.setFocusableInTouchMode(false);
+                    btnNow.setClickable(true);
+                    btnNow.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            try { btnNow.requestFocus(); } catch (Throwable ignored) {}
+                        }
+                    });
+                }
             } else {
                 this.updateBanner.setVisibility(8);
             }
@@ -2236,33 +2271,106 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private void installUpdate() {
         Updates.Info info = this.pendingUpdate;
         if (info == null || info.apkUrl == null || this.pendingUpdate.apkUrl.isEmpty()) {
-            Toast.makeText(this, "Kein Download-Link.", 0).show();
+            Toast.makeText(this, "Kein Download-Link.", Toast.LENGTH_SHORT).show();
             return;
         }
         if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            Toast.makeText(this, "Unbekannte Apps erlauben, dann nochmal tippen.", 1).show();
-            try {
-                startActivity(new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES", Uri.parse("package:" + getPackageName())));
-                return;
-            } catch (Exception unused) {
-                return;
-            }
+            this.resumeUpdateAfterSettings = true;
+            Toast.makeText(this,
+                    "Bitte „Unbekannte Apps“ für Streamy 2 erlauben, dann mit OK/Zurück — Update startet automatisch.",
+                    Toast.LENGTH_LONG).show();
+            openUnknownSourcesSettings();
+            return;
         }
-        IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda65
-            @Override // java.lang.Runnable
+        if (this.updateBusy) {
+            Toast.makeText(this, "Update wird bereits geladen…", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        this.updateBusy = true;
+        try {
+            Toast.makeText(this, "Lade Update…", Toast.LENGTH_SHORT).show();
+        } catch (Throwable ignored) {}
+        IO.execute(new Runnable() {
+            @Override
             public final void run() {
                 MainActivity.this.lambda$installUpdate$65();
             }
         });
     }
 
+    private void openUnknownSourcesSettings() {
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:" + getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+            return;
+        } catch (Exception unused) {
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS));
+        } catch (Exception unused2) {
+        }
+    }
+
+    private File updateApkFile() {
+        File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (dir == null) {
+            dir = getCacheDir();
+        }
+        if (dir != null && !dir.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+        }
+        return new File(dir != null ? dir : getFilesDir(), "streamy2-update.apk");
+    }
+
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$installUpdate$65() {
-        final String directApk = Updates.directApk(this.pendingUpdate.apkUrl);
-        UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda41
-            @Override // java.lang.Runnable
+        Exception downloadError = null;
+        File dest = null;
+        try {
+            final String directApk = Updates.directApk(this.pendingUpdate.apkUrl);
+            dest = updateApkFile();
+            Updates.download(directApk, dest);
+            final File ready = dest;
+            UI.post(new Runnable() {
+                @Override
+                public final void run() {
+                    try {
+                        Toast.makeText(MainActivity.this, "Installiere…", Toast.LENGTH_SHORT).show();
+                        startApkInstall(ready);
+                    } catch (Exception e) {
+                        showInstallFailedDialog(e.getMessage());
+                    } finally {
+                        MainActivity.this.updateBusy = false;
+                    }
+                }
+            });
+            return;
+        } catch (Exception e) {
+            downloadError = e;
+        }
+        final Exception err = downloadError;
+        String fb;
+        try {
+            fb = Updates.directApk(this.pendingUpdate != null ? this.pendingUpdate.apkUrl : null);
+        } catch (Exception unused) {
+            fb = this.pendingUpdate != null ? this.pendingUpdate.apkUrl : null;
+        }
+        final String fallbackUrl = fb;
+        UI.post(new Runnable() {
+            @Override
             public final void run() {
-                MainActivity.this.lambda$installUpdate$64(directApk);
+                MainActivity.this.updateBusy = false;
+                try {
+                    Toast.makeText(MainActivity.this,
+                            "Direkt-Download fehlgeschlagen — versuche DownloadManager…",
+                            Toast.LENGTH_SHORT).show();
+                    enqueueUpdateViaDownloadManager(fallbackUrl);
+                } catch (Exception e2) {
+                    openApkInBrowser();
+                }
             }
         });
     }
@@ -2270,8 +2378,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     /* renamed from: enqueueUpdate, reason: merged with bridge method [inline-methods] */
     public void lambda$installUpdate$64(String str) {
+        enqueueUpdateViaDownloadManager(str);
+    }
+
+    private void enqueueUpdateViaDownloadManager(String str) {
         if (str == null || str.isEmpty()) {
-            Toast.makeText(this, "Kein Download-Link.", 0).show();
+            Toast.makeText(this, "Kein Download-Link.", Toast.LENGTH_SHORT).show();
+            openApkInBrowser();
             return;
         }
         try {
@@ -2285,15 +2398,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             request.setAllowedOverRoaming(true);
             request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "streamy2-update.apk");
             this.updateDownloadId = downloadManager.enqueue(request);
-            Toast.makeText(this, "Download gestartet — oben in den Benachrichtigungen", 1).show();
+            Toast.makeText(this, "Download gestartet — oben in den Benachrichtigungen", Toast.LENGTH_LONG).show();
         } catch (Exception unused) {
             openApkInBrowser();
         }
     }
 
     private void openApkInBrowser() {
-        IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda30
-            @Override // java.lang.Runnable
+        IO.execute(new Runnable() {
+            @Override
             public final void run() {
                 MainActivity.this.lambda$openApkInBrowser$67();
             }
@@ -2307,8 +2420,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             info = Updates.fetch();
         }
         final Updates.Info infoFinal = info;
-        UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda38
-            @Override // java.lang.Runnable
+        UI.post(new Runnable() {
+            @Override
             public final void run() {
                 MainActivity.this.lambda$openApkInBrowser$66(infoFinal);
             }
@@ -2318,35 +2431,35 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$openApkInBrowser$66(Updates.Info info) {
         if (info == null || info.apkUrl == null || info.apkUrl.isEmpty()) {
-            Toast.makeText(this, "Kein APK-Link gefunden", 1).show();
+            Toast.makeText(this, "Kein APK-Link gefunden", Toast.LENGTH_LONG).show();
             return;
         }
         try {
-            Intent intent = new Intent("android.intent.action.VIEW", Uri.parse(info.apkUrl));
-            intent.addFlags(268435456);
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(info.apkUrl));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (Exception unused) {
-            Toast.makeText(this, "Link: " + info.apkUrl, 1).show();
+            Toast.makeText(this, "Link: " + info.apkUrl, Toast.LENGTH_LONG).show();
         }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public void installDownloaded(Uri uri) {
         try {
-            Intent intent = new Intent("android.intent.action.VIEW");
+            Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, "application/vnd.android.package-archive");
-            intent.addFlags(268435457);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
             Iterator<ResolveInfo> it = getPackageManager().queryIntentActivities(intent, 0).iterator();
             while (it.hasNext()) {
-                grantUriPermission(it.next().activityInfo.packageName, uri, 1);
+                grantUriPermission(it.next().activityInfo.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
             }
             startActivity(intent);
         } catch (Exception e) {
-            File file = new File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "streamy2-update.apk");
+            File file = updateApkFile();
             if (file.exists()) {
                 startApkInstall(file);
             } else {
-                Toast.makeText(this, "Installieren nicht möglich: " + e.getMessage(), 1).show();
+                showInstallFailedDialog(e.getMessage());
             }
         }
     }
@@ -2360,7 +2473,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             try {
                 installViaPackageInstaller(file);
             } catch (Exception secondary) {
-                showInstallFailedDialog(primary.getMessage() != null ? primary.getMessage() : String.valueOf(secondary.getMessage()));
+                String detail = primary.getMessage() != null ? primary.getMessage() : String.valueOf(secondary.getMessage());
+                showInstallFailedDialog(detail);
             }
         }
     }
@@ -2371,7 +2485,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         intent2.setDataAndType(uriForFile, "application/vnd.android.package-archive");
         intent2.setClipData(ClipData.newRawUri("", uriForFile));
         intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // Also support ACTION_INSTALL_PACKAGE where available
+        // Prefer ACTION_INSTALL_PACKAGE where available
         try {
             Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
             install.setData(uriForFile);
@@ -2422,15 +2536,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void showInstallFailedDialog(String detail) {
-        String msg = "Update konnte nicht installiert werden.\n\n"
-                + "Falls die Signatur nicht übereinstimmt: Streamy 2 zuerst deinstallieren, dann die neue APK installieren.";
-        if (detail != null && !detail.isEmpty()) {
-            String lower = detail.toLowerCase(Locale.ROOT);
-            if (lower.contains("signature") || lower.contains("incompatible") || lower.contains("update_incompatible")) {
-                msg = "Die neue APK hat eine andere Signatur als die installierte App.\n\n"
-                        + "Bitte Streamy 2 zuerst deinstallieren und danach die neue APK installieren.\n\n"
-                        + detail;
-            } else {
+        String lower = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
+        boolean signature = lower.contains("signature")
+                || lower.contains("incompatible")
+                || lower.contains("update_incompatible")
+                || lower.contains("signatures do not match");
+        String msg;
+        if (signature) {
+            msg = "Andere Signatur — alte Streamy-App deinstallieren, dann 3.10 neu installieren.";
+            if (detail != null && !detail.isEmpty()) {
+                msg = msg + "\n\n" + detail;
+            }
+        } else {
+            msg = "Update konnte nicht installiert werden.\n\n"
+                    + "Falls die Signatur nicht übereinstimmt: Streamy 2 zuerst deinstallieren, dann 3.10 neu installieren.";
+            if (detail != null && !detail.isEmpty()) {
                 msg = msg + "\n\n" + detail;
             }
         }
@@ -3357,7 +3477,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadVavoo$99() {
-        loadVavooXmltv(false);
+        ensureVavooEpg(false);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3746,9 +3866,47 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
+    /**
+     * Ensure Vavoo rows get XMLTV „Jetzt: …“ on phone and TV.
+     * Forces a fresh download when the guide is empty/stale or few channels matched.
+     */
+    private void ensureVavooEpg(boolean userRequested) {
+        try {
+            // Apply whatever is already in memory immediately so UI is not empty while downloading
+            Models.Catalog catalog = this.catalog;
+            if (catalog != null && catalog.live != null && this.guide.channelCount > 0) {
+                int applied = this.guide.apply(catalog.live);
+                ChannelAdapter channelAdapter = this.adapter;
+                if (channelAdapter != null) {
+                    channelAdapter.notifyEpg();
+                }
+                updateEpgStatus();
+                if (applied > 0) {
+                    loadVisibleEpg();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        boolean empty = this.guide.channelCount <= 0 || this.guide.programmeCount <= 0;
+        long last = this.prefs.epgLast();
+        long interval = Math.max(1L, this.prefs.epgIntervalHours()) * 3600000L;
+        boolean stale = last <= 0 || System.currentTimeMillis() - last > interval;
+        File primary = vavooEpgCache();
+        boolean cacheMissing = primary == null || !primary.exists() || primary.length() < 200;
+        boolean force = userRequested || empty || stale || cacheMissing;
+        if (force) {
+            try {
+                this.guide.loading = true;
+                updateEpgStatus();
+            } catch (Throwable ignored) {
+            }
+        }
+        loadVavooXmltv(force);
+    }
+
     private void loadVavooXmltv(final boolean z) {
-        IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda100
-            @Override // java.lang.Runnable
+        IO.execute(new Runnable() {
+            @Override
             public final void run() {
                 MainActivity.this.lambda$loadVavooXmltv$118(z);
             }
@@ -3757,52 +3915,78 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadVavooXmltv$118(boolean z) {
+        Exception lastErr = null;
         try {
             String[] strArr = Vavoo.EPG_URLS;
-            int length = strArr.length;
-            List<Models.Channel> list = null;
-            int i = 0;
-            Exception e = null;
-            boolean loaded = false;
-            while (i < length) {
+            int loadedFeeds = 0;
+            for (int i = 0; i < strArr.length; i++) {
                 String url = strArr[i];
                 File cache = vavooEpgCacheFor(url, i);
                 try {
                     this.guide.loadUrlMerge(url, cache, z);
-
-                    e = null;
-                    loaded = true;
-                    break;
+                    loadedFeeds++;
+                    // Keep going: merge secondary DE feeds for better name coverage
                 } catch (Exception e2) {
-                    e = e2;
-                    i++;
+                    lastErr = e2;
                 }
             }
-            if (!loaded && e != null && this.guide.channelCount == 0) {
-                throw e;
+            if (loadedFeeds == 0 && lastErr != null && this.guide.channelCount == 0) {
+                throw lastErr;
             }
             EpgGuide epgGuide = this.guide;
             Models.Catalog catalog = this.catalog;
-            if (catalog != null) {
-                list = catalog.live;
-            }
+            List<Models.Channel> list = catalog == null ? null : catalog.live;
             final int apply = epgGuide.apply(list);
+            // If almost nothing matched but we have programmes, one more pass after indexing settles
+            if (apply < 3 && this.guide.programmeCount > 100 && list != null) {
+                try {
+                    this.guide.apply(list);
+                } catch (Throwable ignored) {
+                }
+            }
             this.prefs.setEpgLast(System.currentTimeMillis());
-            UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda37
-                @Override // java.lang.Runnable
+            this.guide.loading = false;
+            if (lastErr != null && loadedFeeds > 0) {
+                this.guide.error = null; // partial success
+            }
+            final int applyFinal = this.guide.apply(list);
+            final boolean forced = z;
+            UI.post(new Runnable() {
+                @Override
                 public final void run() {
-                    MainActivity.this.lambda$loadVavooXmltv$117(apply);
+                    MainActivity.this.lambda$loadVavooXmltv$117(applyFinal);
+                    if (forced && MainActivity.this.tab == 4) {
+                        try {
+                            Toast.makeText(MainActivity.this,
+                                    applyFinal > 0
+                                            ? ("Vavoo-EPG: " + applyFinal + " Sender mit „Jetzt“")
+                                            : ("Vavoo-EPG geladen, aber keine Treffer ("
+                                                + MainActivity.this.guide.channelCount + " XMLTV-Sender). „EPG aktualisieren“ versuchen."),
+                                    Toast.LENGTH_LONG).show();
+                        } catch (Throwable ignored) {
+                        }
+                    }
                 }
             });
         } catch (Throwable th) {
             try {
+                this.guide.loading = false;
                 this.guide.error = th.getMessage();
                 EpgGuide epgGuide2 = this.guide;
                 Models.Catalog catalog2 = this.catalog;
                 final int apply2 = epgGuide2 == null ? 0 : epgGuide2.apply(catalog2 == null ? null : catalog2.live);
                 UI.post(new Runnable() {
-                    @Override public void run() {
+                    @Override
+                    public void run() {
                         MainActivity.this.lambda$loadVavooXmltv$117(apply2);
+                        if (MainActivity.this.tab == 4) {
+                            try {
+                                Toast.makeText(MainActivity.this,
+                                        "Vavoo-EPG fehlgeschlagen: " + (th.getMessage() == null ? "unbekannt" : th.getMessage()),
+                                        Toast.LENGTH_LONG).show();
+                            } catch (Throwable ignored) {
+                            }
+                        }
                     }
                 });
             } catch (Throwable unused) {
@@ -3820,6 +4004,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             loadVisibleEpg();
         } catch (Throwable unused) {
+        }
+        // If still on Vavoo and list was rebuilt, re-render so epgLine binds even without payloads
+        if (this.tab == 4) {
+            try {
+                if (this.adapter != null && i > 0) {
+                    // lightweight: payload notify already done; also ask visible rows again
+                    loadVisibleEpg();
+                }
+            } catch (Throwable ignored) {
+            }
         }
     }
 

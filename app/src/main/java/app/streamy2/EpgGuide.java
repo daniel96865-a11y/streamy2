@@ -175,7 +175,7 @@ public class EpgGuide {
             }
         }
         // Drop common IPTV prefixes/suffixes and retry (e.g. "ard das erste", "ndr fs hh", "rtl deutschland")
-        String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup)\\b", " ")
+        String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup|koeln|koln|hh|hamburg|sachsen|bw|baden|wuerttemberg|berlin|brandenburg)\\b", " ")
                 .trim().replaceAll("\\s+", " ");
         if (!stripped.isEmpty() && !stripped.equals(str)) {
             hit = findNameId(stripped);
@@ -616,6 +616,7 @@ public class EpgGuide {
                 .replace("kabel1", "kabel eins").replace("kabel 1", "kabel eins")
                 .replace("rtl ii", "rtlzwei").replace("rtl 2", "rtlzwei").replace("rtl2", "rtlzwei")
                 .replace("rtl nitro", "nitro")
+                .replace("n-tv", "ntv").replace("n tv", "ntv")
                 .replaceAll("\\[.*?\\]", " ")
                 .replaceAll("\\([^)]*\\)", " ")
                 .replaceAll("\\s*\\.[bcsf]\\b", " ")
@@ -627,11 +628,15 @@ public class EpgGuide {
                 .trim()
                 .replaceAll("\\s+[bcsf]$", "")
                 .replaceAll("\\s+", " ");
-        // After punctuation wipe, re-apply compact brand maps
-        s = s.replace("prosieben", "prosieben")
-                .replace("kabel1", "kabel eins")
-                .replace("sat1", "sat1")
-                .replace("rtlzwei", "rtlzwei");
+        // After punctuation wipe, re-apply compact brand maps (Vavoo often ships Kabel1/RTL2/n-tv)
+        s = s.replace("kabel1", "kabel eins")
+                .replace("kabeleins", "kabel eins")
+                .replace("rtl2", "rtlzwei")
+                .replace("rtl zwei", "rtlzwei")
+                .replace("n tv", "ntv")
+                .replace("zdf neo", "zdfneo")
+                .replace("zdf info", "zdfinfo")
+                .replace("sat 1", "sat1");
         return s;
     }
 
@@ -689,6 +694,33 @@ public class EpgGuide {
         }
         if ("swr".equals(str) || "swr sr".equals(str) || "sr".equals(str)) {
             return new String[]{"swr", "swr sr", "swr/sr"};
+        }
+        if ("wdr".equals(str) || "wdr koeln".equals(str) || "wdr koln".equals(str) || "wdr fernsehen".equals(str)) {
+            return new String[]{"wdr", "wdr koeln", "wdr koln"};
+        }
+        if ("ndr".equals(str) || str.startsWith("ndr ")) {
+            return new String[]{"ndr", "ndr fs hh", "ndr fernsehen"};
+        }
+        if ("mdr".equals(str) || str.startsWith("mdr ")) {
+            return new String[]{"mdr", "mdr sachsen", "mdr fernsehen"};
+        }
+        if ("br".equals(str) || "br fernsehen".equals(str) || str.startsWith("br ")) {
+            return new String[]{"br", "br fernsehen"};
+        }
+        if ("hr".equals(str) || "hr fernsehen".equals(str) || "hessischer rundfunk".equals(str)) {
+            return new String[]{"hr", "hr fernsehen"};
+        }
+        if ("rbb".equals(str) || str.startsWith("rbb ")) {
+            return new String[]{"rbb", "rbb berlin", "rbb brandenburg"};
+        }
+        if ("ntv".equals(str) || "n tv".equals(str)) {
+            return new String[]{"ntv", "n tv", "n-tv"};
+        }
+        if ("sport1".equals(str) || "sport 1".equals(str)) {
+            return new String[]{"sport1", "sport 1"};
+        }
+        if ("welt".equals(str) || "n24".equals(str)) {
+            return new String[]{"welt", "n24"};
         }
         return new String[0];
     }

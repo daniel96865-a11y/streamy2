@@ -46,7 +46,7 @@ public class InstallReceiver extends BroadcastReceiver {
                 || lower.contains("signatures do not match")
                 || lower.contains("update_incompatible");
         if (signature) {
-            return "Signatur stimmt nicht überein — bitte Streamy 2 deinstallieren und danach die neue APK installieren"
+            return "Andere Signatur — alte Streamy-App deinstallieren, dann 3.10 neu installieren."
                     + (systemMsg != null && !systemMsg.isEmpty() ? (" (" + systemMsg + ")") : "");
         }
         String base;

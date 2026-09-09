@@ -201,7 +201,10 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     /* renamed from: onBindViewHolder, reason: avoid collision after fix types in other method */
     public void onBindViewHolder2(VH vh, int i, List<Object> list) {
         if (!list.isEmpty() && (this.items.get(i) instanceof Models.Channel)) {
-            vh.sub.setText(epgLine((Models.Channel) this.items.get(i)));
+            if (vh.sub != null) {
+                vh.sub.setVisibility(android.view.View.VISIBLE);
+                vh.sub.setText(epgLine((Models.Channel) this.items.get(i)));
+            }
         } else {
             super.onBindViewHolder(vh, i, list);
         }
@@ -212,7 +215,19 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         vh.num.setText(String.valueOf(channel.number));
         vh.live.setVisibility(channel.header ? 8 : 0);
         vh.title.setText(styled(channel.name));
-        vh.sub.setText(epgLine(channel));
+        if (vh.sub != null) {
+            vh.sub.setVisibility(android.view.View.VISIBLE);
+            vh.sub.setMaxLines(2);
+            vh.sub.setSingleLine(false);
+            vh.sub.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            // Phone + TV: keep „Jetzt: …“ readable
+            if (!Tv.isTv(vh.itemView.getContext())) {
+                vh.sub.setTextSize(12.0f);
+            } else {
+                vh.sub.setTextSize(13.0f);
+            }
+            vh.sub.setText(epgLine(channel));
+        }
         sizeLogo(vh, 48, 48);
         vh.logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         applyLogo(vh, channel.logo, channel.name);
@@ -396,6 +411,10 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
 
     private String epgLine(Models.Channel channel) {
         if (channel.epg == null || channel.epg.title == null || channel.epg.title.isEmpty()) {
+            // Prefer a quiet placeholder over a silent blank on Vavoo/Live while EPG catches up
+            if (!channel.header && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+                return "EPG…";
+            }
             return (channel.header || channel.categoryName == null || channel.categoryName.isEmpty()) ? "" : channel.categoryName;
         }
         String str = "Jetzt: " + Text.clean(channel.epg.title);
