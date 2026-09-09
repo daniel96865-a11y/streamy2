@@ -26,6 +26,7 @@ public class App extends Application {
             CookieHandler.setDefault(cookieManager);
         } catch (Throwable unused) {
         }
+        Vavoo.trustSsl();
         LocalHls.start();
     }
 }

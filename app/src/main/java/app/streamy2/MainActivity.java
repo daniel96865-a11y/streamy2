@@ -1,6 +1,7 @@
 package app.streamy2;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -2147,7 +2148,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         this.pendingUpdate = info;
-        boolean z2 = (info == null || info.versionCode <= 123 || info.apkUrl == null || info.apkUrl.isEmpty()) ? false : true;
+        boolean z2 = (info == null || info.versionCode <= BuildConfig.VERSION_CODE || info.apkUrl == null || info.apkUrl.isEmpty()) ? false : true;
         if (this.updateBanner != null) {
             if (z2 && info.versionCode != this.prefs.skippedUpdate()) {
                 this.updateBanner.setVisibility(0);
@@ -2162,7 +2163,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 Toast.makeText(this, "Update " + info.versionName + " — Download startet", 0).show();
                 installUpdate();
             } else {
-                Toast.makeText(this, "Du bist auf dem neuesten Stand (3.04)", 0).show();
+                Toast.makeText(this, "Du bist auf dem neuesten Stand (" + BuildConfig.VERSION_NAME + ")", 0).show();
             }
         }
     }
@@ -2286,45 +2287,96 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void startApkInstall(File file) {
+        // Primary: user-visible system installer via FileProvider
         try {
+            installViaSystemInstaller(file);
+            return;
+        } catch (Exception primary) {
             try {
-                PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
-                PackageInstaller.SessionParams sessionParams = new PackageInstaller.SessionParams(1);
-                sessionParams.setSize(file.length());
-                int createSession = packageInstaller.createSession(sessionParams);
-                PackageInstaller.Session openSession = packageInstaller.openSession(createSession);
-                FileInputStream fileInputStream = new FileInputStream(file);
-                OutputStream openWrite = openSession.openWrite("app.apk", 0L, file.length());
-                byte[] bArr = new byte[65536];
-                while (true) {
-                    int read = fileInputStream.read(bArr);
-                    if (read <= 0) {
-                        break;
-                    } else {
-                        openWrite.write(bArr, 0, read);
-                    }
-                }
-                openSession.fsync(openWrite);
-                openWrite.close();
-                fileInputStream.close();
-                Intent intent = new Intent(this, (Class<?>) InstallReceiver.class);
-                intent.setAction(InstallReceiver.ACTION);
-                openSession.commit(PendingIntent.getBroadcast(this, createSession, intent, Build.VERSION.SDK_INT >= 31 ? 167772160 : C.BUFFER_FLAG_FIRST_SAMPLE).getIntentSender());
-                openSession.close();
-            } catch (Exception unused) {
-                Uri uriForFile = FileProvider.getUriForFile(this, "app.streamy2.file", file);
-                Intent intent2 = new Intent("android.intent.action.VIEW");
-                intent2.setDataAndType(uriForFile, "application/vnd.android.package-archive");
-                intent2.setClipData(ClipData.newRawUri("", uriForFile));
-                intent2.addFlags(268435457);
-                Iterator<ResolveInfo> it = getPackageManager().queryIntentActivities(intent2, 0).iterator();
-                while (it.hasNext()) {
-                    grantUriPermission(it.next().activityInfo.packageName, uriForFile, 1);
-                }
-                startActivity(intent2);
+                installViaPackageInstaller(file);
+            } catch (Exception secondary) {
+                showInstallFailedDialog(primary.getMessage() != null ? primary.getMessage() : String.valueOf(secondary.getMessage()));
             }
-        } catch (Exception e) {
-            Toast.makeText(this, "Installieren nicht möglich: " + e.getMessage(), 1).show();
+        }
+    }
+
+    private void installViaSystemInstaller(File file) throws Exception {
+        Uri uriForFile = FileProvider.getUriForFile(this, "app.streamy2.file", file);
+        Intent intent2 = new Intent(Intent.ACTION_VIEW);
+        intent2.setDataAndType(uriForFile, "application/vnd.android.package-archive");
+        intent2.setClipData(ClipData.newRawUri("", uriForFile));
+        intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        // Also support ACTION_INSTALL_PACKAGE where available
+        try {
+            Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
+            install.setData(uriForFile);
+            install.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
+            install.putExtra(Intent.EXTRA_RETURN_RESULT, false);
+            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            Iterator<ResolveInfo> itInstall = getPackageManager().queryIntentActivities(install, 0).iterator();
+            while (itInstall.hasNext()) {
+                grantUriPermission(itInstall.next().activityInfo.packageName, uriForFile, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+            if (getPackageManager().queryIntentActivities(install, 0).size() > 0) {
+                startActivity(install);
+                return;
+            }
+        } catch (Exception ignored) {
+        }
+        Iterator<ResolveInfo> it = getPackageManager().queryIntentActivities(intent2, 0).iterator();
+        while (it.hasNext()) {
+            grantUriPermission(it.next().activityInfo.packageName, uriForFile, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        }
+        startActivity(intent2);
+    }
+
+    private void installViaPackageInstaller(File file) throws Exception {
+        PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams sessionParams = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        sessionParams.setSize(file.length());
+        int createSession = packageInstaller.createSession(sessionParams);
+        PackageInstaller.Session openSession = packageInstaller.openSession(createSession);
+        FileInputStream fileInputStream = new FileInputStream(file);
+        OutputStream openWrite = openSession.openWrite("app.apk", 0L, file.length());
+        byte[] bArr = new byte[65536];
+        while (true) {
+            int read = fileInputStream.read(bArr);
+            if (read <= 0) {
+                break;
+            } else {
+                openWrite.write(bArr, 0, read);
+            }
+        }
+        openSession.fsync(openWrite);
+        openWrite.close();
+        fileInputStream.close();
+        Intent intent = new Intent(this, (Class<?>) InstallReceiver.class);
+        intent.setAction(InstallReceiver.ACTION);
+        openSession.commit(PendingIntent.getBroadcast(this, createSession, intent, Build.VERSION.SDK_INT >= 31 ? 167772160 : C.BUFFER_FLAG_FIRST_SAMPLE).getIntentSender());
+        openSession.close();
+    }
+
+    private void showInstallFailedDialog(String detail) {
+        String msg = "Update konnte nicht installiert werden.\n\n"
+                + "Falls die Signatur nicht übereinstimmt: Streamy 2 zuerst deinstallieren, dann die neue APK installieren.";
+        if (detail != null && !detail.isEmpty()) {
+            String lower = detail.toLowerCase(Locale.ROOT);
+            if (lower.contains("signature") || lower.contains("incompatible") || lower.contains("update_incompatible")) {
+                msg = "Die neue APK hat eine andere Signatur als die installierte App.\n\n"
+                        + "Bitte Streamy 2 zuerst deinstallieren und danach die neue APK installieren.\n\n"
+                        + detail;
+            } else {
+                msg = msg + "\n\n" + detail;
+            }
+        }
+        try {
+            new AlertDialog.Builder(this)
+                    .setTitle("Update fehlgeschlagen")
+                    .setMessage(msg)
+                    .setPositiveButton("OK", null)
+                    .show();
+        } catch (Exception unused) {
+            Toast.makeText(this, msg.replace('\n', ' '), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -3124,6 +3176,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$loadKino$95() {
         if (this.tab == 5) {
             renderList();
+            if (MegaKino.all().isEmpty()) {
+                String err = MegaKino.lastError != null && !MegaKino.lastError.isEmpty()
+                        ? MegaKino.lastError
+                        : "Megakino-Katalog leer. Später erneut versuchen.";
+                this.empty.setVisibility(0);
+                this.empty.setText(err);
+            }
         }
     }
 
@@ -3161,7 +3220,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$playMega$97(String str, Models.Episode episode, Models.Media media) {
         if (str == null || str.isEmpty()) {
-            Toast.makeText(this, "Megakino-Stream nicht erreichbar. Host/Player prüfen oder später erneut versuchen.", 1).show();
+            String err = (MegaKino.lastError != null && !MegaKino.lastError.isEmpty())
+                    ? MegaKino.lastError
+                    : "Megakino-Stream nicht erreichbar. Host/Player prüfen oder später erneut versuchen.";
+            Toast.makeText(this, err, 1).show();
         } else {
             PlayerActivity.open(this, str, null, media.name, episode == null ? join(media.genre, media.year) : "S" + episode.season + " E" + episode.episode + " · " + episode.title, false);
         }
