@@ -17,6 +17,7 @@ final class VlcEngine implements LiveEngine {
     interface PlaybackListener {
         void onPlaying();
         void onPaused();
+        void onError();
     }
 
     private PlaybackListener playbackListener;
@@ -50,6 +51,10 @@ final class VlcEngine implements LiveEngine {
             }
             if (event.type == MediaPlayer.Event.EncounteredError) {
                 toastError("VLC EncounteredError");
+                PlaybackListener l = VlcEngine.this.playbackListener;
+                if (l != null) {
+                    try { l.onError(); } catch (Throwable ignored) {}
+                }
             } else if (event.type == MediaPlayer.Event.Playing) {
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {

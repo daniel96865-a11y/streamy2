@@ -625,6 +625,7 @@ public class EpgGuide {
                 .replaceAll("(?<!\\w)hd(?!\\w)", " ")
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim()
+                .replaceAll("\\s+[bcsf]$", "")
                 .replaceAll("\\s+", " ");
         // After punctuation wipe, re-apply compact brand maps
         s = s.replace("prosieben", "prosieben")

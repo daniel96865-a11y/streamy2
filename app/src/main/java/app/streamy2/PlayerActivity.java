@@ -144,7 +144,8 @@ public class PlayerActivity extends AppCompatActivity {
                         PlayerActivity.this.errorView.setVisibility(8);
                     }
                 }
-                if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.vavooKeep != null && PlayerActivity.this.vavooHot != null) {
+                if (PlayerActivity.this.freezeTicks == 8
+                        && (PlayerActivity.this.vavooKeep != null || PlayerActivity.this.isVavooPlayback())) {
                     PlayerActivity.this.tryExoAfterVlc();
                 }
             } else if (PlayerActivity.this.player != null && !PlayerActivity.this.userPaused) {
@@ -970,6 +971,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (keyCode == 24 || keyCode == 25 || keyCode == 164 || keyCode == 91) {
             return super.dispatchKeyEvent(keyEvent);
         }
+        final boolean tv = Tv.isTv(this);
         View view = this.epgSheet;
         if (view != null && view.getVisibility() == 0) {
             if (keyCode == 4 || keyCode == 111 || keyCode == 172 || keyCode == 165) {
@@ -986,11 +988,27 @@ public class PlayerActivity extends AppCompatActivity {
             leave();
             return true;
         }
-        if (keyCode == 85 || keyCode == 126 || keyCode == 127 || keyCode == 79) {
+        // Dedicated media play/pause keys always toggle
+        if (keyCode == 85 || keyCode == 126 || keyCode == 127) {
             togglePlay();
             return true;
         }
+        if (keyCode == 79 && !tv) {
+            togglePlay();
+            return true;
+        }
+        // OK / Enter / DPAD_CENTER
         if (keyCode == 23 || keyCode == 66 || keyCode == 160) {
+            if (tv) {
+                if (!this.hud) {
+                    setHud(true);
+                    scheduleHide();
+                    focusTvControls(false);
+                    return true;
+                }
+                // HUD visible: activate focused control (do not force-pause)
+                return super.dispatchKeyEvent(keyEvent);
+            }
             if (this.hud) {
                 return super.dispatchKeyEvent(keyEvent);
             }
@@ -1010,27 +1028,70 @@ public class PlayerActivity extends AppCompatActivity {
             openEpg();
             return true;
         }
-        if (keyCode == 20 && this.liveMode && !this.hud) {
-            setHud(true);
-            openEpg();
-            return true;
-        }
-        if (keyCode == 19 && !this.hud) {
-            setHud(true);
-            scheduleHide();
-            return true;
-        }
-        if (keyCode == 21 || keyCode == 89 || keyCode == 22 || keyCode == 90) {
-            setHud(true);
-            scheduleHide();
-            boolean z = keyCode == 21 || keyCode == 89;
-            if (!this.liveMode) {
-                seekBy(z ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
+        // DPAD_DOWN
+        if (keyCode == 20) {
+            if (tv && this.liveMode) {
+                if (!this.hud) {
+                    setHud(true);
+                    scheduleHide();
+                    focusTvControls(true);
+                    return true;
+                }
+                // Navigate focus into bottom chips — do not open EPG
+                return super.dispatchKeyEvent(keyEvent);
+            }
+            if (this.liveMode && !this.hud) {
+                setHud(true);
+                openEpg();
                 return true;
+            }
+        }
+        // DPAD_UP
+        if (keyCode == 19) {
+            if (!this.hud) {
+                setHud(true);
+                scheduleHide();
+                if (tv) {
+                    focusTvTop();
+                }
+                return true;
+            }
+            if (tv) {
+                return super.dispatchKeyEvent(keyEvent);
+            }
+        }
+        // Left / Right / media rewind-ff
+        if (keyCode == 21 || keyCode == 89 || keyCode == 22 || keyCode == 90) {
+            boolean left = keyCode == 21 || keyCode == 89;
+            boolean dpad = keyCode == 21 || keyCode == 22;
+            if (!this.hud) {
+                setHud(true);
+                scheduleHide();
+                if (tv && this.liveMode && dpad) {
+                    // Show HUD first; seek only once SeekBar is focused
+                    SeekBar seekBarShow = this.epgSeek;
+                    if (seekBarShow != null) {
+                        seekBarShow.requestFocus();
+                    } else {
+                        focusTvControls(true);
+                    }
+                    return true;
+                }
+            }
+            if (!this.liveMode) {
+                seekBy(left ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
+                return true;
+            }
+            if (tv && dpad) {
+                View focus = getCurrentFocus();
+                if (focus != this.epgSeek) {
+                    // Move focus between bottom chips — do not timeshift/rewind
+                    return super.dispatchKeyEvent(keyEvent);
+                }
             }
             SeekBar seekBar = this.epgSeek;
             if (seekBar != null) {
-                int max = Math.max(0, Math.min(1000, seekBar.getProgress() + (z ? -40 : 40)));
+                int max = Math.max(0, Math.min(1000, seekBar.getProgress() + (left ? -40 : 40)));
                 this.epgSeek.setProgress(max);
                 onSeekEpg(max);
             }
@@ -1079,9 +1140,73 @@ public class PlayerActivity extends AppCompatActivity {
             bindEpg();
         }
         if (z) {
+            if (Tv.isTv(this)) {
+                ensureTvControlsFocusable();
+            }
             return;
         }
         hideSystemBars();
+    }
+
+
+    private void ensureTvControlsFocusable() {
+        if (!Tv.isTv(this)) {
+            return;
+        }
+        int[] ids = new int[]{
+                R.id.btnPlay, R.id.btnBack, R.id.btnEpg, R.id.btnPlayer, R.id.btnResize, R.id.btnDiag,
+                R.id.btnPrevCh, R.id.btnNextCh, R.id.badgeLive, R.id.epgSeek
+        };
+        for (int id : ids) {
+            View v = findViewById(id);
+            if (v != null) {
+                v.setFocusable(true);
+                v.setClickable(true);
+            }
+        }
+        PlayerView pv = this.playerView;
+        if (pv != null) {
+            pv.setFocusable(false);
+            pv.setFocusableInTouchMode(false);
+            pv.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        }
+        ViewGroup host = this.vlcHost;
+        if (host != null) {
+            host.setFocusable(false);
+            host.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        }
+        View tap = findViewById(R.id.tapLayer);
+        if (tap != null) {
+            tap.setFocusable(false);
+        }
+    }
+
+    private void focusTvControls(boolean bottomChips) {
+        ensureTvControlsFocusable();
+        View target = null;
+        if (bottomChips) {
+            target = this.btnPlayer;
+            if (target == null || target.getVisibility() != View.VISIBLE) {
+                target = findViewById(R.id.btnEpg);
+            }
+            if (target == null || target.getVisibility() != View.VISIBLE) {
+                target = findViewById(R.id.btnResize);
+            }
+        }
+        if (target == null) {
+            target = this.btnPlay;
+        }
+        if (target != null && target.getVisibility() == View.VISIBLE) {
+            target.requestFocus();
+        }
+    }
+
+    private void focusTvTop() {
+        ensureTvControlsFocusable();
+        View back = findViewById(R.id.btnBack);
+        if (back != null) {
+            back.requestFocus();
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1919,11 +2044,11 @@ public class PlayerActivity extends AppCompatActivity {
             this.freezeTicks = 0;
             this.userPaused = false;
             applyHeaders(headerUrl);
-            if ((!z && wantVlc()) || "vlc".equals(this.forceEngine)) {
-                if (!"exo".equals(this.forceEngine)) {
-                    playWithVlc(str);
-                    return;
-                }
+            if ("exo".equals(this.forceEngine)) {
+                // session fallback or forced Exo — never re-enter VLC
+            } else if ((!z && wantVlc()) || "vlc".equals(this.forceEngine)) {
+                playWithVlc(str);
+                return;
             }
             hideVlc();
             this.useVlc = false;
@@ -2175,6 +2300,15 @@ public class PlayerActivity extends AppCompatActivity {
                     }
                 });
             }
+            @Override public void onError() {
+                PlayerActivity.UI.post(new Runnable() {
+                    @Override public void run() {
+                        if (!PlayerActivity.this.isFinishing() && PlayerActivity.this.useVlc) {
+                            PlayerActivity.this.tryExoAfterVlc();
+                        }
+                    }
+                });
+            }
         });
     }
 
@@ -2288,7 +2422,6 @@ public class PlayerActivity extends AppCompatActivity {
             if (textView != null) {
                 textView.setVisibility(0);
                 this.errorView.setText("Vavoo-Stream kommt nicht.");
-                return;
             }
             return;
         }
@@ -2296,11 +2429,18 @@ public class PlayerActivity extends AppCompatActivity {
         this.freezeTicks = 0;
         hideVlc();
         this.useVlc = false;
+        // forceEngine "vlc" would immediately re-enter playWithVlc — override for this session
+        this.forceEngine = "exo";
         TextView textView2 = this.errorView;
         if (textView2 != null) {
             textView2.setVisibility(0);
-            this.errorView.setText("Wechsle zu Exo…");
+            this.errorView.setText("VLC fehlgeschlagen → Exo");
         }
+        try {
+            Toast.makeText(this, "VLC fehlgeschlagen → Exo", Toast.LENGTH_SHORT).show();
+        } catch (Throwable ignored) {
+        }
+        paintPlayerBtn();
         playCurrent();
     }
 
@@ -2387,7 +2527,11 @@ public class PlayerActivity extends AppCompatActivity {
         if (textView == null) {
             return;
         }
-        textView.setText(labelPlayer(playerPref()));
+        String eng = this.forceEngine;
+        if (eng == null || eng.isEmpty()) {
+            eng = playerPref();
+        }
+        textView.setText(labelPlayer(eng));
     }
 
     private static String labelPlayer(String str) {
