@@ -100,8 +100,8 @@ final class MegaKino {
                 live.add(b);
             }
             BASES = live.toArray(new String[0]);
-            BrowserController.HOME = preferred;
-            base = null;
+            // Preferred live Megakino host for scraping only (do not touch browser HOME)
+            base = preferred;
         }
     }
 
@@ -125,7 +125,6 @@ final class MegaKino {
                         if (base == null) {
                             base = origin(str2);
                         }
-                        BrowserController.HOME = base;
                         return base;
                     }
                 } catch (Exception e) {
@@ -135,7 +134,6 @@ final class MegaKino {
             lastError = "Kein funktionierender Megakino-Host gefunden (Token/Seite)";
             String str3 = BASES[0];
             base = str3;
-            BrowserController.HOME = str3;
             return str3;
         }
     }

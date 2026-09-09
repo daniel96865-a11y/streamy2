@@ -1,5 +1,5 @@
-versionCode 133
-versionName 3.13
+versionCode 134
+versionName 3.14
 title Streamy 2 Update
-message Browser startet leer
+message Browser bleibt leer (MegaKino setzt HOME nicht mehr)
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
