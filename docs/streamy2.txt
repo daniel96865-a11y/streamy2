@@ -1,5 +1,5 @@
-versionCode 127
-versionName 3.07
+versionCode 128
+versionName 3.08
 title Streamy 2 Update
-message Vavoo-EPG, Megakino-Fortschritt, VLC-HUD
+message Vavoo-EPG-Matching, getrennte Live/Vavoo-Player
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

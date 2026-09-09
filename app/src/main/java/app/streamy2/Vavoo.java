@@ -40,7 +40,7 @@ final class Vavoo {
     private static final String[] PINGS = {"https://www.vavoo.tv/api/app/ping", "https://www.vavoo.tv/api/box/ping2"};
     static volatile String lastError = "";
     static final String EPG_URL = "https://epg.lat/files/de.xml.gz";
-    static final String[] EPG_URLS = {EPG_URL, "https://iptv-org.github.io/epg/guides/de/tvdigital.de.epg.xml.gz", "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"};
+    static final String[] EPG_URLS = {EPG_URL, "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"};
     private static volatile String activeHost = "https://kool.to";
 
     static /* synthetic */ boolean lambda$trustSsl$0(String str, SSLSession sSLSession) {

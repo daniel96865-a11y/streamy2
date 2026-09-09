@@ -152,28 +152,74 @@ public class EpgGuide {
     }
 
     private String findNameId(String str) {
-        String str2;
-        if (str != null && !str.isEmpty()) {
-            String str3 = this.nameToId.get(str);
-            if (str3 != null) {
-                return str3;
+        if (str == null || str.isEmpty()) {
+            return null;
+        }
+        String hit = lookupNameKey(str);
+        if (hit != null) {
+            return hit;
+        }
+        String compact = str.replace(" ", "");
+        hit = lookupNameKey(compact);
+        if (hit != null) {
+            return hit;
+        }
+        for (String alias : aliases(str)) {
+            hit = lookupNameKey(alias);
+            if (hit != null) {
+                return hit;
             }
-            String str4 = this.nameToId.get(str.replace(" ", ""));
-            if (str4 != null) {
-                return str4;
-            }
-            for (String str5 : aliases(str)) {
-                String str6 = this.nameToId.get(str5);
-                if (str6 != null) {
-                    return str6;
-                }
-            }
-            String[] split = str.split(" ");
-            if (split.length >= 2 && (str2 = this.nameToId.get(split[0] + " " + split[1])) != null) {
-                return str2;
+            hit = lookupNameKey(alias.replace(" ", ""));
+            if (hit != null) {
+                return hit;
             }
         }
-        return null;
+        // Drop common IPTV prefixes/suffixes and retry (e.g. "ard das erste", "ndr fs hh", "rtl deutschland")
+        String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup)\\b", " ")
+                .trim().replaceAll("\\s+", " ");
+        if (!stripped.isEmpty() && !stripped.equals(str)) {
+            hit = findNameId(stripped);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        String[] split = str.split(" ");
+        if (split.length >= 2) {
+            hit = lookupNameKey(split[0] + " " + split[1]);
+            if (hit != null) {
+                return hit;
+            }
+            // Regional: "mdr sachsen" / "ndr hh" → base "mdr" / "ndr"
+            if (split[0].length() >= 3) {
+                hit = lookupNameKey(split[0]);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
+        // Fuzzy contains: longest known key contained in query (min length 4), or query contained in key
+        String best = null;
+        int bestLen = 0;
+        for (Map.Entry<String, String> e : this.nameToId.entrySet()) {
+            String key = e.getKey();
+            if (key == null || key.length() < 4) {
+                continue;
+            }
+            if (str.contains(key) || compact.contains(key.replace(" ", "")) || (str.length() >= 4 && key.contains(str))) {
+                if (key.length() > bestLen) {
+                    bestLen = key.length();
+                    best = e.getValue();
+                }
+            }
+        }
+        return best;
+    }
+
+    private String lookupNameKey(String key) {
+        if (key == null || key.isEmpty()) {
+            return null;
+        }
+        return this.nameToId.get(key);
     }
 
     private static void indexName(Map<String, String> map, String str, String str2) {
@@ -237,14 +283,27 @@ public class EpgGuide {
             file.delete();
         }
         if (!z && file != null && file.exists() && file.length() > 200) {
-            parseFile(file, z2);
-            if (this.channelCount > 0) {
+            int beforeProgrammes = this.programmeCount;
+            try {
+                parseFile(file, z2);
+            } catch (Exception unused) {
+                try {
+                    file.delete();
+                } catch (Exception unused2) {
+                }
+            }
+            if (!z2 && this.channelCount > 0 && this.programmeCount > 0) {
+                return;
+            }
+            // Merge mode: only reuse cache if THIS file actually contributed programmes.
+            // Otherwise channelCount may already be >0 from a prior feed and we'd keep a bad/empty cache.
+            if (z2 && this.programmeCount > beforeProgrammes) {
                 return;
             }
         }
         download(trim, file);
         parseFile(file, z2);
-        if (this.channelCount == 0) {
+        if (this.channelCount == 0 || this.programmeCount == 0) {
             throw new Exception("XMLTV ohne Programme");
         }
     }
@@ -412,7 +471,7 @@ public class EpgGuide {
                                 list = new ArrayList();
                                 hashMap2.put(norm, list);
                             }
-                            if (list.size() < 48) {
+                            if (list.size() < 96) {
                                 list.add(listing);
                             }
                         }
@@ -510,17 +569,32 @@ public class EpgGuide {
             return 0L;
         }
         try {
-            try {
-                if (trim.length() >= 18) {
-                    return new SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US).parse(trim).getTime();
+            String digits = trim.substring(0, 14);
+            // Offset may be " +0200", "+0200", " +02:00" — never parse wall-clock in device TZ.
+            String rest = trim.length() > 14 ? trim.substring(14).trim() : "";
+            int sign = 0;
+            int offMin = 0;
+            if (!rest.isEmpty() && (rest.charAt(0) == '+' || rest.charAt(0) == '-')) {
+                sign = rest.charAt(0) == '+' ? 1 : -1;
+                String num = rest.substring(1).replace(":", "");
+                if (num.length() >= 4) {
+                    offMin = Integer.parseInt(num.substring(0, 2)) * 60 + Integer.parseInt(num.substring(2, 4));
+                } else if (num.length() >= 2) {
+                    offMin = Integer.parseInt(num.substring(0, 2)) * 60;
                 }
-                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
-                simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-                return simpleDateFormat.parse(trim.substring(0, 14)).getTime();
-            } catch (Exception unused) {
-                return new SimpleDateFormat("yyyyMMddHHmmss", Locale.US).parse(trim.substring(0, 14)).getTime();
+            } else if (trim.length() >= 19 && (trim.charAt(14) == '+' || trim.charAt(14) == '-')) {
+                // no-space form already covered by substring(14); keep fallback for safety
+                sign = trim.charAt(14) == '+' ? 1 : -1;
+                String num = trim.substring(15).replace(":", "");
+                if (num.length() >= 4) {
+                    offMin = Integer.parseInt(num.substring(0, 2)) * 60 + Integer.parseInt(num.substring(2, 4));
+                }
             }
-        } catch (Exception unused2) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
+            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+            long asUtc = sdf.parse(digits).getTime();
+            return asUtc - ((long) sign) * offMin * 60000L;
+        } catch (Exception unused) {
             return 0L;
         }
     }
@@ -533,7 +607,31 @@ public class EpgGuide {
         if (str == null) {
             return "";
         }
-        return str.toLowerCase(Locale.GERMAN).replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss").replace("sat.1", "sat1").replace("sat 1", "sat1").replace("3sat", "3sat").replace("3 sat", "3sat").replaceAll("\\[.*?\\]", " ").replaceAll("\\([^)]*\\)", " ").replaceAll("\\s*\\.[bcsf]\\b", " ").replaceFirst("^de:\\s*", "").replaceAll("\\b(fhd|uhd|hd\\+|hdtv|sd|4k|hevc|raw|hq|backup|germany|deutsch|german|universal)\\b", " ").replaceAll("(?<!\\w)hd(?!\\w)", " ").replaceAll("[^a-z0-9]+", " ").trim().replaceAll("\\s+", " ");
+        String s = str.toLowerCase(Locale.GERMAN)
+                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+                .replace("sat.1", "sat1").replace("sat 1", "sat1")
+                .replace("3sat", "3sat").replace("3 sat", "3sat")
+                .replace("proSieben", "prosieben").replace("pro sieben", "prosieben")
+                .replace("pro7", "prosieben").replace("pro 7", "prosieben")
+                .replace("kabel1", "kabel eins").replace("kabel 1", "kabel eins")
+                .replace("rtl ii", "rtlzwei").replace("rtl 2", "rtlzwei").replace("rtl2", "rtlzwei")
+                .replace("rtl nitro", "nitro")
+                .replaceAll("\\[.*?\\]", " ")
+                .replaceAll("\\([^)]*\\)", " ")
+                .replaceAll("\\s*\\.[bcsf]\\b", " ")
+                .replaceFirst("^de:\\s*", "")
+                .replaceFirst("^\\[+\\s*", "")
+                .replaceAll("\\b(fhd|uhd|hd\\+|hdtv|sd|4k|hevc|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen)\\b", " ")
+                .replaceAll("(?<!\\w)hd(?!\\w)", " ")
+                .replaceAll("[^a-z0-9]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+        // After punctuation wipe, re-apply compact brand maps
+        s = s.replace("prosieben", "prosieben")
+                .replace("kabel1", "kabel eins")
+                .replace("sat1", "sat1")
+                .replace("rtlzwei", "rtlzwei");
+        return s;
     }
 
     private static String[] aliases(String str) {
@@ -541,10 +639,10 @@ public class EpgGuide {
             return new String[0];
         }
         if ("rtl 2".equals(str) || "rtl ii".equals(str) || "rtlzwei".equals(str) || "rtl2".equals(str)) {
-            return new String[]{"rtl 2", "rtlzwei", "rtl2"};
+            return new String[]{"rtl 2", "rtlzwei", "rtl2", "rtl ii"};
         }
-        if ("kabel eins".equals(str) || "kabeleins".equals(str) || "kabel 1".equals(str)) {
-            return new String[]{"kabel eins", "kabeleins", "kabel 1"};
+        if ("kabel eins".equals(str) || "kabeleins".equals(str) || "kabel 1".equals(str) || "kabel1".equals(str)) {
+            return new String[]{"kabel eins", "kabeleins", "kabel 1", "kabel1"};
         }
         if ("sat1".equals(str) || "sat 1".equals(str)) {
             return new String[]{"sat1", "sat 1"};
@@ -552,11 +650,14 @@ public class EpgGuide {
         if ("3sat".equals(str) || "3 sat".equals(str)) {
             return new String[]{"3sat", "3 sat"};
         }
-        if ("prosieben".equals(str) || "pro sieben".equals(str)) {
-            return new String[]{"prosieben", "pro sieben"};
+        if ("prosieben".equals(str) || "pro sieben".equals(str) || "pro7".equals(str) || "pro 7".equals(str)) {
+            return new String[]{"prosieben", "pro sieben", "pro7", "pro 7"};
         }
-        if ("das erste".equals(str) || "ard".equals(str)) {
-            return new String[]{"das erste", "ard"};
+        if ("prosieben maxx".equals(str) || "pro7 maxx".equals(str) || "pro 7 maxx".equals(str)) {
+            return new String[]{"prosieben maxx", "pro7 maxx", "pro 7 maxx"};
+        }
+        if ("das erste".equals(str) || "ard".equals(str) || "ard das erste".equals(str)) {
+            return new String[]{"das erste", "ard", "ard das erste"};
         }
         if ("13th street".equals(str) || "13th street universal".equals(str)) {
             return new String[]{"13th street", "13th street universal"};
@@ -575,6 +676,18 @@ public class EpgGuide {
         }
         if ("vox up".equals(str) || "voxup".equals(str)) {
             return new String[]{"voxup", "vox up"};
+        }
+        if ("nitro".equals(str) || "rtl nitro".equals(str)) {
+            return new String[]{"nitro", "rtl nitro"};
+        }
+        if ("zdf neo".equals(str) || "zdfneo".equals(str)) {
+            return new String[]{"zdf neo", "zdfneo"};
+        }
+        if ("zdf info".equals(str) || "zdfinfo".equals(str)) {
+            return new String[]{"zdf info", "zdfinfo"};
+        }
+        if ("swr".equals(str) || "swr sr".equals(str) || "sr".equals(str)) {
+            return new String[]{"swr", "swr sr", "swr/sr"};
         }
         return new String[0];
     }

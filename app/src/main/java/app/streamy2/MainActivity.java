@@ -121,9 +121,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private RecyclerView pickList;
     private View pickerPane;
     private TextView pickerTitle;
-    private TextView playerAuto;
-    private TextView playerExo;
-    private TextView playerVlc;
+    private TextView playerLiveAuto;
+    private TextView playerLiveExo;
+    private TextView playerLiveVlc;
+    private TextView playerVavooAuto;
+    private TextView playerVavooExo;
+    private TextView playerVavooVlc;
     private Prefs prefs;
     private TextView resizeFit;
     private TextView resizeZoom;
@@ -226,9 +229,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.epg24 = (TextView) findViewById(R.id.epg24);
         this.resizeFit = (TextView) findViewById(R.id.resizeFit);
         this.resizeZoom = (TextView) findViewById(R.id.resizeZoom);
-        this.playerAuto = (TextView) findViewById(R.id.playerAuto);
-        this.playerExo = (TextView) findViewById(R.id.playerExo);
-        this.playerVlc = (TextView) findViewById(R.id.playerVlc);
+        this.playerLiveAuto = (TextView) findViewById(R.id.playerLiveAuto);
+        this.playerLiveExo = (TextView) findViewById(R.id.playerLiveExo);
+        this.playerLiveVlc = (TextView) findViewById(R.id.playerLiveVlc);
+        this.playerVavooAuto = (TextView) findViewById(R.id.playerVavooAuto);
+        this.playerVavooExo = (TextView) findViewById(R.id.playerVavooExo);
+        this.playerVavooVlc = (TextView) findViewById(R.id.playerVavooVlc);
         this.bufLow = (TextView) findViewById(R.id.bufLow);
         this.bufNorm = (TextView) findViewById(R.id.bufNorm);
         this.bufHigh = (TextView) findViewById(R.id.bufHigh);
@@ -475,23 +481,23 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$23(view3);
             }
         });
-        this.playerAuto.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda84
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view3) {
-                MainActivity.this.lambda$onCreate$24(view3);
-            }
+        this.playerLiveAuto.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerLiveEngine("auto"); }
         });
-        this.playerExo.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda85
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view3) {
-                MainActivity.this.lambda$onCreate$25(view3);
-            }
+        this.playerLiveExo.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerLiveEngine("exo"); }
         });
-        this.playerVlc.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda86
-            @Override // android.view.View.OnClickListener
-            public final void onClick(View view3) {
-                MainActivity.this.lambda$onCreate$26(view3);
-            }
+        this.playerLiveVlc.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerLiveEngine("vlc"); }
+        });
+        this.playerVavooAuto.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("auto"); }
+        });
+        this.playerVavooExo.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("exo"); }
+        });
+        this.playerVavooVlc.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("vlc"); }
         });
         this.bufLow.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
@@ -893,12 +899,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$24(View view) {
-        setPlayerEngine("auto");
+        setPlayerLiveEngine("auto");
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$25(View view) {
-        setPlayerEngine("exo");
+        setPlayerLiveEngine("exo");
     }
 
 
@@ -919,7 +925,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             LocalHls.start();
             String hls = LocalHls.isReady() ? ("bereit · Port " + LocalHls.getPort()) : "nicht bereit";
             boolean lib = VlcFactory.isAvailable();
-            String msg = "Engine-Pref: " + this.prefs.player()
+            String msg = "Engine Live: " + this.prefs.playerLive() + " · Vavoo: " + this.prefs.playerVavoo() + " · Sonst: " + this.prefs.player()
                     + "\nlibVLC: " + (lib ? "ja" : "nein")
                     + "\nLocalHls: " + hls
                     + "\nHost: —"
@@ -937,7 +943,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$26(View view) {
-        setPlayerEngine("vlc");
+        setPlayerLiveEngine("vlc");
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1487,6 +1493,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintPlayer();
     }
 
+    private void setPlayerLiveEngine(String str) {
+        this.prefs.setPlayerLive(str);
+        // Keep legacy player in sync for VOD/other until user sets it elsewhere
+        this.prefs.setPlayer(str);
+        paintPlayer();
+    }
+
+    private void setPlayerVavooEngine(String str) {
+        this.prefs.setPlayerVavoo(str);
+        paintPlayer();
+    }
+
     private void setBuffer(String str) {
         this.prefs.setBuffer(str);
         paintBuffer();
@@ -1494,10 +1512,23 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void paintPlayer() {
         Theme.Accent accent = Theme.get(this.prefs.accent());
-        String player = this.prefs.player();
-        paintChip(this.playerAuto, "auto".equals(player), accent);
-        paintChip(this.playerExo, "exo".equals(player), accent);
-        paintChip(this.playerVlc, "vlc".equals(player), accent);
+        String live = this.prefs.playerLive();
+        paintChip(this.playerLiveAuto, "auto".equals(live), accent);
+        paintChip(this.playerLiveExo, "exo".equals(live), accent);
+        paintChip(this.playerLiveVlc, "vlc".equals(live), accent);
+        String vavoo = this.prefs.playerVavoo();
+        paintChip(this.playerVavooAuto, "auto".equals(vavoo), accent);
+        paintChip(this.playerVavooExo, "exo".equals(vavoo), accent);
+        paintChip(this.playerVavooVlc, "vlc".equals(vavoo), accent);
+    }
+
+    /** Non-auto engine string for PlayerActivity, or null for Auto. */
+    private String forceEngineFor(boolean vavoo) {
+        String pref = vavoo ? this.prefs.playerVavoo() : this.prefs.playerLive();
+        if ("vlc".equals(pref) || "exo".equals(pref)) {
+            return pref;
+        }
+        return null;
     }
 
     private void paintBuffer() {
@@ -2456,7 +2487,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 if (str2.isEmpty()) {
                     str2 = "Vavoo";
                 }
-                PlayerActivity.open(this, str3, str4, str5, str2, true);
+                PlayerActivity.open(this, str3, str4, str5, str2, true, forceEngineFor(true));
                 return;
             } catch (Throwable unused) {
                 Toast.makeText(this, "Player konnte nicht starten", 0).show();
@@ -2464,7 +2495,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         try {
-            PlayerActivity.open(this, channel.hlsUrl, channel.tsUrl, channel.name, str2, true);
+            PlayerActivity.open(this, channel.hlsUrl, channel.tsUrl, channel.name, str2, true, forceEngineFor(false));
         } catch (Throwable unused2) {
             Toast.makeText(this, "Player konnte nicht starten", 0).show();
         }
@@ -3732,20 +3763,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             List<Models.Channel> list = null;
             int i = 0;
             Exception e = null;
-            while (true) {
-                if (i >= length) {
-                    break;
-                }
+            boolean loaded = false;
+            while (i < length) {
+                String url = strArr[i];
+                File cache = vavooEpgCacheFor(url, i);
                 try {
-                    this.guide.loadUrlMerge(strArr[i], vavooEpgCache(), z);
+                    this.guide.loadUrlMerge(url, cache, z);
+
                     e = null;
+                    loaded = true;
                     break;
                 } catch (Exception e2) {
                     e = e2;
                     i++;
                 }
             }
-            if (e != null && this.guide.channelCount == 0) {
+            if (!loaded && e != null && this.guide.channelCount == 0) {
                 throw e;
             }
             EpgGuide epgGuide = this.guide;
@@ -3754,6 +3787,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 list = catalog.live;
             }
             final int apply = epgGuide.apply(list);
+            this.prefs.setEpgLast(System.currentTimeMillis());
             UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda37
                 @Override // java.lang.Runnable
                 public final void run() {
@@ -3762,6 +3796,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             });
         } catch (Throwable th) {
             try {
+                this.guide.error = th.getMessage();
                 EpgGuide epgGuide2 = this.guide;
                 Models.Catalog catalog2 = this.catalog;
                 final int apply2 = epgGuide2 == null ? 0 : epgGuide2.apply(catalog2 == null ? null : catalog2.live);
@@ -3792,6 +3827,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         return new File(getCacheDir(), "streamy2-vavoo-epg.xml");
     }
 
+    private File vavooEpgCacheFor(String url, int index) {
+        if (index <= 0) {
+            return vavooEpgCache();
+        }
+        String safe = "u" + index;
+        try {
+            if (url != null) {
+                int h = url.hashCode();
+                safe = "u" + Integer.toHexString(h);
+            }
+        } catch (Throwable unused) {
+        }
+        return new File(getCacheDir(), "streamy2-vavoo-epg-" + safe + ".xml");
+    }
+
     private void updateEpgStatus() {
         String str;
         String str2;
@@ -3812,14 +3862,20 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             } else {
                 str2 = "jetzt";
             }
-            this.epgStatus.setText("Zuletzt: " + str2 + "  ·  " + this.guide.channelCount + " Sender, " + this.guide.programmeCount + " Programme");
+            String msg = "Zuletzt: " + str2 + "  ·  " + this.guide.channelCount + " Sender, " + this.guide.programmeCount + " Programme";
+            if (this.guide.error != null && !this.guide.error.isEmpty()) {
+                msg = msg + "  ·  Warnung: " + this.guide.error;
+            }
+            this.epgStatus.setText(msg);
             return;
         }
         TextView textView = this.epgStatus;
-        if (this.prefs.hasXtream()) {
+        if (this.guide.error != null && !this.guide.error.isEmpty()) {
+            str = "Fehler: " + this.guide.error;
+        } else if (this.prefs.hasXtream()) {
             str = "Noch nicht geladen. „EPG jetzt aktualisieren“ tippen.";
         } else {
-            str = "Demo-EPG ist lokal. Xtream lädt XMLTV.";
+            str = "Demo-EPG ist lokal. Vavoo lädt XMLTV automatisch.";
         }
         textView.setText(str);
     }
