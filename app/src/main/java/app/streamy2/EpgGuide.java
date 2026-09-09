@@ -233,7 +233,7 @@ public class EpgGuide {
             throw new Exception("Keine EPG-URL");
         }
         String trim = str.trim();
-        if (file != null && file.exists() && file.length() > 12582912) {
+        if (file != null && file.exists() && file.length() > 100663296) {
             file.delete();
         }
         if (!z && file != null && file.exists() && file.length() > 200) {
@@ -412,7 +412,7 @@ public class EpgGuide {
                                 list = new ArrayList();
                                 hashMap2.put(norm, list);
                             }
-                            if (list.size() < 3) {
+                            if (list.size() < 48) {
                                 list.add(listing);
                             }
                         }

@@ -111,6 +111,8 @@ public class PlayerActivity extends AppCompatActivity {
     private String lastPlayUrl;
     private String lastExoError = "";
     private String lastVlcError = "";
+    private long metaDurationMs;
+    private boolean vlcHudArmed;
     static final String MUX_TEST_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
     private final List<String> queue = new ArrayList();
     private boolean hud = true;
@@ -120,6 +122,7 @@ public class PlayerActivity extends AppCompatActivity {
         @Override // java.lang.Runnable
         public void run() {
             PlayerActivity.this.updateClockAndBar();
+            PlayerActivity.this.armVlcHudHideIfPlaying();
             PlayerActivity.UI.postDelayed(this, 1000L);
         }
     };
@@ -173,10 +176,14 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     public static void open(Context context, String str, String str2, String str3, String str4, boolean z) {
-        open(context, str, str2, str3, str4, z, null);
+        open(context, str, str2, str3, str4, z, null, 0L);
     }
 
     public static void open(Context context, String str, String str2, String str3, String str4, boolean z, String forceEngine) {
+        open(context, str, str2, str3, str4, z, forceEngine, 0L);
+    }
+
+    public static void open(Context context, String str, String str2, String str3, String str4, boolean z, String forceEngine, long durationMs) {
         Intent intent = new Intent(context, (Class<?>) PlayerActivity.class);
         intent.putExtra("url", str);
         intent.putExtra("alt", str2);
@@ -186,7 +193,56 @@ public class PlayerActivity extends AppCompatActivity {
         if (forceEngine != null && !forceEngine.isEmpty()) {
             intent.putExtra("forceEngine", forceEngine);
         }
+        if (durationMs > 0) {
+            intent.putExtra("durationMs", durationMs);
+        }
         context.startActivity(intent);
+    }
+
+    /** Parse scraped duration (minutes as digits, or HH:MM:SS / Xm) into ms. */
+    public static long parseDurationMs(String str) {
+        if (str == null) {
+            return 0L;
+        }
+        String trim = str.trim();
+        if (trim.isEmpty()) {
+            return 0L;
+        }
+        try {
+            if (trim.matches("\\d+")) {
+                long n = Long.parseLong(trim);
+                if (n <= 0) {
+                    return 0L;
+                }
+                // Megakino isoDur stores minutes; values <= 600 treated as minutes
+                if (n <= 600L) {
+                    return n * 60000L;
+                }
+                // seconds
+                if (n < 100000L) {
+                    return n * 1000L;
+                }
+                return n;
+            }
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:(\\d+)\\s*h)?\\s*(?:(\\d+)\\s*m(?:in)?)?\\s*(?:(\\d+)\\s*s)?", 2).matcher(trim.toLowerCase(java.util.Locale.US));
+            if (m.matches() && (m.group(1) != null || m.group(2) != null || m.group(3) != null)) {
+                long h = m.group(1) == null ? 0 : Long.parseLong(m.group(1));
+                long min = m.group(2) == null ? 0 : Long.parseLong(m.group(2));
+                long sec = m.group(3) == null ? 0 : Long.parseLong(m.group(3));
+                return ((h * 3600) + (min * 60) + sec) * 1000L;
+            }
+            if (trim.contains(":")) {
+                String[] parts = trim.split(":");
+                if (parts.length == 3) {
+                    return ((Long.parseLong(parts[0]) * 3600) + (Long.parseLong(parts[1]) * 60) + Long.parseLong(parts[2])) * 1000L;
+                }
+                if (parts.length == 2) {
+                    return ((Long.parseLong(parts[0]) * 60) + Long.parseLong(parts[1])) * 1000L;
+                }
+            }
+        } catch (Throwable unused) {
+        }
+        return 0L;
     }
 
     public static void openTestExo(Context context) {
@@ -207,6 +263,8 @@ public class PlayerActivity extends AppCompatActivity {
         String stringExtra2 = getIntent().getStringExtra("alt");
         this.liveMode = getIntent().getBooleanExtra("live", false);
         this.forceEngine = getIntent().getStringExtra("forceEngine");
+        this.metaDurationMs = getIntent().getLongExtra("durationMs", 0L);
+        this.vlcHudArmed = false;
         if ("vlc".equals(this.forceEngine)) {
             this.useVlc = true;
         } else if ("exo".equals(this.forceEngine)) {
@@ -379,6 +437,19 @@ public class PlayerActivity extends AppCompatActivity {
             TextView textView9 = this.archiveHint;
             if (textView9 != null) {
                 textView9.setVisibility(8);
+            }
+            TextView es = this.epgStart;
+            if (es != null) {
+                es.setVisibility(0);
+            }
+            TextView ee = this.epgEnd;
+            if (ee != null) {
+                ee.setVisibility(0);
+            }
+            SeekBar sb = this.epgSeek;
+            if (sb != null) {
+                sb.setVisibility(0);
+                sb.setEnabled(true);
             }
         }
         View findViewById6 = findViewById(R.id.tapLayer);
@@ -1005,6 +1076,30 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /* JADX INFO: Access modifiers changed from: private */
+    /* JADX INFO: Access modifiers changed from: private */
+    public void armVlcHudHideIfPlaying() {
+        if (!this.useVlc || this.userPaused) {
+            return;
+        }
+        LiveEngine liveEngine = this.vlc;
+        if (liveEngine == null || !liveEngine.isPlaying()) {
+            return;
+        }
+        updatePlayIcon();
+        if (!this.vlcHudArmed) {
+            this.vlcHudArmed = true;
+            scheduleHide();
+        }
+    }
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void onVlcPlaying() {
+        this.userPaused = false;
+        this.vlcHudArmed = true;
+        updatePlayIcon();
+        scheduleHide();
+    }
+
     public void scheduleHide() {
         Handler handler = UI;
         handler.removeCallbacks(this.hideHud);
@@ -1427,24 +1522,41 @@ public class PlayerActivity extends AppCompatActivity {
 
     private long vodDuration() {
         try {
+            if (this.useVlc) {
+                LiveEngine liveEngine = this.vlc;
+                if (liveEngine != null) {
+                    long duration = liveEngine.getDurationMs();
+                    if (duration > 0) {
+                        return duration;
+                    }
+                }
+                return this.metaDurationMs > 0 ? this.metaDurationMs : 0L;
+            }
             ExoPlayer exoPlayer = this.player;
-            if (exoPlayer == null || this.useVlc) {
-                return 0L;
+            if (exoPlayer == null) {
+                return this.metaDurationMs > 0 ? this.metaDurationMs : 0L;
             }
             long duration = exoPlayer.getDuration();
             if (duration <= 0 || duration == -9223372036854775807L) {
-                return 0L;
+                return this.metaDurationMs > 0 ? this.metaDurationMs : 0L;
             }
             return duration;
         } catch (Throwable unused) {
-            return 0L;
+            return this.metaDurationMs > 0 ? this.metaDurationMs : 0L;
         }
     }
 
     private long vodPosition() {
         try {
+            if (this.useVlc) {
+                LiveEngine liveEngine = this.vlc;
+                if (liveEngine != null) {
+                    return Math.max(0L, liveEngine.getPositionMs());
+                }
+                return 0L;
+            }
             ExoPlayer exoPlayer = this.player;
-            if (exoPlayer == null || this.useVlc) {
+            if (exoPlayer == null) {
                 return 0L;
             }
             return Math.max(0L, exoPlayer.getCurrentPosition());
@@ -1455,11 +1567,19 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void seekTo(long j) {
         try {
-            ExoPlayer exoPlayer = this.player;
-            if (exoPlayer == null || this.useVlc) {
+            long pos = Math.max(0L, j);
+            if (this.useVlc) {
+                LiveEngine liveEngine = this.vlc;
+                if (liveEngine != null) {
+                    liveEngine.seekToMs(pos);
+                }
                 return;
             }
-            exoPlayer.seekTo(Math.max(0L, j));
+            ExoPlayer exoPlayer = this.player;
+            if (exoPlayer == null) {
+                return;
+            }
+            exoPlayer.seekTo(pos);
         } catch (Throwable unused) {
         }
     }
@@ -1970,6 +2090,34 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+
+    private void bindVlcPlaybackListener(LiveEngine liveEngine) {
+        this.vlcHudArmed = false;
+        if (!(liveEngine instanceof VlcEngine)) {
+            return;
+        }
+        ((VlcEngine) liveEngine).setPlaybackListener(new VlcEngine.PlaybackListener() {
+            @Override public void onPlaying() {
+                PlayerActivity.UI.post(new Runnable() {
+                    @Override public void run() {
+                        if (!PlayerActivity.this.isFinishing()) {
+                            PlayerActivity.this.onVlcPlaying();
+                        }
+                    }
+                });
+            }
+            @Override public void onPaused() {
+                PlayerActivity.UI.post(new Runnable() {
+                    @Override public void run() {
+                        if (!PlayerActivity.this.isFinishing()) {
+                            PlayerActivity.this.updatePlayIcon();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
     private void playWithVlc(final String str) {
         this.useVlc = true;
         try {
@@ -1988,6 +2136,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             LiveEngine liveEngine = this.vlc;
             if (liveEngine != null) {
+                bindVlcPlaybackListener(liveEngine);
                 liveEngine.play(str, true ^ this.vlcSoft);
                 TextView textView = this.errorView;
                 if (textView != null) {
@@ -2064,6 +2213,7 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         this.vlc = liveEngine;
+        bindVlcPlaybackListener(liveEngine);
         liveEngine.play(str, !this.vlcSoft);
         TextView textView2 = this.errorView;
         if (textView2 != null) {

@@ -694,7 +694,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         TextView textView7 = this.appVersion;
         if (textView7 != null) {
-            textView7.setText("Version 3.06  (126)");
+            textView7.setText("Version 3.07  (127)");
         }
         TextView textView8 = (TextView) findViewById(R.id.pickerHint);
         if (textView8 != null) {
@@ -3259,7 +3259,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     : "Megakino-Stream nicht erreichbar. Host/Player prüfen oder später erneut versuchen.";
             Toast.makeText(this, err, 1).show();
         } else {
-            PlayerActivity.open(this, str, null, media.name, episode == null ? join(media.genre, media.year) : "S" + episode.season + " E" + episode.episode + " · " + episode.title, false);
+            long durMs = PlayerActivity.parseDurationMs(media != null ? media.duration : null);
+            PlayerActivity.open(this, str, null, media.name, episode == null ? join(media.genre, media.year) : "S" + episode.season + " E" + episode.episode + " · " + episode.title, false, null, durMs);
         }
     }
 
@@ -3759,18 +3760,32 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     MainActivity.this.lambda$loadVavooXmltv$117(apply);
                 }
             });
-        } catch (Throwable unused) {
+        } catch (Throwable th) {
+            try {
+                EpgGuide epgGuide2 = this.guide;
+                Models.Catalog catalog2 = this.catalog;
+                final int apply2 = epgGuide2 == null ? 0 : epgGuide2.apply(catalog2 == null ? null : catalog2.live);
+                UI.post(new Runnable() {
+                    @Override public void run() {
+                        MainActivity.this.lambda$loadVavooXmltv$117(apply2);
+                    }
+                });
+            } catch (Throwable unused) {
+            }
         }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadVavooXmltv$117(int i) {
-        ChannelAdapter channelAdapter;
         updateEpgStatus();
-        if (i <= 0 || (channelAdapter = this.adapter) == null) {
-            return;
+        ChannelAdapter channelAdapter = this.adapter;
+        if (channelAdapter != null) {
+            channelAdapter.notifyEpg();
         }
-        channelAdapter.notifyEpg();
+        try {
+            loadVisibleEpg();
+        } catch (Throwable unused) {
+        }
     }
 
     private File vavooEpgCache() {

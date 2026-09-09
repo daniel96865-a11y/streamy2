@@ -115,7 +115,7 @@
                 android:textSize="11sp"
                 android:textColor="#b3ffffff"
                 android:id="@+id/epgStart"
-                android:layout_width="40dp"
+                android:layout_width="52dp"
                 android:layout_height="wrap_content"
                 android:text="00:00"/>
             <SeekBar
@@ -131,7 +131,7 @@
                 android:textColor="#b3ffffff"
                 android:gravity="end"
                 android:id="@+id/epgEnd"
-                android:layout_width="40dp"
+                android:layout_width="52dp"
                 android:layout_height="wrap_content"
                 android:text="00:00"/>
         </LinearLayout>
