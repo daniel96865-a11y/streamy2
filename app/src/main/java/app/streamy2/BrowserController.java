@@ -29,7 +29,7 @@ import com.google.android.material.appbar.AppBarLayout;
 
 /* loaded from: classes.dex */
 public class BrowserController {
-    public static String HOME = "about:blank";
+    public static final String HOME = "about:blank";
     private static final String UA_PHONE = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
     private static final String UA_TV = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private final Activity act;
@@ -48,6 +48,8 @@ public class BrowserController {
     private boolean pressing;
     private final ProgressBar progress;
     private boolean started;
+    /** True once the user explicitly navigated away from the empty start page this session. */
+    private boolean userNavigated;
     private boolean tvCursor;
     private final EditText urlBar;
     private final WebView web;
@@ -330,6 +332,7 @@ public class BrowserController {
         if (!trim.contains("://")) {
             trim = (!trim.contains(".") || trim.contains(" ")) ? "https://www.google.com/search?q=" + Uri.encode(trim) : "https://" + trim;
         }
+        this.userNavigated = true;
         this.web.loadUrl(trim);
         this.web.requestFocus();
     }
@@ -420,6 +423,25 @@ public class BrowserController {
         }
     }
 
+
+    private String currentUrl() {
+        try {
+            return this.web != null ? this.web.getUrl() : null;
+        } catch (Exception unused) {
+            return null;
+        }
+    }
+
+    private void forceBlankHome() {
+        if (this.web != null) {
+            this.web.stopLoading();
+            this.web.loadUrl(HOME);
+        }
+        if (this.urlBar != null) {
+            this.urlBar.setText("");
+        }
+    }
+
     public void show() {
         View view = this.pane;
         if (view != null) {
@@ -429,12 +451,15 @@ public class BrowserController {
         if (!this.started) {
             this.started = true;
             clearBrowserSlate();
-            this.web.loadUrl(HOME);
-            if (this.urlBar != null) {
-                this.urlBar.setText("");
-            }
+            forceBlankHome();
         } else {
             this.web.onResume();
+            String url = currentUrl();
+            boolean megakino = url != null && url.toLowerCase().contains("megakino");
+            // Blank until user navigated this session; always clear Megakino pollution
+            if (!this.userNavigated || megakino) {
+                forceBlankHome();
+            }
         }
         if (this.tvCursor) {
             View view2 = this.pane;
