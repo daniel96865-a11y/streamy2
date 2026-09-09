@@ -1,7 +1,7 @@
 {
-  "versionCode": 126,
-  "versionName": "3.06",
+  "versionCode": 127,
+  "versionName": "3.07",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.06: Player-Handoff repariert (Vavoo/Megakino spielten durch kaputte if-Logik nie ab), LocalHls/VLC robuster, Test-Streams und Diagnose in den Einstellungen.",
+  "changelog": "Version 3.07: Vavoo-EPG wiederhergestellt (mehr Programme pro Sender im XMLTV-Fenster), Megakino/VOD Fortschrittsanzeige für Exo und VLC inkl. Scraped-Dauer als Fallback, VLC-Play-Button/HUD blendet wie bei Exo automatisch aus.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

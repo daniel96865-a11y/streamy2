@@ -14,6 +14,17 @@ import org.videolan.libvlc.util.VLCVideoLayout;
 
 /* loaded from: classes.dex */
 final class VlcEngine implements LiveEngine {
+    interface PlaybackListener {
+        void onPlaying();
+        void onPaused();
+    }
+
+    private PlaybackListener playbackListener;
+
+    void setPlaybackListener(PlaybackListener playbackListener) {
+        this.playbackListener = playbackListener;
+    }
+
     private void toastError(final String msg) {
         try {
             VlcFactory.lastError = msg;
@@ -39,6 +50,16 @@ final class VlcEngine implements LiveEngine {
             }
             if (event.type == MediaPlayer.Event.EncounteredError) {
                 toastError("VLC EncounteredError");
+            } else if (event.type == MediaPlayer.Event.Playing) {
+                PlaybackListener l = VlcEngine.this.playbackListener;
+                if (l != null) {
+                    try { l.onPlaying(); } catch (Throwable ignored) {}
+                }
+            } else if (event.type == MediaPlayer.Event.Paused || event.type == MediaPlayer.Event.Stopped) {
+                PlaybackListener l = VlcEngine.this.playbackListener;
+                if (l != null) {
+                    try { l.onPaused(); } catch (Throwable ignored) {}
+                }
             }
         }
     };
@@ -244,6 +265,46 @@ final class VlcEngine implements LiveEngine {
         ViewGroup viewGroup = this.host;
         if (viewGroup != null) {
             viewGroup.setVisibility(8);
+        }
+    }
+
+    @Override
+    public long getPositionMs() {
+        try {
+            MediaPlayer mediaPlayer = this.player;
+            if (mediaPlayer == null) {
+                return 0L;
+            }
+            long t = mediaPlayer.getTime();
+            return t > 0 ? t : 0L;
+        } catch (Throwable unused) {
+            return 0L;
+        }
+    }
+
+    @Override
+    public long getDurationMs() {
+        try {
+            MediaPlayer mediaPlayer = this.player;
+            if (mediaPlayer == null) {
+                return 0L;
+            }
+            long len = mediaPlayer.getLength();
+            return len > 0 ? len : 0L;
+        } catch (Throwable unused) {
+            return 0L;
+        }
+    }
+
+    @Override
+    public void seekToMs(long j) {
+        try {
+            MediaPlayer mediaPlayer = this.player;
+            if (mediaPlayer == null) {
+                return;
+            }
+            mediaPlayer.setTime(Math.max(0L, j));
+        } catch (Throwable unused) {
         }
     }
 }

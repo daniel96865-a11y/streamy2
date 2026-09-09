@@ -1,5 +1,5 @@
-versionCode 126
-versionName 3.06
+versionCode 127
+versionName 3.07
 title Streamy 2 Update
-message Player-Handoff repariert — Vavoo/Megakino Wiedergabe
+message Vavoo-EPG, Megakino-Fortschritt, VLC-HUD
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
