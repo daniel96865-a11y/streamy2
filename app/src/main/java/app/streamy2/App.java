@@ -27,6 +27,13 @@ public class App extends Application {
         } catch (Throwable unused) {
         }
         Vavoo.trustSsl();
-        LocalHls.start();
+        try {
+            LocalHls.start();
+        } catch (Throwable ignored) {
+        }
+        try {
+            VlcFactory.isAvailable();
+        } catch (Throwable ignored) {
+        }
     }
 }

@@ -759,6 +759,57 @@
                         <TextView
                             android:textSize="12sp"
                             android:textColor="@color/muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="Öffentlicher Mux-Teststream (Big Buck Bunny HLS). Prüft Exo und VLC getrennt."/>
+                        <LinearLayout
+                            android:orientation="horizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp">
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/btnTestExo"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Test Exo"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"/>
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/btnTestVlc"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Test VLC"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:layout_marginStart="8dp"/>
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/btnPlaybackDiag"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Diagnose"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:layout_marginStart="8dp"/>
+                        </LinearLayout>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Puffer"/>

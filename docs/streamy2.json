@@ -1,7 +1,7 @@
 {
-  "versionCode": 125,
-  "versionName": "3.05",
+  "versionCode": 126,
+  "versionName": "3.06",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.05: Update-Installation repariert (BuildConfig-Vergleich, System-Installer, Signatur-Hinweis), Vavoo trustSsl wieder aktiv, Megakino Token/Hosts/Fehlertexte verbessert.",
+  "changelog": "Version 3.06: Player-Handoff repariert (Vavoo/Megakino spielten durch kaputte if-Logik nie ab), LocalHls/VLC robuster, Test-Streams und Diagnose in den Einstellungen.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

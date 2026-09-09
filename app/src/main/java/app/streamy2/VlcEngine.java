@@ -16,6 +16,7 @@ import org.videolan.libvlc.util.VLCVideoLayout;
 final class VlcEngine implements LiveEngine {
     private void toastError(final String msg) {
         try {
+            VlcFactory.lastError = msg;
             new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override public void run() {
                     try { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show(); } catch (Throwable ignored) {}
@@ -30,6 +31,17 @@ final class VlcEngine implements LiveEngine {
     private VLCVideoLayout layout;
     private LibVLC lib;
     private MediaPlayer player;
+    private final MediaPlayer.EventListener eventListener = new MediaPlayer.EventListener() {
+        @Override
+        public void onEvent(MediaPlayer.Event event) {
+            if (event == null) {
+                return;
+            }
+            if (event.type == MediaPlayer.Event.EncounteredError) {
+                toastError("VLC EncounteredError");
+            }
+        }
+    };
 
     VlcEngine(Context context, ViewGroup viewGroup) {
         this.ctx = context.getApplicationContext();
@@ -53,6 +65,13 @@ final class VlcEngine implements LiveEngine {
             }
             this.lib = new LibVLC(this.ctx, arrayList);
             this.player = new MediaPlayer(this.lib);
+            try {
+                this.player.setEventListener(eventListener);
+            } catch (Throwable ignored) {
+            }
+            VlcFactory.available = true;
+            VlcFactory.probed = true;
+            VlcFactory.lastError = "";
         }
     }
 
@@ -66,21 +85,24 @@ final class VlcEngine implements LiveEngine {
             return;
         }
         try {
-            if (this.lib != null && this.player != null) {
-                ensureLayout();
-                try {
-                    this.player.stop();
-                } catch (Exception unused) {
-                }
-                this.host.setVisibility(0);
-                this.layout.setVisibility(0);
-                this.layout.post(new Runnable() { // from class: app.streamy2.VlcEngine$$ExternalSyntheticLambda0
-                    @Override // java.lang.Runnable
-                    public final void run() {
-                        VlcEngine.this.lambda$play$0(str, z);
-                    }
-                });
+            prepare();
+            if (this.lib == null || this.player == null) {
+                toastError("VLC nicht initialisiert");
+                return;
             }
+            ensureLayout();
+            try {
+                this.player.stop();
+            } catch (Exception unused) {
+            }
+            this.host.setVisibility(0);
+            this.layout.setVisibility(0);
+            this.layout.post(new Runnable() { // from class: app.streamy2.VlcEngine$$ExternalSyntheticLambda0
+                @Override // java.lang.Runnable
+                public final void run() {
+                    VlcEngine.this.lambda$play$0(str, z);
+                }
+            });
         } catch (Throwable unused2) {
             toastError("VLC Startfehler: " + (unused2.getMessage() == null ? unused2.getClass().getSimpleName() : unused2.getMessage()));
         }
@@ -106,6 +128,9 @@ final class VlcEngine implements LiveEngine {
                 media.addOption(":clock-synchro=0");
                 if (str.contains("vavoo") || str.contains("sunshine") || str.contains("mediahubmx") || str.contains("ngolpdky") || str.contains("kool.to") || str.contains("127.0.0.1")) {
                     media.addOption(":http-user-agent=okhttp/4.11.0");
+                } else if (str.contains("gxplayer") || str.contains("master.txt") || str.contains("/m3u8/")) {
+                    media.addOption(":http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36");
+                    media.addOption(":http-referrer=https://watch.gxplayer.xyz/");
                 }
                 if (!z) {
                     media.addOption(":codec=avcodec,none");
@@ -192,6 +217,10 @@ final class VlcEngine implements LiveEngine {
                     this.attached = false;
                 }
                 if (z) {
+                    try {
+                        this.player.setEventListener(null);
+                    } catch (Exception unused4) {
+                    }
                     try {
                         this.player.release();
                     } catch (Exception unused3) {
