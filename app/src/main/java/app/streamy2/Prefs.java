@@ -110,16 +110,40 @@ public class Prefs {
         this.p.edit().putString("resize", "zoom".equals(str) ? "zoom" : "fit").apply();
     }
 
-    public String player() {
-        String string = this.p.getString("player", "auto");
+    private static String normPlayer(String string) {
         return ("vlc".equals(string) || "exo".equals(string)) ? string : "auto";
     }
 
+    public String player() {
+        return normPlayer(this.p.getString("player", "auto"));
+    }
+
     public void setPlayer(String str) {
-        if (!"vlc".equals(str) && !"exo".equals(str)) {
-            str = "auto";
+        this.p.edit().putString("player", normPlayer(str)).apply();
+    }
+
+    /** Fixed player for Xtream / Live TV (non-Vavoo). Migrates from legacy player() when unset. */
+    public String playerLive() {
+        if (!this.p.contains("playerLive")) {
+            return player();
         }
-        this.p.edit().putString("player", str).apply();
+        return normPlayer(this.p.getString("playerLive", "auto"));
+    }
+
+    public void setPlayerLive(String str) {
+        this.p.edit().putString("playerLive", normPlayer(str)).apply();
+    }
+
+    /** Fixed player for Vavoo. Migrates from legacy player() when unset. */
+    public String playerVavoo() {
+        if (!this.p.contains("playerVavoo")) {
+            return player();
+        }
+        return normPlayer(this.p.getString("playerVavoo", "auto"));
+    }
+
+    public void setPlayerVavoo(String str) {
+        this.p.edit().putString("playerVavoo", normPlayer(str)).apply();
     }
 
     public String buffer() {

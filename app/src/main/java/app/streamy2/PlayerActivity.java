@@ -190,6 +190,15 @@ public class PlayerActivity extends AppCompatActivity {
         intent.putExtra("title", str3);
         intent.putExtra("sub", str4);
         intent.putExtra("live", z);
+        boolean vavoo = (str4 != null && str4.toLowerCase(Locale.US).contains("vavoo"))
+                || Vavoo.isPlayUrl(str) || Vavoo.isPlayUrl(str2) || Vavoo.isCdn(str) || Vavoo.isCdn(str2);
+        if (!vavoo) {
+            Models.Channel playing = App.playing;
+            if (playing != null && playing.vavooUrl != null && !playing.vavooUrl.isEmpty()) {
+                vavoo = true;
+            }
+        }
+        intent.putExtra("vavoo", vavoo);
         if (forceEngine != null && !forceEngine.isEmpty()) {
             intent.putExtra("forceEngine", forceEngine);
         }
@@ -772,7 +781,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (this.forceEngine != null) {
                 engine = engine + " (force=" + this.forceEngine + ")";
             } else {
-                engine = engine + " (pref=" + new Prefs(this).player() + ")";
+                engine = engine + " (pref=" + playerPref() + ")";
             }
             boolean libOk = VlcFactory.isAvailable();
             String hls = LocalHls.isReady()
@@ -2073,7 +2082,58 @@ public class PlayerActivity extends AppCompatActivity {
         if ("vlc".equals(this.forceEngine) || this.useVlc) {
             return true;
         }
-        return "vlc".equals(new Prefs(this).player());
+        return "vlc".equals(playerPref());
+    }
+
+    private boolean isVavooPlayback() {
+        try {
+            if (getIntent() != null && getIntent().getBooleanExtra("vavoo", false)) {
+                return true;
+            }
+        } catch (Throwable unused) {
+        }
+        Models.Channel channel = App.playing;
+        if (channel != null && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+            return true;
+        }
+        String sub = null;
+        try {
+            sub = getIntent() != null ? getIntent().getStringExtra("sub") : null;
+        } catch (Throwable unused2) {
+        }
+        if (sub != null && sub.toLowerCase(Locale.US).contains("vavoo")) {
+            return true;
+        }
+        String url = null;
+        try {
+            url = getIntent() != null ? getIntent().getStringExtra("url") : null;
+        } catch (Throwable unused3) {
+        }
+        return Vavoo.isPlayUrl(url) || Vavoo.isCdn(url);
+    }
+
+    /** Source-specific player pref: Vavoo / Live TV / other (VOD). */
+    private String playerPref() {
+        Prefs prefs = new Prefs(this);
+        if (isVavooPlayback()) {
+            return prefs.playerVavoo();
+        }
+        if (this.liveMode) {
+            return prefs.playerLive();
+        }
+        return prefs.player();
+    }
+
+    private void setPlayerPref(String str) {
+        Prefs prefs = new Prefs(this);
+        if (isVavooPlayback()) {
+            prefs.setPlayerVavoo(str);
+        } else if (this.liveMode) {
+            prefs.setPlayerLive(str);
+            prefs.setPlayer(str);
+        } else {
+            prefs.setPlayer(str);
+        }
     }
 
     private void hideVlc() {
@@ -2296,15 +2356,15 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void cyclePlayer() {
-        Prefs prefs = new Prefs(this);
-        String player = prefs.player();
+        String player = playerPref();
         String str = "auto";
         if ("auto".equals(player)) {
             str = "exo";
         } else if ("exo".equals(player)) {
             str = "vlc";
         }
-        prefs.setPlayer(str);
+        setPlayerPref(str);
+        this.forceEngine = "auto".equals(str) ? null : str;
         paintPlayerBtn();
         this.useVlc = "vlc".equals(str);
         this.vlcSoft = false;
@@ -2318,7 +2378,8 @@ public class PlayerActivity extends AppCompatActivity {
         hideVlc();
         this.index = 0;
         playCurrent();
-        Toast.makeText(this, "Player: " + labelPlayer(str), 0).show();
+        String scope = isVavooPlayback() ? "Vavoo" : (this.liveMode ? "Live" : "VOD");
+        Toast.makeText(this, "Player " + scope + ": " + labelPlayer(str), 0).show();
     }
 
     private void paintPlayerBtn() {
@@ -2326,7 +2387,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (textView == null) {
             return;
         }
-        textView.setText(labelPlayer(new Prefs(this).player()));
+        textView.setText(labelPlayer(playerPref()));
     }
 
     private static String labelPlayer(String str) {

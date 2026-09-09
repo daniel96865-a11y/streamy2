@@ -1,7 +1,7 @@
 {
-  "versionCode": 127,
-  "versionName": "3.07",
+  "versionCode": 128,
+  "versionName": "3.08",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.07: Vavoo-EPG wiederhergestellt (mehr Programme pro Sender im XMLTV-Fenster), Megakino/VOD Fortschrittsanzeige für Exo und VLC inkl. Scraped-Dauer als Fallback, VLC-Play-Button/HUD blendet wie bei Exo automatisch aus.",
+  "changelog": "Version 3.08: Vavoo-EPG zeigt wieder „Jetzt: …“ (besseres Namens-Matching, robusteres XMLTV-Offset, Cache-Refresh). Getrennte feste Player für Live TV und Vavoo (Auto/Exo/VLC).",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

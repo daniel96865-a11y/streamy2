@@ -703,14 +703,14 @@
                             android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Player"/>
+                            android:text="Player Live TV"/>
                         <TextView
                             android:textSize="12sp"
                             android:textColor="@color/muted"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Auto wechselt bei stummen Sendern. VLC = mehr Ton. Exo = oft flüssiger."/>
+                            android:text="Fester Player für Xtream/Live TV. Auto wechselt bei stummen Sendern. VLC = mehr Ton. Exo = oft flüssiger."/>
                         <LinearLayout
                             android:orientation="horizontal"
                             android:layout_width="match_parent"
@@ -720,7 +720,7 @@
                             <TextView
                                 android:textColor="@color/accent_fg"
                                 android:gravity="center"
-                                android:id="@+id/playerAuto"
+                                android:id="@+id/playerLiveAuto"
                                 android:background="@drawable/bg_btn"
                                 android:focusable="true"
                                 android:clickable="true"
@@ -732,7 +732,7 @@
                             <TextView
                                 android:textColor="@color/fg"
                                 android:gravity="center"
-                                android:id="@+id/playerExo"
+                                android:id="@+id/playerLiveExo"
                                 android:background="@drawable/bg_btn_sec"
                                 android:focusable="true"
                                 android:clickable="true"
@@ -745,7 +745,65 @@
                             <TextView
                                 android:textColor="@color/fg"
                                 android:gravity="center"
-                                android:id="@+id/playerVlc"
+                                android:id="@+id/playerLiveVlc"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="VLC"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:layout_marginStart="8dp"/>
+                        </LinearLayout>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Player Vavoo"/>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Separater fester Player nur für Vavoo-Sender."/>
+                        <LinearLayout
+                            android:orientation="horizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="12dp">
+                            <TextView
+                                android:textColor="@color/accent_fg"
+                                android:gravity="center"
+                                android:id="@+id/playerVavooAuto"
+                                android:background="@drawable/bg_btn"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Auto"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"/>
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/playerVavooExo"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="Exo"
+                                android:paddingStart="16dp"
+                                android:paddingEnd="16dp"
+                                android:layout_marginStart="8dp"/>
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/playerVavooVlc"
                                 android:background="@drawable/bg_btn_sec"
                                 android:focusable="true"
                                 android:clickable="true"
