@@ -146,6 +146,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private View updateBanner;
     private TextView updateText;
     private volatile boolean vavooBusy;
+    /** Last successful Vavoo EPG *network* pull in this process (0 = never this session). */
+    private volatile long vavooEpgNetAt;
+    private volatile boolean vavooEpgBusy;
+    /** Prefer fresh net pull at least every ~45 min when opening the Vavoo tab. */
+    private static final long VAVOO_EPG_NET_TTL_MS = 45L * 60L * 1000L;
     private static final ExecutorService IO = Executors.newFixedThreadPool(6);
     private static final ExecutorService EPG = Executors.newSingleThreadExecutor(new ThreadFactory() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda111
         @Override // java.util.concurrent.ThreadFactory
@@ -994,7 +999,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$34(View view) {
-        refreshXmltv(true);
+        if (MainActivity.this.tab == 4) {
+            // Vavoo tab: dedicated net-first path (toast + session stamp)
+            ensureVavooEpg(true);
+        } else {
+            refreshXmltv(true);
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3768,11 +3778,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$refreshXmltv$113(File file, File file2) {
         try {
             this.guide.loadFile(file);
-            if (file2.exists()) {
-                this.guide.loadUrlMerge("https://epg.lat/files/de.xml.gz", file2, false);
-            } else {
-                this.guide.loadUrlMerge("https://epg.lat/files/de.xml.gz", file2, false);
-            }
+            // Soft path: reuse Vavoo caches; Vavoo tab uses ensureVavooEpg() for net-first
+            mergeVavooEpgFeeds(false);
             EpgGuide epgGuide = this.guide;
             Models.Catalog catalog = this.catalog;
             final int apply = epgGuide.apply(catalog == null ? null : catalog.live);
@@ -3830,13 +3837,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         try {
-            this.guide.loadUrlMerge("https://epg.lat/files/de.xml.gz", vavooEpgCache(), z);
+            mergeVavooEpgFeeds(z);
         } catch (Throwable unused2) {
         }
         EpgGuide epgGuide = this.guide;
         Models.Catalog catalog = this.catalog;
         final int apply = epgGuide.apply(catalog == null ? null : catalog.live);
         this.prefs.setEpgLast(System.currentTimeMillis());
+        if (z) {
+            this.vavooEpgNetAt = System.currentTimeMillis();
+        }
         this.guide.loading = false;
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda67
             @Override // java.lang.Runnable
@@ -3868,7 +3878,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /**
      * Ensure Vavoo rows get XMLTV „Jetzt: …“ on phone and TV.
-     * Forces a fresh download when the guide is empty/stale or few channels matched.
+     * UI load path prefers a fresh network pull (once per session / when last net
+     * fetch is older than ~45 min / programmeCount==0). Cache may still be written
+     * after a successful download for offline reuse — but we do not short-circuit
+     * on stale local cache for the Vavoo tab.
      */
     private void ensureVavooEpg(boolean userRequested) {
         try {
@@ -3888,47 +3901,96 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         } catch (Throwable ignored) {
         }
         boolean empty = this.guide.channelCount <= 0 || this.guide.programmeCount <= 0;
-        long last = this.prefs.epgLast();
-        long interval = Math.max(1L, this.prefs.epgIntervalHours()) * 3600000L;
-        boolean stale = last <= 0 || System.currentTimeMillis() - last > interval;
-        File primary = vavooEpgCache();
-        boolean cacheMissing = primary == null || !primary.exists() || primary.length() < 200;
-        boolean force = userRequested || empty || stale || cacheMissing;
-        if (force) {
-            try {
-                this.guide.loading = true;
-                updateEpgStatus();
-            } catch (Throwable ignored) {
-            }
+        long now = System.currentTimeMillis();
+        boolean needNet = userRequested
+                || empty
+                || this.vavooEpgNetAt <= 0L
+                || (now - this.vavooEpgNetAt > VAVOO_EPG_NET_TTL_MS);
+        if (!needNet) {
+            return;
         }
-        loadVavooXmltv(force);
+        if (this.vavooEpgBusy && !userRequested) {
+            return;
+        }
+        try {
+            this.guide.loading = true;
+            updateEpgStatus();
+        } catch (Throwable ignored) {
+        }
+        // Always force network download on this path (no cache short-circuit).
+        loadVavooXmltv(true);
     }
 
-    private void loadVavooXmltv(final boolean z) {
+    private void loadVavooXmltv(final boolean forceNet) {
+        if (this.vavooEpgBusy) {
+            return;
+        }
+        this.vavooEpgBusy = true;
         IO.execute(new Runnable() {
             @Override
             public final void run() {
-                MainActivity.this.lambda$loadVavooXmltv$118(z);
+                MainActivity.this.lambda$loadVavooXmltv$118(forceNet);
             }
         });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$loadVavooXmltv$118(boolean z) {
+    public /* synthetic */ void lambda$loadVavooXmltv$118(boolean forceNet) {
         Exception lastErr = null;
+        int loadedFeeds = 0;
         try {
             String[] strArr = Vavoo.EPG_URLS;
-            int loadedFeeds = 0;
             for (int i = 0; i < strArr.length; i++) {
                 String url = strArr[i];
                 File cache = vavooEpgCacheFor(url, i);
                 try {
-                    this.guide.loadUrlMerge(url, cache, z);
+                    // forceNet=true → EpgGuide.download(); cache write happens after success
+                    this.guide.loadUrlMerge(url, cache, forceNet);
                     loadedFeeds++;
-                    // Keep going: merge secondary DE feeds for better name coverage
                 } catch (Exception e2) {
                     lastErr = e2;
                 }
+            }
+            // Offline fallback only if every network source failed
+            if (loadedFeeds == 0 && forceNet) {
+                for (int i = 0; i < strArr.length; i++) {
+                    String url = strArr[i];
+                    File cache = vavooEpgCacheFor(url, i);
+                    if (cache == null || !cache.exists() || cache.length() < 200) {
+                        continue;
+                    }
+                    try {
+                        this.guide.loadUrlMerge(url, cache, false);
+                        loadedFeeds++;
+                    } catch (Exception e3) {
+                        lastErr = e3;
+                    }
+                }
+                if (loadedFeeds == 0) {
+                    throw (lastErr != null ? lastErr : new Exception("Alle EPG-Netzquellen fehlgeschlagen"));
+                }
+                // Cache-only recovery — do not claim net success
+                EpgGuide epgGuide = this.guide;
+                Models.Catalog catalog = this.catalog;
+                List<Models.Channel> list = catalog == null ? null : catalog.live;
+                final int applyCache = epgGuide.apply(list);
+                this.guide.loading = false;
+                this.guide.error = lastErr != null ? lastErr.getMessage() : "Netz fehlgeschlagen, Cache genutzt";
+                UI.post(new Runnable() {
+                    @Override
+                    public final void run() {
+                        MainActivity.this.lambda$loadVavooXmltv$117(applyCache);
+                        if (MainActivity.this.tab == 4) {
+                            try {
+                                Toast.makeText(MainActivity.this,
+                                        "EPG-Netz fehlgeschlagen — Cache genutzt (" + applyCache + " Sender)",
+                                        Toast.LENGTH_LONG).show();
+                            } catch (Throwable ignored) {
+                            }
+                        }
+                    }
+                });
+                return;
             }
             if (loadedFeeds == 0 && lastErr != null && this.guide.channelCount == 0) {
                 throw lastErr;
@@ -3937,12 +3999,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             Models.Catalog catalog = this.catalog;
             List<Models.Channel> list = catalog == null ? null : catalog.live;
             final int apply = epgGuide.apply(list);
-            // If almost nothing matched but we have programmes, one more pass after indexing settles
             if (apply < 3 && this.guide.programmeCount > 100 && list != null) {
                 try {
                     this.guide.apply(list);
                 } catch (Throwable ignored) {
                 }
+            }
+            if (forceNet && loadedFeeds > 0) {
+                this.vavooEpgNetAt = System.currentTimeMillis();
             }
             this.prefs.setEpgLast(System.currentTimeMillis());
             this.guide.loading = false;
@@ -3950,18 +4014,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 this.guide.error = null; // partial success
             }
             final int applyFinal = this.guide.apply(list);
-            final boolean forced = z;
+            final boolean fromNet = forceNet && loadedFeeds > 0;
             UI.post(new Runnable() {
                 @Override
                 public final void run() {
                     MainActivity.this.lambda$loadVavooXmltv$117(applyFinal);
-                    if (forced && MainActivity.this.tab == 4) {
+                    if (fromNet && MainActivity.this.tab == 4) {
                         try {
                             Toast.makeText(MainActivity.this,
-                                    applyFinal > 0
-                                            ? ("Vavoo-EPG: " + applyFinal + " Sender mit „Jetzt“")
-                                            : ("Vavoo-EPG geladen, aber keine Treffer ("
-                                                + MainActivity.this.guide.channelCount + " XMLTV-Sender). „EPG aktualisieren“ versuchen."),
+                                    "EPG aus dem Netz geladen (" + applyFinal + " Sender)",
                                     Toast.LENGTH_LONG).show();
                         } catch (Throwable ignored) {
                         }
@@ -3982,7 +4043,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         if (MainActivity.this.tab == 4) {
                             try {
                                 Toast.makeText(MainActivity.this,
-                                        "Vavoo-EPG fehlgeschlagen: " + (th.getMessage() == null ? "unbekannt" : th.getMessage()),
+                                        "EPG-Netzfehler: " + (th.getMessage() == null ? "unbekannt" : th.getMessage()),
                                         Toast.LENGTH_LONG).show();
                             } catch (Throwable ignored) {
                             }
@@ -3991,6 +4052,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 });
             } catch (Throwable unused) {
             }
+        } finally {
+            this.vavooEpgBusy = false;
         }
     }
 
@@ -4005,13 +4068,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             loadVisibleEpg();
         } catch (Throwable unused) {
         }
-        // If still on Vavoo and list was rebuilt, re-render so epgLine binds even without payloads
         if (this.tab == 4) {
             try {
                 if (this.adapter != null && i > 0) {
-                    // lightweight: payload notify already done; also ask visible rows again
                     loadVisibleEpg();
                 }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    /** Download/merge all Vavoo.EPG_URLS. forceNet skips local cache short-circuit. */
+    private void mergeVavooEpgFeeds(boolean forceNet) {
+        String[] urls = Vavoo.EPG_URLS;
+        for (int i = 0; i < urls.length; i++) {
+            try {
+                this.guide.loadUrlMerge(urls[i], vavooEpgCacheFor(urls[i], i), forceNet);
             } catch (Throwable ignored) {
             }
         }

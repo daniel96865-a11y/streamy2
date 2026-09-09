@@ -1,5 +1,5 @@
-versionCode 130
-versionName 3.10
+versionCode 131
+versionName 3.11
 title Streamy 2 Update
-message TV Direkt-Update + Vavoo-EPG Handy/TV
+message Vavoo-EPG aus dem Netz (epg.pw)
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
