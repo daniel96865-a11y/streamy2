@@ -107,6 +107,11 @@ public class PlayerActivity extends AppCompatActivity {
     private LiveEngine vlc;
     private ViewGroup vlcHost;
     private boolean vlcSoft;
+    private String forceEngine;
+    private String lastPlayUrl;
+    private String lastExoError = "";
+    private String lastVlcError = "";
+    static final String MUX_TEST_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
     private final List<String> queue = new ArrayList();
     private boolean hud = true;
     private final List<EpgGuide.Listing> programmes = new ArrayList();
@@ -168,13 +173,28 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     public static void open(Context context, String str, String str2, String str3, String str4, boolean z) {
+        open(context, str, str2, str3, str4, z, null);
+    }
+
+    public static void open(Context context, String str, String str2, String str3, String str4, boolean z, String forceEngine) {
         Intent intent = new Intent(context, (Class<?>) PlayerActivity.class);
         intent.putExtra("url", str);
         intent.putExtra("alt", str2);
         intent.putExtra("title", str3);
         intent.putExtra("sub", str4);
         intent.putExtra("live", z);
+        if (forceEngine != null && !forceEngine.isEmpty()) {
+            intent.putExtra("forceEngine", forceEngine);
+        }
         context.startActivity(intent);
+    }
+
+    public static void openTestExo(Context context) {
+        open(context, MUX_TEST_HLS, null, "Mux Test HLS", "ExoPlayer", false, "exo");
+    }
+
+    public static void openTestVlc(Context context) {
+        open(context, MUX_TEST_HLS, null, "Mux Test HLS", "VLC", false, "vlc");
     }
 
     /* JADX WARN: Multi-variable type inference failed */
@@ -186,6 +206,12 @@ public class PlayerActivity extends AppCompatActivity {
         String stringExtra = getIntent().getStringExtra("url");
         String stringExtra2 = getIntent().getStringExtra("alt");
         this.liveMode = getIntent().getBooleanExtra("live", false);
+        this.forceEngine = getIntent().getStringExtra("forceEngine");
+        if ("vlc".equals(this.forceEngine)) {
+            this.useVlc = true;
+        } else if ("exo".equals(this.forceEngine)) {
+            this.useVlc = false;
+        }
         String stringExtra3 = getIntent().getStringExtra("title");
         String stringExtra4 = getIntent().getStringExtra("sub");
         this.channel = App.playing;
@@ -291,6 +317,21 @@ public class PlayerActivity extends AppCompatActivity {
                 @Override // android.view.View.OnClickListener
                 public final void onClick(View view2) {
                     PlayerActivity.this.lambda$onCreate$6(view2);
+                }
+            });
+            this.btnPlayer.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override // android.view.View.OnLongClickListener
+                public boolean onLongClick(View view2) {
+                    PlayerActivity.this.showDiagnostics();
+                    return true;
+                }
+            });
+        }
+        TextView btnDiag = (TextView) findViewById(R.id.btnDiag);
+        if (btnDiag != null) {
+            btnDiag.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    PlayerActivity.this.showDiagnostics();
                 }
             });
         }
@@ -597,7 +638,10 @@ public class PlayerActivity extends AppCompatActivity {
                     str = str + " · " + cause.getMessage();
                 }
             }
-            try { PlayerActivity.this.toastPlaybackError("Player: " + str); } catch (Throwable ignored) {}
+            try {
+                PlayerActivity.this.lastExoError = str;
+                PlayerActivity.this.toastPlaybackError("Player: " + str);
+            } catch (Throwable ignored) {}
             if (PlayerActivity.this.vavooKeep != null && PlayerActivity.this.recoverTries < 2) {
                 PlayerActivity.this.recoverTries++;
                 LocalHls.forget(PlayerActivity.this.vavooKeep);
@@ -646,6 +690,68 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
             PlayerActivity.this.playCurrent();
+        }
+    }
+
+
+    /* JADX INFO: Access modifiers changed from: private */
+    public void showDiagnostics() {
+        try {
+            String engine = this.useVlc ? "VLC" : "Exo";
+            if (this.forceEngine != null) {
+                engine = engine + " (force=" + this.forceEngine + ")";
+            } else {
+                engine = engine + " (pref=" + new Prefs(this).player() + ")";
+            }
+            boolean libOk = VlcFactory.isAvailable();
+            String hls = LocalHls.isReady()
+                    ? ("bereit · Port " + LocalHls.getPort())
+                    : "nicht bereit";
+            String host = redactHost(this.lastPlayUrl != null ? this.lastPlayUrl
+                    : (this.index >= 0 && this.index < this.queue.size() ? this.queue.get(this.index) : null));
+            String exo = (this.lastExoError == null || this.lastExoError.isEmpty()) ? "—" : this.lastExoError;
+            String vlc = (this.lastVlcError == null || this.lastVlcError.isEmpty())
+                    ? ((VlcFactory.lastError == null || VlcFactory.lastError.isEmpty()) ? "—" : VlcFactory.lastError)
+                    : this.lastVlcError;
+            String msg = "Engine: " + engine
+                    + "\nlibVLC: " + (libOk ? "ja" : "nein")
+                    + "\nLocalHls: " + hls
+                    + "\nHost: " + host
+                    + "\nExo-Fehler: " + exo
+                    + "\nVLC-Fehler: " + vlc;
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Wiedergabe-Diagnose")
+                    .setMessage(msg)
+                    .setPositiveButton("OK", null)
+                    .show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "Diagnose: " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private static String redactHost(String url) {
+        if (url == null || url.isEmpty()) {
+            return "—";
+        }
+        try {
+            Uri parse = Uri.parse(url);
+            String host = parse.getHost();
+            if (host == null || host.isEmpty()) {
+                return "—";
+            }
+            if ("127.0.0.1".equals(host) || "localhost".equalsIgnoreCase(host)) {
+                String q = parse.getQueryParameter("u");
+                if (q != null && !q.isEmpty()) {
+                    return "local→" + redactHost(q);
+                }
+                return host + (parse.getPort() > 0 ? (":" + parse.getPort()) : "");
+            }
+            if (host.length() <= 5) {
+                return host.charAt(0) + "***";
+            }
+            return host.substring(0, 2) + "***" + host.substring(host.length() - 2);
+        } catch (Exception unused) {
+            return "***";
         }
     }
 
@@ -743,8 +849,9 @@ public class PlayerActivity extends AppCompatActivity {
         String stringExtra = intent.getStringExtra("url");
         String stringExtra2 = intent.getStringExtra("alt");
         this.liveMode = intent.getBooleanExtra("live", false);
+        this.forceEngine = intent.getStringExtra("forceEngine");
         this.catchup = false;
-        this.useVlc = false;
+        this.useVlc = "vlc".equals(this.forceEngine);
         this.vlcSoft = false;
         this.freezeTicks = 0;
         this.channel = App.playing;
@@ -1629,136 +1736,110 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     public void playCurrent() {
-        boolean z;
-        boolean z2;
-        MediaSource createMediaSource = null;
-        TextView textView;
         int i = this.index;
         if (i < 0 || i >= this.queue.size() || this.player == null) {
             TextView textView2 = this.errorView;
             if (textView2 != null) {
                 textView2.setVisibility(0);
                 this.errorView.setText("Keine Stream-URL.");
-                return;
             }
             return;
         }
         try {
             String str = this.queue.get(this.index);
             boolean isPlayUrl = Vavoo.isPlayUrl(str);
-            if (!isPlayUrl && !Vavoo.isCdn(str)) {
-                z = false;
-                if (isPlayUrl) {
-                    this.vavooKeep = str;
-                }
-                if (z) {
-                    this.vavooHot = str;
-                }
-                if (!isPlayUrl) {
-                    if (this.resolving) {
-                        return;
-                    }
-                    this.resolving = true;
-                    TextView textView3 = this.errorView;
-                    if (textView3 != null) {
-                        textView3.setVisibility(0);
-                        this.errorView.setText("Vavoo wird geladen…");
-                    }
-                    this.vavooKeep = str;
-                    final String resolveUrl = str;
-                    final Runnable runnable = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda20
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            PlayerActivity.this.lambda$playCurrent$17();
-                        }
-                    };
-                    UI.postDelayed(runnable, 10000);
-                    IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable);
-                        }
-                    });
+            boolean z = isPlayUrl || Vavoo.isCdn(str);
+            if (isPlayUrl) {
+                this.vavooKeep = str;
+            }
+            if (z && !isPlayUrl) {
+                this.vavooHot = str;
+            }
+            if (isPlayUrl) {
+                if (this.resolving) {
                     return;
                 }
-                if (str.contains("gxplayer") || str.contains("master.txt") || str.contains("/m3u8/")) {
-                    str = LocalHls.wrap(str);
+                this.resolving = true;
+                TextView textView3 = this.errorView;
+                if (textView3 != null) {
+                    textView3.setVisibility(0);
+                    this.errorView.setText("Vavoo wird geladen…");
                 }
-                this.freezeTicks = 0;
-                this.userPaused = false;
-                applyHeaders(str);
-                if (!z && wantVlc()) {
+                this.vavooKeep = str;
+                final String resolveUrl = str;
+                final Runnable runnable = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda20
+                    @Override // java.lang.Runnable
+                    public final void run() {
+                        PlayerActivity.this.lambda$playCurrent$17();
+                    }
+                };
+                UI.postDelayed(runnable, 10000);
+                IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
+                    @Override // java.lang.Runnable
+                    public final void run() {
+                        PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable);
+                    }
+                });
+                return;
+            }
+            String headerUrl = str;
+            if (str.contains("gxplayer") || str.contains("master.txt") || str.contains("/m3u8/")) {
+                str = LocalHls.wrap(str);
+            }
+            this.lastPlayUrl = str;
+            this.freezeTicks = 0;
+            this.userPaused = false;
+            applyHeaders(headerUrl);
+            if ((!z && wantVlc()) || "vlc".equals(this.forceEngine)) {
+                if (!"exo".equals(this.forceEngine)) {
                     playWithVlc(str);
                     return;
                 }
-                hideVlc();
-                this.useVlc = false;
-                PlayerView playerView = this.playerView;
-                if (playerView != null) {
-                    playerView.setVisibility(0);
-                    if (this.playerView.getPlayer() == null) {
-                        this.playerView.setPlayer(this.player);
-                    }
+            }
+            hideVlc();
+            this.useVlc = false;
+            PlayerView playerView = this.playerView;
+            if (playerView != null) {
+                playerView.setVisibility(0);
+                if (this.playerView.getPlayer() == null) {
+                    this.playerView.setPlayer(this.player);
                 }
-                Uri parse = Uri.parse(str);
-                if (!isHls(str) && !z) {
-                    z2 = false;
-                    MediaItem.Builder uri = new MediaItem.Builder().setUri(parse);
-                    if (!z2) {
-                        uri.setMimeType(MimeTypes.APPLICATION_M3U8);
-                        if (this.liveMode) {
-                            uri.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
-                        }
-                    } else if (str.toLowerCase(Locale.US).contains(".ts")) {
-                        uri.setMimeType(MimeTypes.VIDEO_MP2T);
-                    }
-                    MediaItem build = uri.build();
-                    LiveRetry liveRetry = new LiveRetry();
-                    DataSource.Factory factory = this.http;
-                    if (z) {
-                        factory = OkPlay.factory();
-                    }
-                    if (!z2) {
-                        createMediaSource = new HlsMediaSource.Factory(factory).setAllowChunklessPreparation(true).setExtractorFactory(new DefaultHlsExtractorFactory(73, true)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
-                    } else {
-                        createMediaSource = new ProgressiveMediaSource.Factory(factory, new DefaultExtractorsFactory().setTsExtractorFlags(73)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
-                    }
-                    this.player.setMediaSource(createMediaSource);
-                    this.player.setVolume(1.0f);
-                    this.player.prepare();
-                    this.player.setPlayWhenReady(true);
-                    textView = this.errorView;
-                    if (textView == null) {
-                        textView.setVisibility(8);
-                        return;
-                    }
-                    return;
-                }
-                z2 = true;
-                MediaItem.Builder uri2 = new MediaItem.Builder().setUri(parse);
-                uri2.setMimeType(MimeTypes.APPLICATION_M3U8);
+            }
+            Uri parse = Uri.parse(str);
+            boolean z2 = isHls(str) || z;
+            MediaItem.Builder uri = new MediaItem.Builder().setUri(parse);
+            if (z2) {
+                uri.setMimeType(MimeTypes.APPLICATION_M3U8);
                 if (this.liveMode) {
-                    uri2.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
+                    uri.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
                 }
-                MediaItem build2 = uri2.build();
-                LiveRetry liveRetry2 = new LiveRetry();
-                DataSource.Factory factory2 = this.http;
-                if (z) {
-                    factory2 = OkPlay.factory();
-                }
-                createMediaSource = new HlsMediaSource.Factory(factory2).setAllowChunklessPreparation(true).setExtractorFactory(new DefaultHlsExtractorFactory(73, true)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry2).createMediaSource(build2);
-                this.player.setMediaSource(createMediaSource);
-                this.player.setVolume(1.0f);
-                this.player.prepare();
-                this.player.setPlayWhenReady(true);
-                textView = this.errorView;
-                if (textView != null) {
-                    textView.setVisibility(8);
-                }
+            } else if (str.toLowerCase(Locale.US).contains(".ts")) {
+                uri.setMimeType(MimeTypes.VIDEO_MP2T);
+            }
+            MediaItem build = uri.build();
+            LiveRetry liveRetry = new LiveRetry();
+            DataSource.Factory factory = this.http;
+            if (z) {
+                factory = OkPlay.factory();
+            }
+            MediaSource createMediaSource;
+            if (z2) {
+                createMediaSource = new HlsMediaSource.Factory(factory).setAllowChunklessPreparation(true).setExtractorFactory(new DefaultHlsExtractorFactory(73, true)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
+            } else {
+                createMediaSource = new ProgressiveMediaSource.Factory(factory, new DefaultExtractorsFactory().setTsExtractorFlags(73)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
+            }
+            this.player.setMediaSource(createMediaSource);
+            this.player.setVolume(1.0f);
+            this.player.prepare();
+            this.player.setPlayWhenReady(true);
+            TextView textView = this.errorView;
+            if (textView != null) {
+                textView.setVisibility(8);
             }
         } catch (Throwable unused) {
             TextView textView4 = this.errorView;
             String msg = "Wiedergabe fehlgeschlagen" + (unused.getMessage() != null ? (": " + unused.getMessage()) : ".");
+            this.lastExoError = msg;
             if (textView4 != null) {
                 textView4.setVisibility(0);
                 this.errorView.setText(msg);
@@ -1866,10 +1947,13 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private boolean wantVlc() {
-        if (this.liveMode) {
-            return this.useVlc || "vlc".equals(new Prefs(this).player());
+        if ("exo".equals(this.forceEngine)) {
+            return false;
         }
-        return false;
+        if ("vlc".equals(this.forceEngine) || this.useVlc) {
+            return true;
+        }
+        return "vlc".equals(new Prefs(this).player());
     }
 
     private void hideVlc() {
@@ -1925,6 +2009,7 @@ public class PlayerActivity extends AppCompatActivity {
             });
         } catch (Throwable unused) {
             this.useVlc = false;
+            this.lastVlcError = unused.getMessage() == null ? "VLC-Start fehlgeschlagen." : unused.getMessage();
             TextView textView3 = this.errorView;
             if (textView3 != null) {
                 textView3.setVisibility(0);
@@ -1965,11 +2050,17 @@ public class PlayerActivity extends AppCompatActivity {
         }
         if (liveEngine == null) {
             this.useVlc = false;
+            String err = VlcFactory.lastError;
+            if (err == null || err.isEmpty()) {
+                err = "VLC/libVLC nicht verfügbar.";
+            }
+            this.lastVlcError = err;
             TextView textView = this.errorView;
             if (textView != null) {
-                textView.setText("VLC nicht verfügbar.");
-                return;
+                textView.setVisibility(0);
+                textView.setText(err);
             }
+            toastPlaybackError(err);
             return;
         }
         this.vlc = liveEngine;

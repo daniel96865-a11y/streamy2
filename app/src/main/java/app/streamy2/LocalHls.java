@@ -109,6 +109,14 @@ final class LocalHls {
         start();
     }
 
+    static boolean isReady() {
+        return ready && server != null && port > 0 && !server.isClosed();
+    }
+
+    static int getPort() {
+        return port;
+    }
+
     static void forget(String str) {
         if (str != null) {
             HELD.remove(str);
@@ -130,7 +138,23 @@ final class LocalHls {
                 }
             }
         }
-        return (str == null || str.isEmpty() || port == 0 || str.contains("127.0.0.1")) ? str : "http://127.0.0.1:" + port + "/p?u=" + enc(str);
+        if (str == null || str.isEmpty() || str.contains("127.0.0.1")) {
+            return str;
+        }
+        if (!isReady()) {
+            start();
+            synchronized (READY) {
+                long deadline = System.currentTimeMillis() + 1500L;
+                while (!isReady() && System.currentTimeMillis() < deadline) {
+                    try {
+                        READY.wait(50L);
+                    } catch (InterruptedException unused) {
+                        break;
+                    }
+                }
+            }
+        }
+        return !isReady() ? str : "http://127.0.0.1:" + port + "/p?u=" + enc(str);
     }
 
     /* JADX INFO: Access modifiers changed from: private */

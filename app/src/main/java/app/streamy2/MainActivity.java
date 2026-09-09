@@ -694,7 +694,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         TextView textView7 = this.appVersion;
         if (textView7 != null) {
-            textView7.setText("Version 3.04  (124)");
+            textView7.setText("Version 3.06  (126)");
         }
         TextView textView8 = (TextView) findViewById(R.id.pickerHint);
         if (textView8 != null) {
@@ -899,6 +899,40 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$25(View view) {
         setPlayerEngine("exo");
+    }
+
+
+    private void openMuxTest(boolean vlc) {
+        try {
+            if (vlc) {
+                PlayerActivity.openTestVlc(this);
+            } else {
+                PlayerActivity.openTestExo(this);
+            }
+        } catch (Throwable t) {
+            Toast.makeText(this, "Teststream fehlgeschlagen", 0).show();
+        }
+    }
+
+    private void showPlaybackDiag() {
+        try {
+            LocalHls.start();
+            String hls = LocalHls.isReady() ? ("bereit · Port " + LocalHls.getPort()) : "nicht bereit";
+            boolean lib = VlcFactory.isAvailable();
+            String msg = "Engine-Pref: " + this.prefs.player()
+                    + "\nlibVLC: " + (lib ? "ja" : "nein")
+                    + "\nLocalHls: " + hls
+                    + "\nHost: —"
+                    + "\nExo-Fehler: —"
+                    + "\nVLC-Fehler: " + ((VlcFactory.lastError == null || VlcFactory.lastError.isEmpty()) ? "—" : VlcFactory.lastError);
+            new androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle("Wiedergabe-Diagnose")
+                    .setMessage(msg)
+                    .setPositiveButton("OK", null)
+                    .show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "Diagnose fehlgeschlagen", 0).show();
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3790,6 +3824,25 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintResize();
         paintPlayer();
         paintBuffer();
+        View btnTestExo = findViewById(R.id.btnTestExo);
+        if (btnTestExo != null) {
+            btnTestExo.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.openMuxTest(false); }
+            });
+        }
+        View btnTestVlc = findViewById(R.id.btnTestVlc);
+        if (btnTestVlc != null) {
+            btnTestVlc.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.openMuxTest(true); }
+            });
+        }
+        View btnPlaybackDiag = findViewById(R.id.btnPlaybackDiag);
+        if (btnPlaybackDiag != null) {
+            btnPlaybackDiag.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.showPlaybackDiag(); }
+            });
+        }
+
         paintEpgInterval();
         paintAccentDots();
         refreshActive();

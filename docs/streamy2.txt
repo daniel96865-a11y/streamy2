@@ -1,1 +1,5 @@
-{"versionCode":125,"versionName":"3.05","title":"Streamy 2 Update","changelog":"Version 3.05: Update-Installer, Signatur-Hinweis, Vavoo trustSsl, Megakino Token/Hosts.","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"}
+versionCode 126
+versionName 3.06
+title Streamy 2 Update
+message Player-Handoff repariert — Vavoo/Megakino Wiedergabe
+url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
