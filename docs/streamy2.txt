@@ -1,5 +1,5 @@
-versionCode 131
-versionName 3.11
+versionCode 132
+versionName 3.12
 title Streamy 2 Update
-message Vavoo-EPG aus dem Netz (epg.pw)
+message EPG-Download-Bugfix (Connection closed)
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
