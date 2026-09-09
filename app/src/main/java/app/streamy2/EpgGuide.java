@@ -33,6 +33,59 @@ public class EpgGuide {
     private final ConcurrentHashMap<String, List<Listing>> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> nameToId = new ConcurrentHashMap<>();
 
+    /** Extra Vavoo display-name → preferred XMLTV lookup keys (after normName). */
+    private static final Map<String, String[]> DE_TOP = new HashMap<>();
+    static {
+        DE_TOP.put("das erste", new String[]{"das erste", "ard", "ard das erste"});
+        DE_TOP.put("ard", new String[]{"das erste", "ard"});
+        DE_TOP.put("zdf", new String[]{"zdf"});
+        DE_TOP.put("rtl", new String[]{"rtl"});
+        DE_TOP.put("sat1", new String[]{"sat1", "sat 1"});
+        DE_TOP.put("prosieben", new String[]{"prosieben", "pro sieben", "pro7"});
+        DE_TOP.put("vox", new String[]{"vox"});
+        DE_TOP.put("kabel eins", new String[]{"kabel eins", "kabeleins", "kabel1"});
+        DE_TOP.put("rtlzwei", new String[]{"rtlzwei", "rtl 2", "rtl2"});
+        DE_TOP.put("nitro", new String[]{"nitro", "rtl nitro"});
+        DE_TOP.put("ntv", new String[]{"ntv", "n-tv"});
+        DE_TOP.put("welt", new String[]{"welt", "n24"});
+        DE_TOP.put("phoenix", new String[]{"phoenix"});
+        DE_TOP.put("tagesschau24", new String[]{"tagesschau24", "tagesschau 24"});
+        DE_TOP.put("zdfinfo", new String[]{"zdfinfo", "zdf info"});
+        DE_TOP.put("zdfneo", new String[]{"zdfneo", "zdf neo"});
+        DE_TOP.put("3sat", new String[]{"3sat"});
+        DE_TOP.put("arte", new String[]{"arte"});
+        DE_TOP.put("one", new String[]{"one", "ard one"});
+        DE_TOP.put("sport1", new String[]{"sport1", "sport 1"});
+        DE_TOP.put("super rtl", new String[]{"super rtl", "superrtl"});
+        DE_TOP.put("superrtl", new String[]{"super rtl", "superrtl"});
+        DE_TOP.put("dmax", new String[]{"dmax"});
+        DE_TOP.put("tele 5", new String[]{"tele 5", "tele5"});
+        DE_TOP.put("tele5", new String[]{"tele 5", "tele5"});
+        DE_TOP.put("sixx", new String[]{"sixx"});
+        DE_TOP.put("prosieben maxx", new String[]{"prosieben maxx", "pro7 maxx"});
+        DE_TOP.put("sat1 gold", new String[]{"sat1 gold", "sat 1 gold"});
+        DE_TOP.put("rtlup", new String[]{"rtlup", "rtl up"});
+        DE_TOP.put("voxup", new String[]{"voxup", "vox up"});
+        DE_TOP.put("comedy central", new String[]{"comedy central"});
+        DE_TOP.put("nickelodeon", new String[]{"nickelodeon", "nick"});
+        DE_TOP.put("nick", new String[]{"nick", "nickelodeon"});
+        DE_TOP.put("disney channel", new String[]{"disney channel", "disney"});
+        DE_TOP.put("kika", new String[]{"kika"});
+        DE_TOP.put("wdr", new String[]{"wdr", "wdr koeln"});
+        DE_TOP.put("ndr", new String[]{"ndr", "ndr fs hh"});
+        DE_TOP.put("mdr", new String[]{"mdr", "mdr sachsen"});
+        DE_TOP.put("br", new String[]{"br", "br fernsehen"});
+        DE_TOP.put("hr", new String[]{"hr", "hr fernsehen"});
+        DE_TOP.put("rbb", new String[]{"rbb", "rbb berlin"});
+        DE_TOP.put("swr", new String[]{"swr", "swr sr"});
+        DE_TOP.put("servus tv", new String[]{"servus tv", "servustv"});
+        DE_TOP.put("servustv", new String[]{"servus tv", "servustv"});
+        DE_TOP.put("orf 1", new String[]{"orf 1", "orf1"});
+        DE_TOP.put("orf1", new String[]{"orf 1", "orf1"});
+        DE_TOP.put("orf 2", new String[]{"orf 2", "orf2"});
+        DE_TOP.put("orf2", new String[]{"orf 2", "orf2"});
+    }
+
     public static class Listing {
         public long start;
         public long stop;
@@ -159,10 +212,32 @@ public class EpgGuide {
         if (hit != null) {
             return hit;
         }
+        String[] top = DE_TOP.get(str);
+        if (top != null) {
+            for (String alias : top) {
+                hit = lookupNameKey(alias);
+                if (hit != null) {
+                    return hit;
+                }
+                hit = lookupNameKey(alias.replace(" ", ""));
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        }
         String compact = str.replace(" ", "");
         hit = lookupNameKey(compact);
         if (hit != null) {
             return hit;
+        }
+        top = DE_TOP.get(compact);
+        if (top != null) {
+            for (String alias : top) {
+                hit = lookupNameKey(alias);
+                if (hit != null) {
+                    return hit;
+                }
+            }
         }
         for (String alias : aliases(str)) {
             hit = lookupNameKey(alias);

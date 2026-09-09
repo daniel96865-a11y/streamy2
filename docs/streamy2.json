@@ -1,7 +1,7 @@
 {
-  "versionCode": 130,
-  "versionName": "3.10",
+  "versionCode": 131,
+  "versionName": "3.11",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.10: Android-TV In-App-Updates per Direkt-Download (FileProvider), klare Signatur-Hinweise. Vavoo-EPG „Jetzt: …“ auf Handy und TV (Force-Refresh, Match-Aliases, sichtbare Untertitel).",
+  "changelog": "Version 3.11: Vavoo-EPG immer zuerst aus dem Netz (epg.pw / epg.lat / epgshare), Cache nur offline. Toast „EPG aus dem Netz geladen (N Sender)“.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

@@ -39,8 +39,13 @@ final class Vavoo {
     private static final String[] HOSTS = {"https://kool.to", "https://vavoo.to", "https://www.vavoo.to"};
     private static final String[] PINGS = {"https://www.vavoo.tv/api/app/ping", "https://www.vavoo.tv/api/box/ping2"};
     static volatile String lastError = "";
-    static final String EPG_URL = "https://epg.lat/files/de.xml.gz";
-    static final String[] EPG_URLS = {EPG_URL, "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"};
+    static final String EPG_URL = "https://epg.pw/xmltv/epg_DE.xml.gz";
+    /** Network-first DE XMLTV sources (reachable). Cache is only for offline reuse after a successful pull. */
+    static final String[] EPG_URLS = {
+            "https://epg.pw/xmltv/epg_DE.xml.gz",
+            "https://epg.lat/files/de.xml.gz",
+            "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"
+    };
     private static volatile String activeHost = "https://kool.to";
 
     static /* synthetic */ boolean lambda$trustSsl$0(String str, SSLSession sSLSession) {
