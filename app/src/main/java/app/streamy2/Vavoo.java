@@ -138,7 +138,7 @@ final class Vavoo {
                     String sig = signature();
                     parseResolve = parseResolve(OkPlay.postJson(strArr2[0] + "/mediahubmx-resolve.json", jSONObject.toString(), sig));
                     if (parseResolve == null) {
-                        lastError = "Vavoo-Resolve fehlgeschlagen";
+                        lastError = "Vavoo-Stream konnte nicht aufgelöst werden (Resolve)";
                     }
                 } catch (Exception unused) {
                 }
@@ -243,8 +243,12 @@ final class Vavoo {
             List<Models.Channel> fetchPage = fetchPage(strArr2[0], strArr2[1], strArr2[2], strArr2[3]);
             if (!fetchPage.isEmpty()) {
                 activeHost = strArr2[0];
+                lastError = "";
                 return fetchPage;
             }
+        }
+        if (lastError == null || lastError.isEmpty()) {
+            lastError = "Vavoo-Katalog leer — Host/Signatur prüfen.";
         }
         return new ArrayList();
     }
@@ -388,7 +392,7 @@ final class Vavoo {
             }
         }
         if (sig == null || sig.isEmpty()) {
-            lastError = "Vavoo-Signatur nicht verfügbar (Ping)";
+            lastError = "Vavoo-Anmeldung fehlgeschlagen (Ping/Signatur). Netzwerk prüfen oder später erneut.";
         }
         return sig == null ? "" : sig;
     }

@@ -32,6 +32,7 @@ final class MegaKino {
     static final List<Models.Media> films;
     static volatile boolean loaded;
     static volatile boolean loading;
+    static volatile String lastError = "";
     static final List<Models.Media> serials;
     private static long tokenAt;
     private static String[] BASES = {"https://megakino18.com", "https://megakino12.com", "https://megakino14.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
@@ -72,7 +73,7 @@ final class MegaKino {
 
 
     static void refreshHosts() {
-        String[] seeds = new String[]{"https://megakino18.com", "https://megakino12.com", "https://megakino19.com", "https://megakino14.com", "https://megakino5.org"};
+        String[] seeds = new String[]{"https://megakino18.com", "https://megakino12.com", "https://megakino19.com", "https://megakino14.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com"};
         java.util.LinkedHashSet<String> live = new java.util.LinkedHashSet<>();
         for (String seed : seeds) {
             try {
@@ -80,9 +81,10 @@ final class MegaKino {
                 c.setInstanceFollowRedirects(false);
                 c.setConnectTimeout(5000);
                 c.setReadTimeout(5000);
-                c.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0");
+                c.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0");
                 int code = c.getResponseCode();
                 String loc = c.getHeaderField(HttpHeaders.LOCATION);
+                absorbCookies(c);
                 c.disconnect();
                 if (loc != null && !loc.isEmpty()) {
                     live.add(origin(loc.startsWith("http") ? loc : (seed + loc)));
@@ -93,11 +95,12 @@ final class MegaKino {
             }
         }
         if (!live.isEmpty()) {
-            for (String b : BASES) live.add(b);
-            BASES = live.toArray(new String[0]);
-            if (BrowserController.HOME != null) {
-                // keep HOME as first known live if present
+            String preferred = live.iterator().next();
+            for (String b : BASES) {
+                live.add(b);
             }
+            BASES = live.toArray(new String[0]);
+            BrowserController.HOME = preferred;
             base = null;
         }
     }
@@ -118,24 +121,38 @@ final class MegaKino {
                     String req = req(str2 + "/", null);
                     if (req != null && req.contains("poster grid-item")) {
                         tokenAt = System.currentTimeMillis();
+                        lastError = "";
                         if (base == null) {
                             base = origin(str2);
                         }
+                        BrowserController.HOME = base;
                         return base;
                     }
-                } catch (Exception unused) {
+                } catch (Exception e) {
+                    lastError = "Megakino-Host fehlgeschlagen: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
                 }
             }
+            lastError = "Kein funktionierender Megakino-Host gefunden (Token/Seite)";
             String str3 = BASES[0];
             base = str3;
+            BrowserController.HOME = str3;
             return str3;
         }
     }
 
     static void ensureToken() {
         if (System.currentTimeMillis() - tokenAt >= 480000 || base == null) {
-            req(base() + "/index.php?yg=token", null);
-            tokenAt = System.currentTimeMillis();
+            String host = base();
+            String tokenResp = req(host + "/index.php?yg=token", null);
+            // token endpoint often returns 204; cookies in jar are what matter
+            if (cookies.isEmpty() && tokenResp == null) {
+                lastError = "Megakino-Token fehlgeschlagen — Cookies fehlen. Später erneut versuchen.";
+            } else {
+                tokenAt = System.currentTimeMillis();
+                if (lastError != null && lastError.startsWith("Megakino-Token")) {
+                    lastError = "";
+                }
+            }
         }
     }
 
@@ -178,7 +195,16 @@ final class MegaKino {
                 list2.clear();
                 list2.addAll(parseList2);
                 loaded = true;
+                if (list.isEmpty() && list2.isEmpty()) {
+                    if (lastError == null || lastError.isEmpty()) {
+                        lastError = "Megakino-Katalog leer — Token oder Host prüfen.";
+                    }
+                } else {
+                    lastError = "";
+                }
             }
+        } catch (Throwable th) {
+            lastError = "Megakino-Laden fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
             loading = false;
         }
