@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent">#5b9dff</color>
+    <color name="accent_fg">#061428</color>
+    <color name="bg">#000000</color>
+    <color name="black">#000000</color>
+    <color name="brand">#5b9dff</color>
+    <color name="card">#1c1c1e</color>
+    <color name="danger">#ff6b6b</color>
+    <color name="elevated">#2c2c2e</color>
+    <color name="fg">#f5f5f7</color>
+    <color name="live_bg">#333338</color>
+    <color name="muted">#8e8e93</color>
+    <color name="subtle">#636366</color>
+    <color name="transparent">#00000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

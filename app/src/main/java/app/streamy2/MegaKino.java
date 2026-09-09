@@ -1,0 +1,803 @@
+package app.streamy2;
+
+import android.text.Html;
+import app.streamy2.Models;
+import com.google.common.net.HttpHeaders;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.CookieHandler;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import kotlin.text.Typography;
+
+/* loaded from: classes.dex */
+final class MegaKino {
+    static final String CAT = "megakino";
+    private static String base;
+    static final List<Models.Media> films;
+    static volatile boolean loaded;
+    static volatile boolean loading;
+    static final List<Models.Media> serials;
+    private static long tokenAt;
+    private static String[] BASES = {"https://megakino18.com", "https://megakino12.com", "https://megakino14.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
+    private static final Pattern IFRAME = Pattern.compile("<iframe[^>]+(?:data-src|src)=\"([^\"]+)\"", 2);
+    private static final Pattern OPTION = Pattern.compile("<option[^>]+value=\"([^\"]+)\"[^>]*>([^<]*)", 2);
+    private static final Pattern SELECT_ID = Pattern.compile("<select[^>]*id=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</select>", 2);
+    private static final Pattern SE_SELECT = Pattern.compile("<select[^>]*class=\"[^\"]*se-select[^\"]*\"[^>]*>([\\s\\S]*?)</select>", 2);
+    private static final Pattern DESC = Pattern.compile("itemprop=\"description\"[^>]*>([\\s\\S]*?)</div>", 2);
+    private static final Pattern PAGE_TEXT = Pattern.compile("class=\"[^\"]*page__text[^\"]*\"[^>]*>([\\s\\S]*?)</div>", 2);
+    private static final Pattern YEAR = Pattern.compile("itemprop=\"dateCreated\"[^>]*>([^<]+)", 2);
+    private static final Pattern TITLE = Pattern.compile("<h1[^>]*itemprop=\"name\"[^>]*>([^<]+)", 2);
+    private static final Pattern GENRE = Pattern.compile("itemprop=\"genre\"[^>]*>([^<]+)", 2);
+    private static final Pattern STAFFEL = Pattern.compile("(?:Staffel\\s*(\\d+)|-\\s*(\\d+)\\s*Staffel)", 2);
+    private static final Pattern HREF = Pattern.compile("href=\"([^\"]+)\"", 2);
+    private static final Pattern DATA_SRC = Pattern.compile("data-src=\"([^\"]+)\"", 2);
+    private static final Pattern POSTER_TITLE = Pattern.compile("poster__title[^>]*>\\s*([^<]+)", 2);
+    private static final Pattern POSTER_TEXT = Pattern.compile("poster__text[^>]*>\\s*([^<]+)", 2);
+    private static final Pattern POSTER_SUB = Pattern.compile("<li>([^<]+)</li>", 2);
+    private static final Map<String, String> cookies = new LinkedHashMap();
+
+    MegaKino() {
+    }
+
+    static {
+        try {
+            CookieManager cookieManager = new CookieManager();
+            cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
+            CookieHandler.setDefault(cookieManager);
+        } catch (Exception unused) {
+        }
+        films = new ArrayList();
+        serials = new ArrayList();
+    }
+
+    static boolean owns(Models.Media media) {
+        return (media == null || media.id == null || !media.id.startsWith("mk:")) ? false : true;
+    }
+
+
+    static void refreshHosts() {
+        String[] seeds = new String[]{"https://megakino18.com", "https://megakino12.com", "https://megakino19.com", "https://megakino14.com", "https://megakino5.org"};
+        java.util.LinkedHashSet<String> live = new java.util.LinkedHashSet<>();
+        for (String seed : seeds) {
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(seed + "/").openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(5000);
+                c.setReadTimeout(5000);
+                c.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0");
+                int code = c.getResponseCode();
+                String loc = c.getHeaderField(HttpHeaders.LOCATION);
+                c.disconnect();
+                if (loc != null && !loc.isEmpty()) {
+                    live.add(origin(loc.startsWith("http") ? loc : (seed + loc)));
+                } else if (code > 0 && code < 500) {
+                    live.add(origin(seed));
+                }
+            } catch (Exception unused) {
+            }
+        }
+        if (!live.isEmpty()) {
+            for (String b : BASES) live.add(b);
+            BASES = live.toArray(new String[0]);
+            if (BrowserController.HOME != null) {
+                // keep HOME as first known live if present
+            }
+            base = null;
+        }
+    }
+
+    static synchronized String base() {
+        synchronized (MegaKino.class) {
+            String str = base;
+            if (str != null) {
+                return str;
+            }
+            try { refreshHosts(); } catch (Throwable ignored) {}
+            String[] strArr = BASES;
+            int length = strArr.length;
+            for (int i = 0; i < length; i++) {
+                String str2 = strArr[i];
+                try {
+                    req(str2 + "/index.php?yg=token", null);
+                    String req = req(str2 + "/", null);
+                    if (req != null && req.contains("poster grid-item")) {
+                        tokenAt = System.currentTimeMillis();
+                        if (base == null) {
+                            base = origin(str2);
+                        }
+                        return base;
+                    }
+                } catch (Exception unused) {
+                }
+            }
+            String str3 = BASES[0];
+            base = str3;
+            return str3;
+        }
+    }
+
+    static void ensureToken() {
+        if (System.currentTimeMillis() - tokenAt >= 480000 || base == null) {
+            req(base() + "/index.php?yg=token", null);
+            tokenAt = System.currentTimeMillis();
+        }
+    }
+
+    static void load() {
+        loading = true;
+        try {
+            ensureToken();
+            String base2 = base();
+            List<Models.Media> parseList = parseList(req(base2 + "/films/", null), false);
+            for (int i = 2; i <= 5; i++) {
+                for (Models.Media media : parseList(req(base2 + "/films/page/" + i + "/", null), false)) {
+                    if (!contains(parseList, media.id)) {
+                        parseList.add(media);
+                    }
+                }
+            }
+            for (Models.Media media2 : parseList(req(base2 + "/kinofilme/", null), false)) {
+                if (!contains(parseList, media2.id)) {
+                    parseList.add(0, media2);
+                }
+            }
+            for (Models.Media media3 : parseList(req(base2 + "/", null), false)) {
+                if (!contains(parseList, media3.id) && !media3.series) {
+                    parseList.add(0, media3);
+                }
+            }
+            List<Models.Media> parseList2 = parseList(req(base2 + "/serials/", null), true);
+            for (int i2 = 2; i2 <= 4; i2++) {
+                for (Models.Media media4 : parseList(req(base2 + "/serials/page/" + i2 + "/", null), true)) {
+                    if (!contains(parseList2, media4.id)) {
+                        parseList2.add(media4);
+                    }
+                }
+            }
+            synchronized (MegaKino.class) {
+                List<Models.Media> list = films;
+                list.clear();
+                list.addAll(parseList);
+                List<Models.Media> list2 = serials;
+                list2.clear();
+                list2.addAll(parseList2);
+                loaded = true;
+            }
+        } finally {
+            loading = false;
+        }
+    }
+
+    static List<Models.Media> all() {
+        ArrayList arrayList = new ArrayList();
+        synchronized (MegaKino.class) {
+            arrayList.addAll(films);
+            arrayList.addAll(serials);
+        }
+        return arrayList;
+    }
+
+    static List<Models.Media> search(String str) {
+        if (str == null || str.trim().isEmpty()) {
+            return all();
+        }
+        ensureToken();
+        try {
+            List<Models.Media> parseList = parseList(req(base() + "/index.php?do=search", "do=search&subaction=search&search_start=1&full_search=0&result_from=1&story=" + URLEncoder.encode(str.trim(), "UTF-8")), false);
+            if (!parseList.isEmpty()) {
+                return parseList;
+            }
+        } catch (Exception unused) {
+        }
+        return localSearch(str);
+    }
+
+    static List<Models.Media> localSearch(String str) {
+        String lowerCase = str == null ? "" : str.trim().toLowerCase(Locale.GERMAN);
+        ArrayList arrayList = new ArrayList();
+        for (Models.Media media : all()) {
+            if (media.name != null && media.name.toLowerCase(Locale.GERMAN).contains(lowerCase)) {
+                arrayList.add(media);
+            }
+        }
+        return arrayList;
+    }
+
+    static void enrich(Models.Media media) {
+        if (media == null || media.streamUrl == null) {
+            return;
+        }
+        ensureToken();
+        String req = req(abs(media.streamUrl), null);
+        if (req == null) {
+            return;
+        }
+        Matcher matcher = TITLE.matcher(req);
+        if (matcher.find()) {
+            media.name = Text.clean(matcher.group(1));
+        } else {
+            Matcher matcher2 = Pattern.compile("<h1[^>]*>([^<]+)", 2).matcher(req);
+            if (matcher2.find()) {
+                media.name = Text.clean(matcher2.group(1));
+            }
+        }
+        Matcher matcher3 = DESC.matcher(req);
+        String htmlText = matcher3.find() ? htmlText(matcher3.group(1)) : "";
+        if (htmlText.isEmpty()) {
+            Matcher matcher4 = PAGE_TEXT.matcher(req);
+            if (matcher4.find()) {
+                htmlText = htmlText(matcher4.group(1));
+            }
+        }
+        if (!htmlText.isEmpty()) {
+            media.plot = htmlText;
+        }
+        Matcher matcher5 = YEAR.matcher(req);
+        if (matcher5.find()) {
+            String clean = Text.clean(matcher5.group(1));
+            Matcher matcher6 = Pattern.compile("(19|20)\\d{2}").matcher(clean);
+            if (matcher6.find()) {
+                clean = matcher6.group();
+            }
+            media.year = clean;
+        }
+        Matcher matcher7 = GENRE.matcher(req);
+        if (matcher7.find()) {
+            String replace = Text.clean(matcher7.group(1)).replace('/', Typography.middleDot);
+            if (!replace.isEmpty()) {
+                media.genre = replace;
+            }
+        }
+        Matcher matcher8 = Pattern.compile("itemprop=\"duration\"[^>]*content=\"([^\"]+)\"", 2).matcher(req);
+        if (matcher8.find()) {
+            media.duration = isoDur(matcher8.group(1));
+        }
+        int seasonOf = seasonOf(media.name);
+        media.episodes.clear();
+        Matcher matcher9 = SE_SELECT.matcher(req);
+        if (matcher9.find()) {
+            Matcher matcher10 = OPTION.matcher(matcher9.group(1));
+            int i = 0;
+            while (matcher10.find()) {
+                String group = matcher10.group(1);
+                String clean2 = Text.clean(matcher10.group(2));
+                if (group != null && !group.isEmpty() && !group.startsWith("#") && !group.startsWith("http")) {
+                    Models.Episode episode = new Models.Episode();
+                    episode.id = "mkep:" + abs(media.streamUrl) + "|" + group;
+                    episode.title = clean2.isEmpty() ? "Folge " + (i + 1) : clean2;
+                    episode.season = seasonOf;
+                    i++;
+                    episode.episode = epNum(clean2, i);
+                    episode.streamUrl = firstHttpOption(req, group);
+                    if (episode.streamUrl == null) {
+                        episode.streamUrl = group;
+                    }
+                    media.episodes.add(episode);
+                }
+            }
+        }
+        if (media.episodes.isEmpty()) {
+            return;
+        }
+        media.series = true;
+    }
+
+    static String playUrl(Models.Media media) {
+        if (media == null) {
+            return null;
+        }
+        if (looksStream(media.streamUrl)) {
+            return media.streamUrl;
+        }
+        String str = media.streamUrl;
+        if (str == null && media.id != null && media.id.startsWith("mk:")) {
+            str = media.id.substring(3);
+        }
+        if (str == null) {
+            return null;
+        }
+        ensureToken();
+        return firstStream(req(abs(str), null));
+    }
+
+    static String playEpisode(Models.Episode episode) {
+        String substring;
+        int indexOf;
+        if (episode == null) {
+            return null;
+        }
+        ArrayList arrayList = new ArrayList();
+        if (episode.streamUrl != null && episode.streamUrl.startsWith("http")) {
+            arrayList.add(episode.streamUrl);
+        }
+        if (episode.id != null && episode.id.startsWith("mkep:") && (indexOf = (substring = episode.id.substring(5)).indexOf(124)) > 0) {
+            ensureToken();
+            for (String str : httpOptions(req(abs(substring.substring(0, indexOf)), null), substring.substring(indexOf + 1))) {
+                if (!arrayList.contains(str)) {
+                    arrayList.add(str);
+                }
+            }
+        }
+        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda1
+            @Override // java.util.Comparator
+            public final int compare(Object obj, Object obj2) {
+                int compare;
+                compare = Integer.compare(MegaKino.rank((String) obj), MegaKino.rank((String) obj2));
+                return compare;
+            }
+        });
+        Iterator it = arrayList.iterator();
+        while (it.hasNext()) {
+            String resolve = Hosts.resolve((String) it.next());
+            if (resolve != null) {
+                return resolve;
+            }
+        }
+        return null;
+    }
+
+    static String firstStream(String str) {
+        if (str == null) {
+            return null;
+        }
+        ArrayList arrayList = new ArrayList();
+        Matcher matcher = IFRAME.matcher(str);
+        while (matcher.find()) {
+            addEmbed(arrayList, matcher.group(1));
+        }
+        Matcher matcher2 = OPTION.matcher(str);
+        while (matcher2.find()) {
+            addEmbed(arrayList, matcher2.group(1));
+        }
+        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda2
+            @Override // java.util.Comparator
+            public final int compare(Object obj, Object obj2) {
+                int compare;
+                compare = Integer.compare(MegaKino.rank((String) obj), MegaKino.rank((String) obj2));
+                return compare;
+            }
+        });
+        Iterator it = arrayList.iterator();
+        while (it.hasNext()) {
+            String resolve = Hosts.resolve((String) it.next());
+            if (resolve != null) {
+                return resolve;
+            }
+        }
+        return null;
+    }
+
+    private static int rank(String str) {
+        String lowerCase = str.toLowerCase(Locale.US);
+        if (lowerCase.contains("gxplayer") || lowerCase.contains("watch.gx")) {
+            return 0;
+        }
+        return Voe.isVoe(lowerCase) ? 1 : 2;
+    }
+
+    private static void addEmbed(List<String> list, String str) {
+        if (str == null || str.isEmpty() || str.startsWith("about:")) {
+            return;
+        }
+        if (str.startsWith("//")) {
+            str = "https:" + str;
+        } else if (str.startsWith("/")) {
+            str = abs(str);
+        }
+        if (str.startsWith("http")) {
+            String lowerCase = str.toLowerCase(Locale.US);
+            if (lowerCase.contains("youtube") || lowerCase.contains("youtu.be") || list.contains(str)) {
+                return;
+            }
+            list.add(str);
+        }
+    }
+
+    private static boolean looksStream(String str) {
+        if (str == null) {
+            return false;
+        }
+        String lowerCase = str.toLowerCase(Locale.US);
+        return lowerCase.contains(".m3u8") || lowerCase.contains(".mp4") || lowerCase.contains("/hls/") || lowerCase.contains("/alternative_stream/");
+    }
+
+    private static List<Models.Media> parseList(String str, boolean z) {
+        ArrayList arrayList = new ArrayList();
+        if (str == null) {
+            return arrayList;
+        }
+        int i = 0;
+        while (true) {
+            int indexOf = str.indexOf("poster grid-item", i);
+            if (indexOf < 0) {
+                return arrayList;
+            }
+            int lastIndexOf = str.lastIndexOf("<a", indexOf);
+            int indexOf2 = str.indexOf("</a>", indexOf);
+            if (lastIndexOf < 0 || indexOf2 < 0 || lastIndexOf < i - 80) {
+                i = indexOf + 16;
+            } else {
+                i = indexOf2 + 4;
+                String substring = str.substring(lastIndexOf, i);
+                String first = first(HREF, substring);
+                String first2 = first(DATA_SRC, substring);
+                String clean = Text.clean(first(POSTER_TITLE, substring));
+                if (first != null && !clean.isEmpty() && !first.contains("/cast/") && !first.contains("/genre/")) {
+                    boolean z2 = z || first.contains("/serials/");
+                    Models.Media media = new Models.Media();
+                    media.id = "mk:" + abs(first);
+                    media.name = clean;
+                    media.poster = abs(first2);
+                    media.streamUrl = abs(first);
+                    media.series = z2;
+                    media.genre = z2 ? "Serie · Megakino" : "Film · Megakino";
+                    media.categoryId = CAT;
+                    media.plot = Text.clean(first(POSTER_TEXT, substring));
+                    Matcher matcher = POSTER_SUB.matcher(substring);
+                    if (matcher.find()) {
+                        Matcher matcher2 = Pattern.compile("(19|20)\\d{2}").matcher(Text.clean(matcher.group(1)));
+                        if (matcher2.find()) {
+                            media.year = matcher2.group();
+                        }
+                    }
+                    if (matcher.find()) {
+                        String trim = Text.clean(matcher.group(1)).replace("Filme /", "").replace("Serien /", "").trim();
+                        if (!trim.isEmpty()) {
+                            media.genre = trim + (z2 ? " · Serie" : " · Film");
+                        }
+                    }
+                    if (!contains(arrayList, media.id)) {
+                        arrayList.add(media);
+                    }
+                }
+            }
+        }
+    }
+
+    private static String firstHttpOption(String str, String str2) {
+        List<String> httpOptions = httpOptions(str, str2);
+        if (httpOptions.isEmpty()) {
+            return null;
+        }
+        return httpOptions.get(0);
+    }
+
+    private static List<String> httpOptions(String str, String str2) {
+        ArrayList arrayList = new ArrayList();
+        if (str != null && str2 != null) {
+            Matcher matcher = SELECT_ID.matcher(str);
+            while (matcher.find()) {
+                if (str2.equalsIgnoreCase(matcher.group(1))) {
+                    Matcher matcher2 = OPTION.matcher(matcher.group(2));
+                    while (matcher2.find()) {
+                        String group = matcher2.group(1);
+                        if (group != null && group.startsWith("http") && !arrayList.contains(group)) {
+                            arrayList.add(group);
+                        }
+                    }
+                }
+            }
+        }
+        return arrayList;
+    }
+
+    static int seasonOf(String str) {
+        if (str == null) {
+            return 1;
+        }
+        Matcher matcher = STAFFEL.matcher(str);
+        if (!matcher.find()) {
+            return 1;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
+        } catch (Exception unused) {
+            return 1;
+        }
+    }
+
+    static String showKey(String str) {
+        return str == null ? "" : str.replaceAll("(?i)\\s*[-–]\\s*\\d+\\s*Staffel.*", "").trim().toLowerCase(Locale.GERMAN);
+    }
+
+    static List<Models.Media> seasonsOf(Models.Media media) {
+        ArrayList arrayList = new ArrayList();
+        String showKey = showKey(media == null ? null : media.name);
+        if (showKey.isEmpty()) {
+            return arrayList;
+        }
+        synchronized (MegaKino.class) {
+            for (Models.Media media2 : serials) {
+                if (media2 != null && showKey.equals(showKey(media2.name))) {
+                    arrayList.add(media2);
+                }
+            }
+        }
+        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda0
+            @Override // java.util.Comparator
+            public final int compare(Object obj, Object obj2) {
+                int compare;
+                compare = Integer.compare(MegaKino.seasonOf(((Models.Media) obj).name), MegaKino.seasonOf(((Models.Media) obj2).name));
+                return compare;
+            }
+        });
+        return arrayList;
+    }
+
+    private static String htmlText(String str) {
+        if (str == null || str.isEmpty()) {
+            return "";
+        }
+        String replaceAll = str.replaceAll("(?i)<br\\s*/?>", "\n");
+        try {
+            replaceAll = Html.fromHtml(replaceAll, 0).toString();
+        } catch (Exception unused) {
+        }
+        return replaceAll.replace(Typography.nbsp, ' ').replaceAll("[ \\t]+", " ").trim();
+    }
+
+    private static String isoDur(String str) {
+        if (str == null) {
+            return "";
+        }
+        Matcher matcher = Pattern.compile("PT(?:(\\d+)H)?(?:(\\d+)M)?(?:(\\d+)S)?", 2).matcher(str.trim());
+        if (!matcher.matches()) {
+            return "";
+        }
+        int parseInt = matcher.group(1) == null ? 0 : parseInt(matcher.group(1));
+        int parseInt2 = matcher.group(2) == null ? 0 : parseInt(matcher.group(2));
+        int parseInt3 = matcher.group(3) != null ? parseInt(matcher.group(3)) : 0;
+        if (parseInt == 0 && parseInt2 == 0 && parseInt3 > 0) {
+            parseInt2 = Math.round(parseInt3 / 60.0f);
+        }
+        int i = parseInt2 + (parseInt * 60);
+        if (i <= 0) {
+            return "";
+        }
+        return String.valueOf(i);
+    }
+
+    private static int parseInt(String str) {
+        try {
+            return Integer.parseInt(str);
+        } catch (Exception unused) {
+            return 0;
+        }
+    }
+
+    private static int epNum(String str, int i) {
+        if (str == null) {
+            return i;
+        }
+        Matcher matcher = Pattern.compile("(\\d+)").matcher(str);
+        if (matcher.find()) {
+            try {
+                return Integer.parseInt(matcher.group(1));
+            } catch (Exception unused) {
+            }
+        }
+        return i;
+    }
+
+    private static String first(Pattern pattern, String str) {
+        Matcher matcher = pattern.matcher(str);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    private static boolean contains(List<Models.Media> list, String str) {
+        for (Models.Media media : list) {
+            if (str != null && str.equals(media.id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static String abs(String str) {
+        if (str == null || str.isEmpty()) {
+            return "";
+        }
+        if (str.startsWith("http")) {
+            return str;
+        }
+        if (str.startsWith("//")) {
+            return "https:" + str;
+        }
+        String str2 = base;
+        if (str2 == null) {
+            str2 = BASES[0];
+        }
+        if (!str.startsWith("/")) {
+            str = "/" + str;
+        }
+        return str2 + str;
+    }
+
+    private static String origin(String str) {
+        try {
+            URL url = new URL(str);
+            return url.getProtocol() + "://" + url.getHost();
+        } catch (Exception unused) {
+            return str;
+        }
+    }
+
+    /* JADX WARN: Multi-variable type inference failed */
+    /* JADX WARN: Type inference failed for: r13v1 */
+    /* JADX WARN: Type inference failed for: r13v2, types: [int] */
+    /* JADX WARN: Type inference failed for: r13v4 */
+    private static String req(String str, String str2) {
+        HttpURLConnection httpURLConnection;
+        boolean z = false;
+        String str3 = str;
+        int i = 0;
+        while (i < 6) {
+            try {
+                httpURLConnection = (HttpURLConnection) new URL(str3).openConnection();
+                try {
+                    httpURLConnection.setInstanceFollowRedirects(z);
+                    httpURLConnection.setConnectTimeout(12000);
+                    httpURLConnection.setReadTimeout(18000);
+                    httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0");
+                    httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+                    httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT_LANGUAGE, "de-DE,de;q=0.9,en;q=0.8");
+                    String str4 = base;
+                    if (str4 == null) {
+                        str4 = origin(str3);
+                    }
+                    httpURLConnection.setRequestProperty(HttpHeaders.REFERER, str4 + "/");
+                    String cookieHeader = cookieHeader();
+                    if (!cookieHeader.isEmpty()) {
+                        httpURLConnection.setRequestProperty(HttpHeaders.COOKIE, cookieHeader);
+                    }
+                    if (str2 != null) {
+                        httpURLConnection.setRequestMethod("POST");
+                        httpURLConnection.setDoOutput(true);
+                        httpURLConnection.setRequestProperty(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded");
+                        byte[] bytes = str2.getBytes(StandardCharsets.UTF_8);
+                        httpURLConnection.setFixedLengthStreamingMode(bytes.length);
+                        OutputStream outputStream = httpURLConnection.getOutputStream();
+                        try {
+                            outputStream.write(bytes);
+                            if (outputStream != null) {
+                                outputStream.close();
+                            }
+                        } finally {
+                        }
+                    }
+                    int responseCode = httpURLConnection.getResponseCode();
+                    absorbCookies(httpURLConnection);
+                    String headerField = httpURLConnection.getHeaderField(HttpHeaders.LOCATION);
+                    if (headerField != null && headerField.startsWith("/")) {
+                        headerField = origin(str3) + headerField;
+                    }
+                    if (responseCode >= 300 && responseCode < 400 && headerField != null && headerField.startsWith("http")) {
+                        if (headerField.startsWith("http://")) {
+                            headerField = "https://" + headerField.substring(7);
+                        }
+                        String origin = origin(headerField);
+                        if (origin.contains(CAT)) {
+                            base = origin;
+                        }
+                        httpURLConnection.disconnect();
+                        str3 = headerField;
+                    } else {
+                        if (responseCode != 204 && responseCode != 205) {
+                            InputStream errorStream = responseCode >= 400 ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream();
+                            if (errorStream == null) {
+                                httpURLConnection.disconnect();
+                                return null;
+                            }
+                            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8));
+                            StringBuilder sb = new StringBuilder();
+                            int r13 = 0;
+                            while (true) {
+                                String readLine = bufferedReader.readLine();
+                                if (readLine == null) {
+                                    break;
+                                }
+                                sb.append(readLine).append('\n');
+                                int length = r13 + readLine.length();
+                                if (length > 1500000) {
+                                    break;
+                                }
+                                r13 = length;
+                            }
+                            bufferedReader.close();
+                            if (responseCode < 400) {
+                                String origin2 = origin(httpURLConnection.getURL().toString());
+                                if (origin2.contains(CAT)) {
+                                    base = origin2;
+                                }
+                            }
+                            httpURLConnection.disconnect();
+                            if (sb.indexOf("yg=token") >= 0 && sb.length() < 800 && !str3.contains("yg=token")) {
+                                req(origin(str3) + "/index.php?yg=token", null);
+                            } else {
+                                return sb.toString();
+                            }
+                        }
+                        httpURLConnection.disconnect();
+                        return "";
+                    }
+                    i++;
+                    z = false;
+                } catch (Exception unused) {
+                    if (httpURLConnection != null) {
+                        try {
+                            httpURLConnection.disconnect();
+                        } catch (Exception unused2) {
+                        }
+                    }
+                    return null;
+                }
+            } catch (Exception unused3) {
+                httpURLConnection = null;
+            }
+        }
+        return null;
+    }
+
+    private static synchronized void absorbCookies(HttpURLConnection httpURLConnection) {
+        synchronized (MegaKino.class) {
+            int i = 0;
+            while (true) {
+                try {
+                    String headerFieldKey = httpURLConnection.getHeaderFieldKey(i);
+                    String headerField = httpURLConnection.getHeaderField(i);
+                    if (headerFieldKey == null && headerField == null) {
+                        break;
+                    }
+                    if (headerFieldKey != null && headerField != null && "set-cookie".equalsIgnoreCase(headerFieldKey)) {
+                        int indexOf = headerField.indexOf(59);
+                        if (indexOf > 0) {
+                            headerField = headerField.substring(0, indexOf);
+                        }
+                        int indexOf2 = headerField.indexOf(61);
+                        if (indexOf2 > 0) {
+                            cookies.put(headerField.substring(0, indexOf2).trim(), headerField.substring(indexOf2 + 1).trim());
+                        }
+                    }
+                    i++;
+                } catch (Exception unused) {
+                }
+            }
+        }
+    }
+
+    private static synchronized String cookieHeader() {
+        synchronized (MegaKino.class) {
+            Map<String, String> map = cookies;
+            if (map.isEmpty()) {
+                return "";
+            }
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : map.entrySet()) {
+                if (sb.length() > 0) {
+                    sb.append("; ");
+                }
+                sb.append(entry.getKey()).append('=').append(entry.getValue());
+            }
+            return sb.toString();
+        }
+    }
+}
