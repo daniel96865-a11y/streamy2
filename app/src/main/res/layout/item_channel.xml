@@ -56,14 +56,15 @@
             android:layout_height="wrap_content"
             android:singleLine="true"/>
         <TextView
-            android:textSize="11sp"
+            android:textSize="12sp"
             android:textColor="@color/muted"
             android:ellipsize="end"
             android:id="@+id/sub"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:singleLine="true"/>
+            android:maxLines="2"
+            android:singleLine="false"/>
         <TextView
             android:textSize="12sp"
             android:textColor="@color/muted"

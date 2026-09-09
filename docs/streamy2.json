@@ -1,7 +1,7 @@
 {
-  "versionCode": 129,
-  "versionName": "3.09",
+  "versionCode": 130,
+  "versionName": "3.10",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.09: Vavoo VLC-Fehler wechselt sofort zu Exo (forceEngine-Fix). Android-TV: OK pausiert nicht mehr sofort, Fokus auf Player-Leiste, Spulen nur auf SeekBar. EPG-Qualitätssuffixe (.c/.s).",
+  "changelog": "Version 3.10: Android-TV In-App-Updates per Direkt-Download (FileProvider), klare Signatur-Hinweise. Vavoo-EPG „Jetzt: …“ auf Handy und TV (Force-Refresh, Match-Aliases, sichtbare Untertitel).",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

@@ -159,9 +159,10 @@
                     android:id="@+id/updateBanner"
                     android:background="@drawable/bg_row"
                     android:padding="12dp"
-                    android:focusable="true"
+                    android:focusable="false"
                     android:visibility="gone"
                     android:clickable="true"
+                    android:descendantFocusability="afterDescendants"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="8dp"
@@ -172,6 +173,7 @@
                         android:textStyle="bold"
                         android:textColor="@color/fg"
                         android:id="@+id/updateText"
+                        android:focusable="false"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:text="Neue Version verfügbar"
@@ -183,12 +185,14 @@
                         android:id="@+id/btnUpdateNow"
                         android:background="@drawable/bg_btn"
                         android:focusable="true"
+                        android:focusableInTouchMode="false"
                         android:clickable="true"
                         android:layout_width="wrap_content"
-                        android:layout_height="36dp"
-                        android:text="Laden"
-                        android:paddingStart="14dp"
-                        android:paddingEnd="14dp"/>
+                        android:layout_height="40dp"
+                        android:minWidth="96dp"
+                        android:text="Installieren"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"/>
                 </LinearLayout>
             </LinearLayout>
         </com.google.android.material.appbar.AppBarLayout>
