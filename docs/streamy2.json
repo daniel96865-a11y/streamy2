@@ -1,7 +1,7 @@
 {
-  "versionCode": 132,
-  "versionName": "3.12",
+  "versionCode": 133,
+  "versionName": "3.13",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.12: EPG-Download-Bugfix (Connection closed nach erstem Chunk) — kompletter Body, Retries, Größen-/GZIP-Prüfung. Toast „EPG aus dem Netz geladen“.",
+  "changelog": "Version 3.13: Browser startet leer (about:blank) — kein Auto-Navigate zu Megakino; Cookies/Cache/History beim ersten Öffnen geleert. TV-Cursor unverändert.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

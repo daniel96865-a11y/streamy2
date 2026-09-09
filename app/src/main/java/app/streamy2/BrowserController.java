@@ -11,6 +11,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
+import android.webkit.WebStorage;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -28,7 +29,7 @@ import com.google.android.material.appbar.AppBarLayout;
 
 /* loaded from: classes.dex */
 public class BrowserController {
-    public static String HOME = "https://megakino18.com";
+    public static String HOME = "about:blank";
     private static final String UA_PHONE = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
     private static final String UA_TV = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private final Activity act;
@@ -397,6 +398,28 @@ public class BrowserController {
         }
     }
 
+
+    /** Wipe cookies / cache / history so Browser opens as a clean empty tab. */
+    private void clearBrowserSlate() {
+        try {
+            CookieManager cm = CookieManager.getInstance();
+            cm.removeAllCookies(null);
+            cm.flush();
+        } catch (Exception ignored) {
+        }
+        try {
+            WebStorage.getInstance().deleteAllData();
+        } catch (Exception ignored) {
+        }
+        WebView webView = this.web;
+        if (webView != null) {
+            webView.stopLoading();
+            webView.clearCache(true);
+            webView.clearFormData();
+            webView.clearHistory();
+        }
+    }
+
     public void show() {
         View view = this.pane;
         if (view != null) {
@@ -405,7 +428,11 @@ public class BrowserController {
         setChromeHidden(false);
         if (!this.started) {
             this.started = true;
+            clearBrowserSlate();
             this.web.loadUrl(HOME);
+            if (this.urlBar != null) {
+                this.urlBar.setText("");
+            }
         } else {
             this.web.onResume();
         }
