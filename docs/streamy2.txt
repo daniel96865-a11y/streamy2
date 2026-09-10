@@ -1,5 +1,5 @@
-versionCode 138
-versionName 3.18
+versionCode 139
+versionName 3.19
 title Streamy 2 Update
-message EPG UX: Cache zuerst, TTL 45 Min, UI nie blockieren, „EPG lädt…“
+message Cold Start: UI sofort, Katalog/WebView/EPG im Hintergrund, EPG Cache-first bleibt
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

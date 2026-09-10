@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.18** (versionCode **138**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.19** (versionCode **139**).
 
 ## Download
 
@@ -15,6 +15,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.19 notes
+
+Cold start: main UI opens immediately. Large Xtream `CatalogCache` JSON is parsed off the main thread (show „Katalog lädt…“); WebView + AdBlock are created only when Browser is opened; libVLC is never probed in `Application.onCreate`. Vavoo/Kino/EPG hydrate after first paint. Keeps 3.18 EPG cache-first + 45min TTL.
 
 ## 3.18 notes
 
