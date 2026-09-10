@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.17** (versionCode **137**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.18** (versionCode **138**).
 
 ## Download
 
@@ -15,6 +15,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.18 notes
+
+EPG UX: open Live-TV/Vavoo immediately (never freeze on download). Disk/memory cache shows „Jetzt: …“ instantly; full net refresh at most every 45 minutes (session/TTL) or cold start without valid cache. Subtle „EPG lädt…“ status while background refresh runs; fail soft keeps cache. Force refresh via settings still available. 3.16/3.17 unify + off-UI apply kept.
 
 ## 3.17 notes
 

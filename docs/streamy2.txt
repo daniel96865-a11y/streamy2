@@ -1,5 +1,5 @@
-versionCode 137
-versionName 3.17
+versionCode 138
+versionName 3.18
 title Streamy 2 Update
-message Crash-Fix Vavoo öffnen; EPG-Apply off-UI; Name-Unify bleibt
+message EPG UX: Cache zuerst, TTL 45 Min, UI nie blockieren, „EPG lädt…“
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
