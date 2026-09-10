@@ -1,7 +1,7 @@
 {
-  "versionCode": 140,
-  "versionName": "3.20",
+  "versionCode": 141,
+  "versionName": "3.21",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.20: Filme/Serien Spalten (1/2/4) in Einstellungen → Darstellung; Poster-Raster nebeneinander; DPAD-Fokus; Live-TV unverändert.",
+  "changelog": "Version 3.21: ARM-only APK (armeabi-v7a + arm64-v8a) für Fire TV / Phones / Android TV — kleiner, zuverlässiger auf Stick; Funktionen unverändert.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
