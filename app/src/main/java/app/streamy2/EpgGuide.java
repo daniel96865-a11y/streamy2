@@ -173,11 +173,24 @@ public class EpgGuide {
         return App.isLowRam() ? 14400000L : 28800000L; // 4h / 8h
     }
 
+    /**
+     * Prefer name-based XMLTV so HD/FHD/UHD/name variants share one guide.
+     * Playlist epgChannelId is only used when no normalized-name match exists —
+     * otherwise divergent Xtream epgIds (e.g. 13TH STREET HD vs FHD) split the EPG.
+     */
     public Models.Epg forChannel(Models.Channel channel) {
         Models.Epg lookup;
         Models.Epg lookup2;
         if (channel == null) {
             return null;
+        }
+        String findNameId = findNameId(normName(channel.name));
+        if (findNameId != null) {
+            Models.Epg byName = current(findNameId);
+            if (byName != null) {
+                channel.epgChannelId = findNameId;
+                return byName;
+            }
         }
         Models.Epg lookup3 = lookup(channel.epgChannelId);
         if (lookup3 != null) {
@@ -193,12 +206,15 @@ public class EpgGuide {
         if (channel.id != null && channel.id.startsWith("iptv:") && (lookup = lookup(channel.id.substring(5))) != null) {
             return lookup;
         }
-        String findNameId = findNameId(normName(channel.name));
-        if (findNameId == null) {
-            return null;
+        return null;
+    }
+
+    /** True when XMLTV indexes the normalized display name (skip Xtream shortEpg). */
+    public boolean hasNameMatch(Models.Channel channel) {
+        if (channel == null) {
+            return false;
         }
-        channel.epgChannelId = findNameId;
-        return current(findNameId);
+        return findNameId(normName(channel.name)) != null;
     }
 
     public List<Listing> listingsFor(Models.Channel channel) {
@@ -263,6 +279,10 @@ public class EpgGuide {
     }
 
     private String keyOf(Models.Channel channel) {
+        String nameId = findNameId(normName(channel.name));
+        if (nameId != null && this.byId.containsKey(nameId)) {
+            return nameId;
+        }
         if (channel.epgChannelId != null && !channel.epgChannelId.isEmpty()) {
             String norm = norm(channel.epgChannelId);
             if (this.byId.containsKey(norm)) {
@@ -273,7 +293,7 @@ public class EpgGuide {
                 return norm.substring(0, indexOf);
             }
         }
-        return (channel.id == null || !this.byId.containsKey(norm(channel.id))) ? findNameId(normName(channel.name)) : norm(channel.id);
+        return (channel.id == null || !this.byId.containsKey(norm(channel.id))) ? nameId : norm(channel.id);
     }
 
     private String findNameId(String str) {
@@ -408,9 +428,68 @@ public class EpgGuide {
                 } catch (Exception unused) {
                 }
             }
+            i = applyUnified(list);
         } catch (Exception unused2) {
         }
         return i;
+    }
+
+    /**
+     * Propagate one Models.Epg to every live row that shares the same normName
+     * (HD / FHD / UHD / DE: / .c variants). Prefer a guide hit from name match;
+     * otherwise the richest non-empty title already on a sibling in the group.
+     */
+    public int applyUnified(List<Models.Channel> list) {
+        int matched = 0;
+        if (list == null || list.isEmpty()) {
+            return 0;
+        }
+        try {
+            HashMap<String, ArrayList<Models.Channel>> groups = new HashMap<>();
+            for (Models.Channel channel : list) {
+                if (channel == null || channel.header || channel.name == null) {
+                    continue;
+                }
+                String key = normName(channel.name);
+                if (key.isEmpty()) {
+                    continue;
+                }
+                ArrayList<Models.Channel> g = groups.get(key);
+                if (g == null) {
+                    g = new ArrayList<>();
+                    groups.put(key, g);
+                }
+                g.add(channel);
+            }
+            for (Map.Entry<String, ArrayList<Models.Channel>> e : groups.entrySet()) {
+                ArrayList<Models.Channel> g = e.getValue();
+                Models.Epg best = null;
+                String sharedId = findNameId(e.getKey());
+                if (sharedId != null) {
+                    best = current(sharedId);
+                }
+                if (best == null) {
+                    for (Models.Channel c : g) {
+                        if (c.epg != null && c.epg.title != null && !c.epg.title.isEmpty()) {
+                            best = c.epg;
+                            break;
+                        }
+                    }
+                }
+                if (best == null) {
+                    continue;
+                }
+                for (Models.Channel c : g) {
+                    c.epg = best;
+                    if (sharedId != null && !sharedId.isEmpty()) {
+                        c.epgChannelId = sharedId;
+                    }
+                    matched++;
+                }
+            }
+        } catch (Exception unused) {
+        }
+        return matched;
     }
 
     public void loadUrl(String str, File file, boolean z) throws Exception {
@@ -888,7 +967,7 @@ public class EpgGuide {
                 .replaceAll("\\s*\\.[bcsf]\\b", " ")
                 .replaceFirst("^de:\\s*", "")
                 .replaceFirst("^\\[+\\s*", "")
-                .replaceAll("\\b(fhd|uhd|hd\\+|hdtv|sd|4k|hevc|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen)\\b", " ")
+                .replaceAll("\\b(full\\s*hd|fullhd|ultra\\s*hd|ultrahd|fhd|uhd|hd\\+|hdtv|sd|4k|8k|hevc|h265|h264|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen)\\b", " ")
                 .replaceAll("(?<!\\w)hd(?!\\w)", " ")
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim()
