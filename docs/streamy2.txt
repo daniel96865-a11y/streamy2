@@ -1,5 +1,5 @@
-versionCode 135
-versionName 3.15
+versionCode 136
+versionName 3.16
 title Streamy 2 Update
-message Low-RAM-Härtung (Exo-Buffer, EPG/WebView-Trim, VLC lazy)
+message Live-TV Internet-EPG + einheitliche EPG für HD/FHD/UHD
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

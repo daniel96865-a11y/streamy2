@@ -1,7 +1,7 @@
 {
-  "versionCode": 135,
-  "versionName": "3.15",
+  "versionCode": 136,
+  "versionName": "3.16",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.15: Low-RAM-Härtung für schwache Android-TV-Sticks — largeHeap, kleinere Exo-Buffer, EPG/WebView-Trim, VLC lazy, Diagnose zeigt Low-RAM-Modus.",
+  "changelog": "Version 3.16: Live-TV Internet-EPG (epg.pw) + einheitliche EPG für HD/FHD/UHD-Varianten per normiertem Sendernamen; Xtream shortEpg nur ohne XMLTV-Namens-Treffer.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

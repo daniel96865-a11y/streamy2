@@ -1000,9 +1000,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$34(View view) {
-        if (MainActivity.this.tab == 4) {
-            // Vavoo tab: dedicated net-first path (toast + session stamp)
-            ensureVavooEpg(true);
+        if (MainActivity.this.tab == 0 || MainActivity.this.tab == 4) {
+            // Live-TV + Vavoo: net-first internet XMLTV (toast + session stamp)
+            ensureNetEpg(true);
         } else {
             refreshXmltv(true);
         }
@@ -1713,13 +1713,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 loadVavoo();
                 // Phone + TV: always (re)bind EPG for Vavoo rows — do not rely on loadVavoo busy path alone
                 ensureVavooEpg(false);
+            } else if (i == 0) {
+                // Live-TV: internet XMLTV (epg.pw) + unify HD/FHD by normName
+                ensureLiveEpg(false);
             }
             renderList();
             RecyclerView recyclerView = this.list;
             if (recyclerView != null) {
                 recyclerView.scrollToPosition(0);
             }
-            if (i == 4) {
+            if (i == 0 || i == 4) {
                 try { loadVisibleEpg(); } catch (Throwable ignored) {}
             }
         }
@@ -3208,6 +3211,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         showSettings(false);
         setTab(0);
         prefetchEpg();
+        ensureLiveEpg(false);
         loadVavoo();
         loadKino();
     }
@@ -3601,6 +3605,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         renderList();
         prefetchEpg();
+        ensureLiveEpg(false);
         loadVavoo();
         loadKino();
     }
@@ -3669,6 +3674,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (forChannel != null) {
                 channel.epg = forChannel;
                 this.adapter.patchEpg(channel.id, forChannel);
+                // Name-based XMLTV hit: unify siblings (HD/FHD) and never call shortEpg
+                try {
+                    Models.Catalog catalog = this.catalog;
+                    if (catalog != null && catalog.live != null) {
+                        this.guide.applyUnified(catalog.live);
+                    }
+                } catch (Throwable ignored) {
+                }
+            } else if (this.guide.hasNameMatch(channel)) {
+                // Guide knows the name but current() empty (window) — still skip Xtream shortEpg
+                return;
             } else if ((channel.vavooUrl == null || channel.vavooUrl.isEmpty()) && this.api != null) {
                 synchronized (this.epgAsked) {
                     if (this.epgAsked.contains(channel.id)) {
@@ -3707,6 +3723,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$askEpg$107(Models.Channel channel, Models.Epg epg) {
         this.adapter.patchEpg(channel.id, epg);
+        try {
+            Models.Catalog catalog = this.catalog;
+            if (catalog != null && catalog.live != null) {
+                this.guide.applyUnified(catalog.live);
+                if (this.adapter != null) {
+                    this.adapter.notifyEpg();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private File epgCache() {
@@ -3892,13 +3918,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     /**
-     * Ensure Vavoo rows get XMLTV „Jetzt: …“ on phone and TV.
-     * UI load path prefers a fresh network pull (once per session / when last net
-     * fetch is older than ~45 min / programmeCount==0). Cache may still be written
-     * after a successful download for offline reuse — but we do not short-circuit
-     * on stale local cache for the Vavoo tab.
+     * Ensure Live-TV + Vavoo rows get XMLTV „Jetzt: …“ from internet guides
+     * (Vavoo.EPG_URLS / epg.pw first). Net-first once per session / when last net
+     * fetch is older than ~45 min / programmeCount==0. Cache is written after a
+     * successful download for offline reuse — do not short-circuit on stale cache.
+     * HD/FHD/UHD variants are unified via EpgGuide.apply → applyUnified.
      */
-    private void ensureVavooEpg(boolean userRequested) {
+    private void ensureNetEpg(boolean userRequested) {
         if (!userRequested && App.playerOpen && App.isLowRam(this)) {
             return;
         }
@@ -3937,6 +3963,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         // Always force network download on this path (no cache short-circuit).
         loadVavooXmltv(true);
+    }
+
+    /** @deprecated alias — Live-TV and Vavoo both use {@link #ensureNetEpg(boolean)}. */
+    @Deprecated
+    private void ensureVavooEpg(boolean userRequested) {
+        ensureNetEpg(userRequested);
+    }
+
+    /** Live-TV tab: internet XMLTV + name-unified EPG (same path as Vavoo). */
+    private void ensureLiveEpg(boolean userRequested) {
+        ensureNetEpg(userRequested);
     }
 
     private void loadVavooXmltv(final boolean forceNet) {
@@ -4007,7 +4044,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     @Override
                     public final void run() {
                         MainActivity.this.lambda$loadVavooXmltv$117(applyCache);
-                        if (MainActivity.this.tab == 4) {
+                        if (MainActivity.this.tab == 0 || MainActivity.this.tab == 4) {
                             try {
                                 Toast.makeText(MainActivity.this,
                                         "EPG-Netz fehlgeschlagen — Cache genutzt (" + applyCache + " Sender)",
@@ -4046,7 +4083,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 @Override
                 public final void run() {
                     MainActivity.this.lambda$loadVavooXmltv$117(applyFinal);
-                    if (fromNet && MainActivity.this.tab == 4) {
+                    if (fromNet && (MainActivity.this.tab == 0 || MainActivity.this.tab == 4)) {
                         try {
                             Toast.makeText(MainActivity.this,
                                     "EPG aus dem Netz geladen (" + applyFinal + " Sender)",
@@ -4067,7 +4104,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     @Override
                     public void run() {
                         MainActivity.this.lambda$loadVavooXmltv$117(apply2);
-                        if (MainActivity.this.tab == 4) {
+                        if (MainActivity.this.tab == 0 || MainActivity.this.tab == 4) {
                             try {
                                 Toast.makeText(MainActivity.this,
                                         "EPG-Netzfehler: " + (th.getMessage() == null ? "unbekannt" : th.getMessage()),
@@ -4095,7 +4132,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             loadVisibleEpg();
         } catch (Throwable unused) {
         }
-        if (this.tab == 4) {
+        if (this.tab == 0 || this.tab == 4) {
             try {
                 if (this.adapter != null && i > 0) {
                     loadVisibleEpg();
