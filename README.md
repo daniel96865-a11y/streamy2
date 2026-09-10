@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.19** (versionCode **139**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.20** (versionCode **140**).
 
 ## Download
 
@@ -15,6 +15,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.20 notes
+
+Einstellungen → Darstellung: „Filme/Serien Spalten“ mit **1 / 2 / 4** Poster nebeneinander. Persistiert in Prefs; gilt für Filme, Serien und Megakino (inkl. Kategorien). Live-TV/Vavoo bleiben Liste. Raster bleibt per DPAD fokussierbar. Default: 2 Spalten.
 
 ## 3.19 notes
 

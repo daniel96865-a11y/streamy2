@@ -27,6 +27,9 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     private RecyclerView attached;
     private final Listener listener;
     private final List<Object> items = new ArrayList();
+    private int gridColumns = 1;
+    private static final int TYPE_ROW = 0;
+    private static final int TYPE_POSTER = 1;
     private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm", Locale.GERMANY);
 
     public interface Listener {
@@ -63,6 +66,23 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
             this.items.addAll(list);
         }
         safeNotify();
+    }
+
+    public void setGridColumns(int cols) {
+        int c = cols < 1 ? 1 : cols;
+        if (this.gridColumns == c) {
+            return;
+        }
+        this.gridColumns = c;
+        safeNotify();
+    }
+
+    public int getGridColumns() {
+        return this.gridColumns;
+    }
+
+    public boolean isPosterGrid() {
+        return this.gridColumns > 1;
     }
 
     private void safeNotify() {
@@ -172,8 +192,18 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     @Override // androidx.recyclerview.widget.RecyclerView.Adapter
+    public int getItemViewType(int position) {
+        if (this.gridColumns > 1 && position >= 0 && position < this.items.size()
+                && (this.items.get(position) instanceof Models.Media)) {
+            return TYPE_POSTER;
+        }
+        return TYPE_ROW;
+    }
+
+    @Override // androidx.recyclerview.widget.RecyclerView.Adapter
     public VH onCreateViewHolder(ViewGroup viewGroup, int i) {
-        View inflate = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.item_channel, viewGroup, false);
+        int layout = i == TYPE_POSTER ? R.layout.item_poster : R.layout.item_channel;
+        View inflate = LayoutInflater.from(viewGroup.getContext()).inflate(layout, viewGroup, false);
         inflate.setFocusable(true);
         inflate.setClickable(true);
         inflate.setOnFocusChangeListener(new View.OnFocusChangeListener() { // from class: app.streamy2.ChannelAdapter$$ExternalSyntheticLambda2
@@ -211,9 +241,13 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     private void bindChannel(VH vh, final Models.Channel channel) {
-        vh.num.setVisibility(0);
-        vh.num.setText(String.valueOf(channel.number));
-        vh.live.setVisibility(channel.header ? 8 : 0);
+        if (vh.num != null) {
+            vh.num.setVisibility(0);
+            vh.num.setText(String.valueOf(channel.number));
+        }
+        if (vh.live != null) {
+            vh.live.setVisibility(channel.header ? 8 : 0);
+        }
         vh.title.setText(styled(channel.name));
         if (vh.sub != null) {
             vh.sub.setVisibility(android.view.View.VISIBLE);
@@ -260,8 +294,12 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     private void bindMedia(final VH vh, final Models.Media media) {
-        vh.num.setVisibility(8);
-        vh.live.setVisibility(8);
+        if (vh.num != null) {
+            vh.num.setVisibility(8);
+        }
+        if (vh.live != null) {
+            vh.live.setVisibility(8);
+        }
         vh.title.setText(media.name == null ? "" : media.name);
         String join = join(media.genre, media.year);
         if (media.rating != null && !media.rating.isEmpty()) {
@@ -270,21 +308,53 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         if (media.duration != null && !media.duration.isEmpty()) {
             join = join(join, media.duration);
         }
-        vh.sub.setText(join);
-        boolean isTv = Tv.isTv(vh.itemView.getContext());
-        sizeLogo(vh, isTv ? 64 : 56, isTv ? 92 : 80);
-        vh.logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        applyLogo(vh, media.poster, media.name);
-        if (isTv) {
-            vh.title.setTextSize(17.0f);
-            vh.sub.setTextSize(13.0f);
-        } else {
-            vh.title.setTextSize(14.0f);
-            vh.sub.setTextSize(11.0f);
+        if (vh.sub != null) {
+            vh.sub.setText(join);
+            vh.sub.setVisibility(0);
         }
+        boolean isTv = Tv.isTv(vh.itemView.getContext());
+        boolean posterGrid = this.gridColumns > 1;
+        if (posterGrid) {
+            int ph = this.gridColumns >= 4 ? (isTv ? 140 : 120) : (isTv ? 200 : 170);
+            sizeLogo(vh, 0, ph); // width match_parent handled below
+            ViewGroup.LayoutParams lp = vh.logo.getLayoutParams();
+            lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            lp.height = dp(vh.logo, ph);
+            vh.logo.setLayoutParams(lp);
+            ViewGroup.LayoutParams lp2 = vh.logoText.getLayoutParams();
+            lp2.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            lp2.height = dp(vh.logoText, ph);
+            vh.logoText.setLayoutParams(lp2);
+            vh.logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            vh.title.setTextSize(isTv ? 14.0f : 12.0f);
+            if (vh.sub != null) {
+                vh.sub.setTextSize(isTv ? 12.0f : 10.0f);
+                vh.sub.setMaxLines(1);
+                vh.sub.setSingleLine(true);
+            }
+            if (vh.plot != null) {
+                vh.plot.setVisibility(8);
+                vh.plot.setOnClickListener(null);
+            }
+        } else {
+            sizeLogo(vh, isTv ? 64 : 56, isTv ? 92 : 80);
+            vh.logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            if (isTv) {
+                vh.title.setTextSize(17.0f);
+                if (vh.sub != null) {
+                    vh.sub.setTextSize(13.0f);
+                }
+            } else {
+                vh.title.setTextSize(14.0f);
+                if (vh.sub != null) {
+                    vh.sub.setTextSize(11.0f);
+                }
+            }
+        }
+        applyLogo(vh, media.poster, media.name);
         final int i = isTv ? 6 : 12;
         final int i2 = 3;
-        if (vh.plot != null) {
+        if (!posterGrid && vh.plot != null) {
             String replace = media.plot != null ? media.plot.trim().replace('\n', ' ') : "";
             if (replace.isEmpty() || replace.equals("Beschreibung wird geladen…")) {
                 vh.plot.setText(isTv ? "OK für Details" : "Beschreibung wird geladen…");

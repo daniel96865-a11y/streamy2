@@ -1,5 +1,5 @@
-versionCode 139
-versionName 3.19
+versionCode 140
+versionName 3.20
 title Streamy 2 Update
-message Cold Start: UI sofort, Katalog/WebView/EPG im Hintergrund, EPG Cache-first bleibt
+message Filme/Serien Spalten 1/2/4 — Poster nebeneinander in Einstellungen → Darstellung
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

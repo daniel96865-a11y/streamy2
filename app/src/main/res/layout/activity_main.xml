@@ -1215,6 +1215,64 @@
                             android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:text="Filme/Serien Spalten"/>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Poster nebeneinander: 1 = Liste, 2 oder 4 = Raster."/>
+                        <LinearLayout
+                            android:orientation="horizontal"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="14dp">
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/cols1"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="1"
+                                android:paddingStart="18dp"
+                                android:paddingEnd="18dp"/>
+                            <TextView
+                                android:textColor="@color/accent_fg"
+                                android:gravity="center"
+                                android:id="@+id/cols2"
+                                android:background="@drawable/bg_btn"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="2"
+                                android:paddingStart="18dp"
+                                android:paddingEnd="18dp"
+                                android:layout_marginStart="8dp"/>
+                            <TextView
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:id="@+id/cols4"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:text="4"
+                                android:paddingStart="18dp"
+                                android:paddingEnd="18dp"
+                                android:layout_marginStart="8dp"/>
+                        </LinearLayout>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
                             android:text="Akzentfarbe"/>
                         <LinearLayout
                             android:gravity="center_vertical"

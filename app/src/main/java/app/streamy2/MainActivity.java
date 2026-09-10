@@ -40,6 +40,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 import androidx.media3.common.C;
 import androidx.media3.ui.DefaultTimeBar;
+import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import app.streamy2.ChannelAdapter;
@@ -86,6 +87,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView bufNorm;
     private TextView chipCat;
     private TextView chipSort;
+    private TextView cols1;
+    private TextView cols2;
+    private TextView cols4;
     private View chips;
     private TextView detailCast;
     private RecyclerView detailEps;
@@ -247,6 +251,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.bufNorm = (TextView) findViewById(R.id.bufNorm);
         this.bufHigh = (TextView) findViewById(R.id.bufHigh);
         this.bufMax = (TextView) findViewById(R.id.bufMax);
+        this.cols1 = (TextView) findViewById(R.id.cols1);
+        this.cols2 = (TextView) findViewById(R.id.cols2);
+        this.cols4 = (TextView) findViewById(R.id.cols4);
         this.inEpgUrl = (EditText) findViewById(R.id.inEpgUrl);
         this.accentRow = (LinearLayout) findViewById(R.id.accentRow);
         this.search = (EditText) findViewById(R.id.search);
@@ -543,6 +550,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$30(view3);
             }
         });
+        if (this.cols1 != null) {
+            this.cols1.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setPosterColumns(1); }
+            });
+        }
+        if (this.cols2 != null) {
+            this.cols2.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setPosterColumns(2); }
+            });
+        }
+        if (this.cols4 != null) {
+            this.cols4.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setPosterColumns(4); }
+            });
+        }
         this.epg6.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda93
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
@@ -1574,6 +1596,53 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintBuffer();
     }
 
+    private void setPosterColumns(int cols) {
+        this.prefs.setPosterColumns(cols);
+        paintPosterColumns();
+        applyListLayout();
+        renderList();
+    }
+
+    private void paintPosterColumns() {
+        Theme.Accent accent = Theme.get(this.prefs.accent());
+        int cols = this.prefs.posterColumns();
+        paintChip(this.cols1, cols == 1, accent);
+        paintChip(this.cols2, cols == 2, accent);
+        paintChip(this.cols4, cols == 4, accent);
+    }
+
+    /** Linear list for Live/Vavoo; Grid for Movies/Series/Kino when columns > 1. */
+    private void applyListLayout() {
+        if (this.list == null || this.adapter == null) {
+            return;
+        }
+        boolean mediaTab = this.seriesOpen != null
+                || this.tab == 1 || this.tab == 2 || this.tab == 5;
+        int cols = mediaTab ? this.prefs.posterColumns() : 1;
+        if (cols < 1) {
+            cols = 1;
+        }
+        this.adapter.setGridColumns(mediaTab ? cols : 1);
+        RecyclerView.LayoutManager current = this.list.getLayoutManager();
+        if (cols > 1) {
+            if (current instanceof GridLayoutManager
+                    && ((GridLayoutManager) current).getSpanCount() == cols) {
+                return;
+            }
+            GridLayoutManager glm = new GridLayoutManager(this, cols);
+            this.list.setLayoutManager(glm);
+            this.list.getRecycledViewPool().setMaxRecycledViews(0, 18);
+            this.list.getRecycledViewPool().setMaxRecycledViews(1, 24);
+        } else {
+            if (current instanceof LinearLayoutManager
+                    && !(current instanceof GridLayoutManager)) {
+                return;
+            }
+            this.list.setLayoutManager(new LinearLayoutManager(this));
+            this.list.getRecycledViewPool().setMaxRecycledViews(0, 18);
+        }
+    }
+
     private void paintPlayer() {
         Theme.Accent accent = Theme.get(this.prefs.accent());
         String live = this.prefs.playerLive();
@@ -1689,7 +1758,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             findViewById7.setNextFocusUpId(R.id.headPlay);
         }
         if (findViewById8 != null) {
-            findViewById8.setNextFocusDownId(open(findViewById4) ? R.id.accentRow : R.id.btnCheckUpdate);
+            findViewById8.setNextFocusDownId(open(findViewById4) ? R.id.cols1 : R.id.btnCheckUpdate);
             findViewById8.setNextFocusUpId(R.id.headEpg);
         }
     }
@@ -1855,6 +1924,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         try {
+            applyListLayout();
             int i = 0;
             this.chips.setVisibility(0);
             if (this.seriesOpen != null) {
@@ -4415,6 +4485,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintResize();
         paintPlayer();
         paintBuffer();
+        paintPosterColumns();
         View btnTestExo = findViewById(R.id.btnTestExo);
         if (btnTestExo != null) {
             btnTestExo.setOnClickListener(new View.OnClickListener() {
