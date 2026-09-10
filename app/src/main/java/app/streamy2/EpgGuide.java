@@ -101,6 +101,78 @@ public class EpgGuide {
         this.error = null;
     }
 
+    /**
+     * Shrink in-memory EPG under memory pressure.
+     * @param aggressive drop most programme maps (keep only a thin current-window slice)
+     */
+    public void trim(boolean aggressive) {
+        try {
+            long now = System.currentTimeMillis();
+            long keepPast = aggressive ? 30L * 60L * 1000L : 60L * 60L * 1000L;
+            long keepFuture = aggressive ? 2L * 60L * 60L * 1000L : 4L * 60L * 60L * 1000L;
+            int maxPer = aggressive ? 4 : 12;
+            int keptProg = 0;
+            for (Map.Entry<String, List<Listing>> e : this.byId.entrySet()) {
+                List<Listing> src = e.getValue();
+                if (src == null || src.isEmpty()) {
+                    continue;
+                }
+                ArrayList<Listing> kept = new ArrayList<>();
+                for (Listing listing : src) {
+                    if (listing == null) continue;
+                    if (listing.stop < now - keepPast) continue;
+                    if (listing.start > now + keepFuture) continue;
+                    kept.add(listing);
+                    if (kept.size() >= maxPer) break;
+                }
+                if (aggressive && kept.isEmpty() && !src.isEmpty()) {
+                    // Keep at most one near-now listing so channel keys survive lightly
+                    Listing best = null;
+                    for (Listing listing : src) {
+                        if (listing == null) continue;
+                        if (listing.start <= now && listing.stop >= now) {
+                            best = listing;
+                            break;
+                        }
+                        if (best == null) best = listing;
+                    }
+                    if (best != null) kept.add(best);
+                }
+                e.setValue(kept);
+                keptProg += kept.size();
+            }
+            if (aggressive && this.byId.size() > 400) {
+                // Drop empty channel buckets to free map entries
+                ArrayList<String> drop = new ArrayList<>();
+                for (Map.Entry<String, List<Listing>> e : this.byId.entrySet()) {
+                    List<Listing> v = e.getValue();
+                    if (v == null || v.isEmpty()) drop.add(e.getKey());
+                }
+                for (String k : drop) this.byId.remove(k);
+            }
+            this.programmeCount = keptProg;
+            this.channelCount = this.byId.size();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Prefer a single successful feed on low-RAM (skip merging extras). */
+    public boolean preferSingleFeed() {
+        return App.isLowRam();
+    }
+
+    public int maxProgrammesPerChannel() {
+        return App.isLowRam() ? 24 : 96;
+    }
+
+    public long parseWindowPastMs() {
+        return App.isLowRam() ? 3600000L : 7200000L; // 1h / 2h
+    }
+
+    public long parseWindowFutureMs() {
+        return App.isLowRam() ? 14400000L : 28800000L; // 4h / 8h
+    }
+
     public Models.Epg forChannel(Models.Channel channel) {
         Models.Epg lookup;
         Models.Epg lookup2;
@@ -389,6 +461,11 @@ public class EpgGuide {
 
     private static final long EPG_MIN_BYTES = 100 * 1024L;
     private static final long EPG_MAX_BYTES = 90 * 1024 * 1024L;
+    private static final long EPG_MAX_BYTES_LOW = 32 * 1024 * 1024L;
+
+    private long epgMaxBytes() {
+        return App.isLowRam() ? EPG_MAX_BYTES_LOW : EPG_MAX_BYTES;
+    }
     private static final int EPG_DOWNLOAD_ATTEMPTS = 3;
 
     private void download(String str, File file) throws Exception {
@@ -468,7 +545,7 @@ public class EpgGuide {
                 }
                 out.write(buf, 0, n);
                 total += n;
-                if (total > EPG_MAX_BYTES) {
+                if (total > epgMaxBytes()) {
                     throw new Exception("EPG-Datei zu groß");
                 }
             }
@@ -592,8 +669,9 @@ public class EpgGuide {
         HashMap hashMap2 = new HashMap();
         HashMap hashMap3 = new HashMap();
         long currentTimeMillis = System.currentTimeMillis();
-        long j = currentTimeMillis - 7200000;
-        long j2 = currentTimeMillis + 28800000;
+        long j = currentTimeMillis - parseWindowPastMs();
+        long j2 = currentTimeMillis + parseWindowFutureMs();
+        final int maxPerChannel = maxProgrammesPerChannel();
         int eventType = newPullParser.getEventType();
         String str2 = null;
         String str3 = null;
@@ -656,7 +734,7 @@ public class EpgGuide {
                                 list = new ArrayList();
                                 hashMap2.put(norm, list);
                             }
-                            if (list.size() < 96) {
+                            if (list.size() < maxPerChannel) {
                                 list.add(listing);
                             }
                         }
@@ -687,6 +765,9 @@ public class EpgGuide {
         this.programmeCount = i4;
         this.channelCount = this.byId.size();
         this.error = null;
+        if (App.isLowRam()) {
+            trim(false);
+        }
     }
 
     private Models.Epg lookup(String str) {
