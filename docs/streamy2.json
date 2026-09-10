@@ -1,7 +1,7 @@
 {
-  "versionCode": 139,
-  "versionName": "3.19",
+  "versionCode": 140,
+  "versionName": "3.20",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.19: Cold Start — UI sofort nutzbar; Katalog-Cache (großes JSON) im Hintergrund; WebView/AdBlock erst beim Browser-Tab; kein VLC-Probe beim App-Start; Vavoo/Kino/EPG nach erstem Frame; EPG Cache-first + 45-Min-TTL bleibt.",
+  "changelog": "Version 3.20: Filme/Serien Spalten (1/2/4) in Einstellungen → Darstellung; Poster-Raster nebeneinander; DPAD-Fokus; Live-TV unverändert.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

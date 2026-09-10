@@ -193,4 +193,16 @@ public class Prefs {
     public void setFiltersOpen(boolean z) {
         this.p.edit().putBoolean("filters", z).apply();
     }
+
+    public int posterColumns() {
+        int c = this.p.getInt("posterCols", 2);
+        return (c == 1 || c == 2 || c == 4) ? c : 2;
+    }
+
+    public void setPosterColumns(int i) {
+        if (i != 1 && i != 2 && i != 4) {
+            i = 2;
+        }
+        this.p.edit().putInt("posterCols", i).apply();
+    }
 }
