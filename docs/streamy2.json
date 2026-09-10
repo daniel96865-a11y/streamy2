@@ -1,7 +1,7 @@
 {
-  "versionCode": 138,
-  "versionName": "3.18",
+  "versionCode": 139,
+  "versionName": "3.19",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.18: EPG UX — UI öffnet sofort; Disk-/Memory-Cache zeigt „Jetzt: …“ sofort; Netz-Refresh höchstens alle 45 Min (Session/TTL); dezenter Hinweis „EPG lädt…“; Fail-soft behält Cache; Live-TV Name-Unify + off-UI Apply bleiben.",
+  "changelog": "Version 3.19: Cold Start — UI sofort nutzbar; Katalog-Cache (großes JSON) im Hintergrund; WebView/AdBlock erst beim Browser-Tab; kein VLC-Probe beim App-Start; Vavoo/Kino/EPG nach erstem Frame; EPG Cache-first + 45-Min-TTL bleibt.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

@@ -265,7 +265,19 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.appBar = (AppBarLayout) findViewById(R.id.appBar);
         this.topChrome = findViewById(R.id.topChrome);
         this.btnTop = findViewById(R.id.btnTop);
-        this.browser = new BrowserController(this);
+        // Defer BrowserController to after first frame — WebView/AdBlock are lazy inside it.
+        this.browser = null;
+        UI.post(new Runnable() {
+            @Override
+            public final void run() {
+                try {
+                    if (MainActivity.this.browser == null) {
+                        MainActivity.this.browser = new BrowserController(MainActivity.this);
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        });
         boolean z = true;
         if (Tv.isTv(this) && (view = this.topChrome) != null && (view.getLayoutParams() instanceof AppBarLayout.LayoutParams)) {
             AppBarLayout.LayoutParams layoutParams = (AppBarLayout.LayoutParams) this.topChrome.getLayoutParams();
@@ -726,16 +738,32 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 textView8.setVisibility(8);
             }
         }
+        paintTabs();
         if (this.prefs.hasXtream()) {
+            // Show shell UI immediately; heavy CatalogCache JSON parse runs off the main thread.
+            if (this.loading != null) {
+                this.loading.setVisibility(0);
+            }
+            if (this.empty != null) {
+                this.empty.setText("Katalog lädt…");
+                this.empty.setVisibility(0);
+            }
+            setStatus("Katalog lädt…", false);
             loadXtream(false);
         } else {
             Models.Catalog build = DemoCatalog.build();
             this.catalog = build;
             App.live = build.live;
             renderList();
-            loadVavoo();
-            loadKino();
-            prefetchEpg();
+            // Defer secondary hydrations until after first paint
+            UI.post(new Runnable() {
+                @Override
+                public final void run() {
+                    MainActivity.this.loadVavoo();
+                    MainActivity.this.loadKino();
+                    MainActivity.this.prefetchEpg();
+                }
+            });
         }
         requestNotifyPermission();
         checkUpdate(false);
@@ -3547,21 +3575,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void loadXtream(final boolean z) {
         final File file = CatalogCache.file(getCacheDir());
-        if (!z) {
-            Models.Catalog read = CatalogCache.read(file);
-            if (read != null) {
-                this.catalog = read;
-                App.live = read.live;
-                renderList();
-                this.loading.setVisibility(8);
-                loadVavoo();
-                loadKino();
-            } else {
-                this.loading.setVisibility(0);
-            }
-        } else {
+        if (z && this.loading != null) {
             this.loading.setVisibility(0);
         }
+        // Always hydrate (disk cache + network) off the main thread — large JSON must not freeze cold start.
         IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda7
             @Override // java.lang.Runnable
             public final void run() {
@@ -3572,6 +3589,44 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadXtream$105(File file, final boolean z) {
+        // Phase 0: disk cache (off UI) so first paint is not blocked by multi-MB JSON parse.
+        if (!z) {
+            try {
+                final Models.Catalog cached = CatalogCache.read(file);
+                if (cached != null) {
+                    UI.post(new Runnable() {
+                        @Override
+                        public final void run() {
+                            if (MainActivity.this.isFinishing()) {
+                                return;
+                            }
+                            MainActivity.this.catalog = cached;
+                            App.live = cached.live;
+                            if (MainActivity.this.loading != null) {
+                                MainActivity.this.loading.setVisibility(8);
+                            }
+                            MainActivity.this.paintTabs();
+                            MainActivity.this.renderList();
+                            MainActivity.this.setStatus("Cache · " + cached.live.size() + " Sender", false);
+                            // After first interactive frame: Vavoo/Kino/EPG in background
+                            UI.post(new Runnable() {
+                                @Override
+                                public final void run() {
+                                    try {
+                                        MainActivity.this.loadVavoo();
+                                        MainActivity.this.loadKino();
+                                        MainActivity.this.prefetchEpg();
+                                        MainActivity.this.ensureLiveEpg(false);
+                                    } catch (Throwable ignored) {
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            } catch (Throwable ignored) {
+            }
+        }
         try {
             XtreamApi xtreamApi = new XtreamApi(this.prefs.url(), this.prefs.user(), this.prefs.pass(), this.prefs.format());
             this.api = xtreamApi;

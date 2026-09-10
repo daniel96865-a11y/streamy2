@@ -34,7 +34,7 @@ public class BrowserController {
     private static final String UA_TV = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private final Activity act;
     private final TextView adHint;
-    private final AdBlock adblock;
+    private AdBlock adblock;
     private final AppBarLayout appBar;
     private boolean chromeHidden;
     private final ImageView cursor;
@@ -52,7 +52,9 @@ public class BrowserController {
     private boolean userNavigated;
     private boolean tvCursor;
     private final EditText urlBar;
-    private final WebView web;
+    private WebView web;
+    private FrameLayout webHost;
+    private boolean webReady;
     private final View webChrome;
     /** Last created controller — used by App.onTrimMemory. */
     private static volatile BrowserController activeInstance;
@@ -66,7 +68,9 @@ public class BrowserController {
     public BrowserController(Activity activity) {
         this.act = activity;
         this.pane = activity.findViewById(R.id.browserPane);
-        this.web = (WebView) activity.findViewById(R.id.webView);
+        this.webHost = (FrameLayout) activity.findViewById(R.id.webViewHost);
+        this.web = null;
+        this.webReady = false;
         this.urlBar = (EditText) activity.findViewById(R.id.webUrl);
         this.progress = (ProgressBar) activity.findViewById(R.id.webProgress);
         this.adHint = (TextView) activity.findViewById(R.id.webAdHint);
@@ -74,13 +78,37 @@ public class BrowserController {
         this.webChrome = activity.findViewById(R.id.webChrome);
         this.appBar = (AppBarLayout) activity.findViewById(R.id.appBar);
         this.cursor = (ImageView) activity.findViewById(R.id.tvCursor);
-        this.adblock = new AdBlock(activity);
+        this.adblock = null; // load on first browser open — not on cold start
         this.tvCursor = Tv.isTv(activity);
         activeInstance = this;
-        setup();
+        setupChrome();
     }
 
-    private void setup() {
+    /** Create WebView + AdBlock only when Browser tab is opened (keeps cold start light). */
+    private void ensureWeb() {
+        if (this.webReady && this.web != null) {
+            return;
+        }
+        if (this.webHost == null) {
+            this.webHost = (FrameLayout) this.act.findViewById(R.id.webViewHost);
+        }
+        if (this.web == null && this.webHost != null) {
+            WebView wv = new WebView(this.act);
+            wv.setLayoutParams(new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            wv.setFocusable(true);
+            wv.setFocusableInTouchMode(true);
+            this.webHost.addView(wv);
+            this.web = wv;
+        }
+        if (this.adblock == null) {
+            this.adblock = new AdBlock(this.act);
+        }
+        setupWeb();
+        this.webReady = this.web != null;
+    }
+
+    private void setupWeb() {
         WebView webView = this.web;
         if (webView == null) {
             return;
@@ -165,6 +193,9 @@ public class BrowserController {
                 BrowserController.this.hideFullscreen();
             }
         });
+    }
+
+    private void setupChrome() {
         View findViewById = this.act.findViewById(R.id.btnWebBack);
         View findViewById2 = this.act.findViewById(R.id.btnWebFwd);
         View findViewById3 = this.act.findViewById(R.id.btnWebHome);
@@ -239,7 +270,11 @@ public class BrowserController {
             if (webResourceRequest == null || webResourceRequest.getUrl() == null) {
                 return super.shouldInterceptRequest(webView, webResourceRequest);
             }
-            WebResourceResponse intercept = BrowserController.this.adblock.intercept(webResourceRequest.getUrl().toString());
+            AdBlock block = BrowserController.this.adblock;
+            if (block == null) {
+                return super.shouldInterceptRequest(webView, webResourceRequest);
+            }
+            WebResourceResponse intercept = block.intercept(webResourceRequest.getUrl().toString());
             if (intercept != null) {
                 Activity activity = BrowserController.this.act;
                 final BrowserController browserController = BrowserController.this;
@@ -278,6 +313,10 @@ public class BrowserController {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$setup$0(View view) {
+        ensureWeb();
+        if (this.web == null) {
+            return;
+        }
         if (this.web.canGoBack()) {
             this.web.goBack();
         } else {
@@ -287,14 +326,18 @@ public class BrowserController {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$setup$1(View view) {
-        if (this.web.canGoForward()) {
+        ensureWeb();
+        if (this.web != null && this.web.canGoForward()) {
             this.web.goForward();
         }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$setup$2(View view) {
-        this.web.loadUrl(HOME);
+        ensureWeb();
+        if (this.web != null) {
+            this.web.loadUrl(HOME);
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -323,8 +366,9 @@ public class BrowserController {
     }
 
     private void goToBar() {
+        ensureWeb();
         EditText editText = this.urlBar;
-        if (editText == null) {
+        if (editText == null || this.web == null) {
             return;
         }
         String trim = editText.getText() == null ? "" : this.urlBar.getText().toString().trim();
@@ -395,7 +439,7 @@ public class BrowserController {
         if (this.adHint == null) {
             return;
         }
-        int blockedCount = this.adblock.blockedCount();
+        int blockedCount = this.adblock == null ? 0 : this.adblock.blockedCount();
         if (blockedCount <= 0) {
             this.adHint.setVisibility(8);
         } else {
@@ -446,6 +490,7 @@ public class BrowserController {
     }
 
     public void show() {
+        ensureWeb();
         View view = this.pane;
         if (view != null) {
             view.setVisibility(0);
@@ -456,7 +501,9 @@ public class BrowserController {
             clearBrowserSlate();
             forceBlankHome();
         } else {
-            this.web.onResume();
+            if (this.web != null) {
+                this.web.onResume();
+            }
             String url = currentUrl();
             boolean megakino = url != null && url.toLowerCase().contains("megakino");
             // Blank until user navigated this session; always clear Megakino pollution

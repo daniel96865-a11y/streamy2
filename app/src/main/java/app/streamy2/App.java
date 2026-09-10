@@ -77,13 +77,8 @@ public class App extends Application {
             LocalHls.start();
         } catch (Throwable ignored) {
         }
-        // Do not eagerly probe/load libVLC on low-RAM devices — defer until first VLC use.
-        if (!isLowRam(this)) {
-            try {
-                VlcFactory.isAvailable();
-            } catch (Throwable ignored) {
-            }
-        }
+        // Never probe libVLC on Application.onCreate — cold start must stay light.
+        // VlcFactory.isAvailable() / create() run on first player use only.
     }
 
     @Override // android.app.Application, android.content.ComponentCallbacks
