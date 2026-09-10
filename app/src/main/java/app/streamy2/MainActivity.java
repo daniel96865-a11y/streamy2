@@ -1958,7 +1958,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         ArrayList arrayList = new ArrayList();
         Models.Catalog catalog = this.catalog;
         if (catalog != null && catalog.live != null) {
-            for (Models.Channel channel : this.catalog.live) {
+            List<Models.Channel> liveSnap;
+            try {
+                liveSnap = new ArrayList<>(this.catalog.live);
+            } catch (Throwable t) {
+                return arrayList;
+            }
+            for (Models.Channel channel : liveSnap) {
                 if (channel != null) {
                     String str2 = channel.name == null ? "" : channel.name;
                     if ("all".equals(this.catId) || (channel.categoryId != null && this.catId.equals(channel.categoryId))) {
@@ -3517,12 +3523,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (this.tab == 4) {
             Models.Catalog catalog3 = this.catalog;
-            if (catalog3 != null) {
+            if (catalog3 != null && catalog3.live != null) {
                 i = 0;
-                for (Models.Channel channel : catalog3.live) {
-                    if (channel != null && "vavoo".equals(channel.categoryId)) {
-                        i++;
+                try {
+                    for (Models.Channel channel : new ArrayList<>(catalog3.live)) {
+                        if (channel != null && "vavoo".equals(channel.categoryId)) {
+                            i++;
+                        }
                     }
+                } catch (Throwable t) {
+                    i = 0;
                 }
             } else {
                 i = 0;
@@ -3651,6 +3661,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public void loadVisibleEpg() {
         int i = this.tab;
         if (i == 0 || i == 4) {
+            if (this.list == null || this.adapter == null) {
+                return;
+            }
             RecyclerView.LayoutManager layoutManager = this.list.getLayoutManager();
             if (layoutManager instanceof LinearLayoutManager) {
                 LinearLayoutManager linearLayoutManager = (LinearLayoutManager) layoutManager;
@@ -3674,11 +3687,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (forChannel != null) {
                 channel.epg = forChannel;
                 this.adapter.patchEpg(channel.id, forChannel);
-                // Name-based XMLTV hit: unify siblings (HD/FHD) and never call shortEpg
+                // Cheap sibling unify only (never full-catalog applyUnified on UI thread)
                 try {
                     Models.Catalog catalog = this.catalog;
                     if (catalog != null && catalog.live != null) {
-                        this.guide.applyUnified(catalog.live);
+                        this.guide.applyUnifiedSiblings(channel, catalog.live);
                     }
                 } catch (Throwable ignored) {
                 }
@@ -3726,7 +3739,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             Models.Catalog catalog = this.catalog;
             if (catalog != null && catalog.live != null) {
-                this.guide.applyUnified(catalog.live);
+                this.guide.applyUnifiedSiblings(channel, catalog.live);
                 if (this.adapter != null) {
                     this.adapter.notifyEpg();
                 }
@@ -3929,18 +3942,38 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         try {
-            // Apply whatever is already in memory immediately so UI is not empty while downloading
+            // Apply in-memory guide off the UI thread — full-catalog apply + unify must not
+            // block setTab(Vavoo/Live) or race Vavoo.merge on the main thread.
             Models.Catalog catalog = this.catalog;
             if (catalog != null && catalog.live != null && this.guide.channelCount > 0) {
-                int applied = this.guide.apply(catalog.live);
-                ChannelAdapter channelAdapter = this.adapter;
-                if (channelAdapter != null) {
-                    channelAdapter.notifyEpg();
-                }
-                updateEpgStatus();
-                if (applied > 0) {
-                    loadVisibleEpg();
-                }
+                final List<Models.Channel> live = catalog.live;
+                IO.execute(new Runnable() {
+                    @Override
+                    public final void run() {
+                        int applied = 0;
+                        try {
+                            applied = MainActivity.this.guide.apply(live);
+                        } catch (Throwable ignored) {
+                        }
+                        final int appliedFinal = applied;
+                        UI.post(new Runnable() {
+                            @Override
+                            public final void run() {
+                                try {
+                                    ChannelAdapter channelAdapter = MainActivity.this.adapter;
+                                    if (channelAdapter != null) {
+                                        channelAdapter.notifyEpg();
+                                    }
+                                    MainActivity.this.updateEpgStatus();
+                                    if (appliedFinal > 0) {
+                                        MainActivity.this.loadVisibleEpg();
+                                    }
+                                } catch (Throwable ignored) {
+                                }
+                            }
+                        });
+                    }
+                });
             }
         } catch (Throwable ignored) {
         }

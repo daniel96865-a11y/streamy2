@@ -1,5 +1,5 @@
-versionCode 136
-versionName 3.16
+versionCode 137
+versionName 3.17
 title Streamy 2 Update
-message Live-TV Internet-EPG + einheitliche EPG für HD/FHD/UHD
+message Crash-Fix Vavoo öffnen; EPG-Apply off-UI; Name-Unify bleibt
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

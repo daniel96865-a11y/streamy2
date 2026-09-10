@@ -184,11 +184,13 @@ public class EpgGuide {
         if (channel == null) {
             return null;
         }
-        String findNameId = findNameId(normName(channel.name));
-        if (findNameId != null) {
-            Models.Epg byName = current(findNameId);
+        // Exact/alias name first (no fuzzy O(n) scan) so HD/FHD share a guide without
+        // stalling the UI when apply() walks thousands of live rows.
+        String exactNameId = findNameId(normName(channel.name), false);
+        if (exactNameId != null) {
+            Models.Epg byName = current(exactNameId);
             if (byName != null) {
-                channel.epgChannelId = findNameId;
+                channel.epgChannelId = exactNameId;
                 return byName;
             }
         }
@@ -206,6 +208,17 @@ public class EpgGuide {
         if (channel.id != null && channel.id.startsWith("iptv:") && (lookup = lookup(channel.id.substring(5))) != null) {
             return lookup;
         }
+        // Fuzzy name only as last resort (rare; avoid on bulk apply hot path)
+        if (exactNameId == null) {
+            String fuzzyId = findNameId(normName(channel.name), true);
+            if (fuzzyId != null) {
+                Models.Epg byFuzzy = current(fuzzyId);
+                if (byFuzzy != null) {
+                    channel.epgChannelId = fuzzyId;
+                    return byFuzzy;
+                }
+            }
+        }
         return null;
     }
 
@@ -214,7 +227,8 @@ public class EpgGuide {
         if (channel == null) {
             return false;
         }
-        return findNameId(normName(channel.name)) != null;
+        // Exact/alias only — fuzzy scan is too expensive for askEpg on the UI thread.
+        return findNameId(normName(channel.name), false) != null;
     }
 
     public List<Listing> listingsFor(Models.Channel channel) {
@@ -279,7 +293,7 @@ public class EpgGuide {
     }
 
     private String keyOf(Models.Channel channel) {
-        String nameId = findNameId(normName(channel.name));
+        String nameId = findNameId(normName(channel.name), false);
         if (nameId != null && this.byId.containsKey(nameId)) {
             return nameId;
         }
@@ -297,6 +311,15 @@ public class EpgGuide {
     }
 
     private String findNameId(String str) {
+        return findNameId(str, true);
+    }
+
+    /**
+     * Resolve XMLTV id from a normalized display name.
+     * @param allowFuzzy when false, skip the O(nameToId) contains scan — required for
+     *                   bulk apply()/askEpg on the UI thread after large internet XMLTV loads.
+     */
+    private String findNameId(String str, boolean allowFuzzy) {
         if (str == null || str.isEmpty()) {
             return null;
         }
@@ -345,7 +368,7 @@ public class EpgGuide {
         String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup|koeln|koln|hh|hamburg|sachsen|bw|baden|wuerttemberg|berlin|brandenburg)\\b", " ")
                 .trim().replaceAll("\\s+", " ");
         if (!stripped.isEmpty() && !stripped.equals(str)) {
-            hit = findNameId(stripped);
+            hit = findNameId(stripped, allowFuzzy);
             if (hit != null) {
                 return hit;
             }
@@ -363,6 +386,9 @@ public class EpgGuide {
                     return hit;
                 }
             }
+        }
+        if (!allowFuzzy) {
+            return null;
         }
         // Fuzzy contains: longest known key contained in query (min length 4), or query contained in key
         String best = null;
@@ -428,7 +454,10 @@ public class EpgGuide {
                 } catch (Exception unused) {
                 }
             }
-            i = applyUnified(list);
+            int unified = applyUnified(list);
+            if (unified > i) {
+                i = unified;
+            }
         } catch (Exception unused2) {
         }
         return i;
@@ -445,8 +474,10 @@ public class EpgGuide {
             return 0;
         }
         try {
+            // Snapshot — catalog.live may be mutated by Vavoo.merge on another thread.
+            List<Models.Channel> snapshot = new ArrayList<>(list);
             HashMap<String, ArrayList<Models.Channel>> groups = new HashMap<>();
-            for (Models.Channel channel : list) {
+            for (Models.Channel channel : snapshot) {
                 if (channel == null || channel.header || channel.name == null) {
                     continue;
                 }
@@ -464,7 +495,7 @@ public class EpgGuide {
             for (Map.Entry<String, ArrayList<Models.Channel>> e : groups.entrySet()) {
                 ArrayList<Models.Channel> g = e.getValue();
                 Models.Epg best = null;
-                String sharedId = findNameId(e.getKey());
+                String sharedId = findNameId(e.getKey(), false);
                 if (sharedId != null) {
                     best = current(sharedId);
                 }
@@ -486,6 +517,46 @@ public class EpgGuide {
                     }
                     matched++;
                 }
+            }
+        } catch (Exception unused) {
+        }
+        return matched;
+    }
+
+    /** Cheap unify: copy EPG only to siblings that share seed's normName (askEpg path). */
+    public int applyUnifiedSiblings(Models.Channel seed, List<Models.Channel> list) {
+        if (seed == null || seed.name == null || list == null || list.isEmpty()) {
+            return 0;
+        }
+        int matched = 0;
+        try {
+            String key = normName(seed.name);
+            if (key.isEmpty()) {
+                return 0;
+            }
+            Models.Epg best = seed.epg;
+            String sharedId = findNameId(key, false);
+            if (sharedId != null) {
+                Models.Epg byName = current(sharedId);
+                if (byName != null) {
+                    best = byName;
+                }
+            }
+            if (best == null || best.title == null || best.title.isEmpty()) {
+                return 0;
+            }
+            for (Models.Channel c : new ArrayList<>(list)) {
+                if (c == null || c.header || c.name == null) {
+                    continue;
+                }
+                if (!key.equals(normName(c.name))) {
+                    continue;
+                }
+                c.epg = best;
+                if (sharedId != null && !sharedId.isEmpty()) {
+                    c.epgChannelId = sharedId;
+                }
+                matched++;
             }
         } catch (Exception unused) {
         }
