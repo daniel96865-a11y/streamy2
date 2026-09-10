@@ -1,7 +1,7 @@
 {
-  "versionCode": 136,
-  "versionName": "3.16",
+  "versionCode": 137,
+  "versionName": "3.17",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.16: Live-TV Internet-EPG (epg.pw) + einheitliche EPG für HD/FHD/UHD-Varianten per normiertem Sendernamen; Xtream shortEpg nur ohne XMLTV-Namens-Treffer.",
+  "changelog": "Version 3.17: Crash-Fix beim Öffnen von Vavoo nach 3.16 — EPG-Apply nicht mehr auf dem UI-Thread, teurer Fuzzy-Namens-Scan nur noch als Fallback, Sibling-Unify statt Vollkatalog bei askEpg; Live-TV Name-Unify + Netz-EPG bleiben.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

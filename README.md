@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.16** (versionCode **136**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.17** (versionCode **137**).
 
 ## Download
 
@@ -16,6 +16,6 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 
 APK: `app/build/outputs/apk/release/app-release.apk`
 
-## 3.16 notes
+## 3.17 notes
 
-Live-TV uses internet XMLTV (epg.pw) like Vavoo. HD/FHD/UHD name variants share one EPG via normalized-name unify — playlist `epgChannelId` no longer splits siblings; Xtream shortEpg only when no XMLTV name match.
+Fixes crash/force-close when opening Vavoo after 3.16. Heavy EPG apply/unify runs off the UI thread; fuzzy name scan is last-resort only; askEpg uses cheap sibling unify. Live-TV name-unify + internet XMLTV kept.
