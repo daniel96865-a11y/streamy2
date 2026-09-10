@@ -267,6 +267,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override // androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, android.app.Activity
     protected void onCreate(Bundle bundle) {
         super.onCreate(bundle);
+        App.playerOpen = true;
         getWindow().addFlags(128);
         setContentView(R.layout.activity_player);
         String stringExtra = getIntent().getStringExtra("url");
@@ -524,7 +525,7 @@ public class PlayerActivity extends AppCompatActivity {
         hashMap.put(HttpHeaders.REFERER, originOf(stringExtra));
         this.http = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.21 LibVLC/3.0.21").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(12000).setReadTimeoutMs(15000).setDefaultRequestProperties((Map<String, String>) hashMap);
         applyHeaders(stringExtra);
-        DefaultLoadControl build = new DefaultLoadControl.Builder().setBufferDurationsMs(4000, 14000, 1500, DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS).setPrioritizeTimeOverSizeThresholds(true).build();
+        DefaultLoadControl build = buildLoadControl();
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
         DefaultTrackSelector defaultTrackSelector = new DefaultTrackSelector(this);
         DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(8).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
@@ -534,16 +535,32 @@ public class PlayerActivity extends AppCompatActivity {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC);
         }
         defaultTrackSelector.setParameters(exceedAudioConstraintsIfNecessary);
-        ExoPlayer build2 = new ExoPlayer.Builder(this).setRenderersFactory(extensionRendererMode).setTrackSelector(defaultTrackSelector).setLoadControl(build).setWakeMode(2).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), false).setHandleAudioBecomingNoisy(true).build();
-        this.player = build2;
-        build2.setVolume(1.0f);
-        this.player.setVideoScalingMode(1);
+        try {
+            ExoPlayer build2 = new ExoPlayer.Builder(this).setRenderersFactory(extensionRendererMode).setTrackSelector(defaultTrackSelector).setLoadControl(build).setWakeMode(2).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), false).setHandleAudioBecomingNoisy(true).build();
+            this.player = build2;
+            build2.setVolume(1.0f);
+            this.player.setVideoScalingMode(1);
+        } catch (OutOfMemoryError oom) {
+            this.player = null;
+            try {
+                Toast.makeText(this, "Zu wenig Speicher für den Player", Toast.LENGTH_LONG).show();
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable t) {
+            this.player = null;
+            try {
+                Toast.makeText(this, "Player konnte nicht gestartet werden", Toast.LENGTH_LONG).show();
+            } catch (Throwable ignored) {
+            }
+        }
         PlayerView playerView = (PlayerView) findViewById(R.id.playerView);
         this.playerView = playerView;
         this.vlcHost = (ViewGroup) findViewById(R.id.vlcHost);
         if (playerView != null) {
             playerView.setUseController(false);
-            playerView.setPlayer(this.player);
+            if (this.player != null) {
+                playerView.setPlayer(this.player);
+            }
         }
         applyResize();
         hideSystemBars();
@@ -560,7 +577,9 @@ public class PlayerActivity extends AppCompatActivity {
             Tv.focusTree(this.topBar);
             Tv.focusTree(this.epgSheet);
         }
-        this.player.addListener(new AnonymousClass3());
+        if (this.player != null) {
+            this.player.addListener(new AnonymousClass3());
+        }
         Handler handler = UI;
         handler.post(new PlayerActivity$$ExternalSyntheticLambda23(this));
         handler.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda1
@@ -795,6 +814,7 @@ public class PlayerActivity extends AppCompatActivity {
                     ? ((VlcFactory.lastError == null || VlcFactory.lastError.isEmpty()) ? "—" : VlcFactory.lastError)
                     : this.lastVlcError;
             String msg = "Engine: " + engine
+                    + "\n" + App.lowRamLabel(this)
                     + "\nlibVLC: " + (libOk ? "ja" : "nein")
                     + "\nLocalHls: " + hls
                     + "\nHost: " + host
@@ -2261,16 +2281,60 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+
+    private DefaultLoadControl buildLoadControl() {
+        Prefs prefs = new Prefs(this);
+        String buf = prefs.buffer();
+        boolean lowRam = App.isLowRam(this);
+        boolean tv = Tv.isTv(this);
+        int minBuf;
+        int maxBuf;
+        int playback;
+        int afterRebuffer;
+        // Low-RAM / TV sticks: keep Exo buffers tight (≈2–8s) to avoid LMK.
+        if (lowRam || (tv && !"high".equals(buf) && !"max".equals(buf))) {
+            if ("max".equals(buf)) {
+                minBuf = 3000; maxBuf = 10000; playback = 1500; afterRebuffer = 2500;
+            } else if ("high".equals(buf)) {
+                minBuf = 2500; maxBuf = 9000; playback = 1500; afterRebuffer = 2500;
+            } else if ("low".equals(buf)) {
+                minBuf = 1500; maxBuf = 5000; playback = 1000; afterRebuffer = 1500;
+            } else {
+                minBuf = 2000; maxBuf = 8000; playback = 1500; afterRebuffer = 2000;
+            }
+        } else {
+            if ("low".equals(buf)) {
+                minBuf = 2500; maxBuf = 8000; playback = 1500; afterRebuffer = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
+            } else if ("high".equals(buf)) {
+                minBuf = 5000; maxBuf = 20000; playback = 2000; afterRebuffer = 4000;
+            } else if ("max".equals(buf)) {
+                minBuf = 8000; maxBuf = 30000; playback = 2500; afterRebuffer = 5000;
+            } else {
+                minBuf = 4000; maxBuf = 14000; playback = 1500; afterRebuffer = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
+            }
+        }
+        return new DefaultLoadControl.Builder()
+                .setBufferDurationsMs(minBuf, maxBuf, playback, afterRebuffer)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build();
+    }
+
     private void hideVlc() {
         try {
             LiveEngine liveEngine = this.vlc;
+            this.vlc = null;
             if (liveEngine != null) {
-                liveEngine.stop(false);
+                // Fully release native VLC surfaces/resources when switching to Exo
+                liveEngine.stop(true);
             }
         } catch (Throwable unused) {
         }
         ViewGroup viewGroup = this.vlcHost;
         if (viewGroup != null) {
+            try {
+                viewGroup.removeAllViews();
+            } catch (Throwable ignored) {
+            }
             viewGroup.setVisibility(8);
         }
     }
@@ -2317,8 +2381,18 @@ public class PlayerActivity extends AppCompatActivity {
         try {
             ExoPlayer exoPlayer = this.player;
             if (exoPlayer != null) {
-                exoPlayer.setPlayWhenReady(false);
-                this.player.stop();
+                try {
+                    exoPlayer.setPlayWhenReady(false);
+                } catch (Throwable ignored) {
+                }
+                try {
+                    exoPlayer.stop();
+                } catch (Throwable ignored) {
+                }
+                try {
+                    exoPlayer.clearMediaItems();
+                } catch (Throwable ignored) {
+                }
             }
             PlayerView playerView = this.playerView;
             if (playerView != null) {
@@ -2366,6 +2440,16 @@ public class PlayerActivity extends AppCompatActivity {
         LiveEngine engine = null;
         try {
             engine = VlcFactory.create(this, this.vlcHost);
+        } catch (OutOfMemoryError oom) {
+            engine = null;
+            UI.post(new Runnable() {
+                @Override public void run() {
+                    try {
+                        Toast.makeText(PlayerActivity.this, "Zu wenig Speicher für VLC", Toast.LENGTH_LONG).show();
+                    } catch (Throwable ignored) {
+                    }
+                }
+            });
         } catch (Throwable unused) {
             engine = null;
         }
@@ -2776,6 +2860,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
+        App.playerOpen = false;
         stopPlayback();
         releasePlayer();
         super.onDestroy();

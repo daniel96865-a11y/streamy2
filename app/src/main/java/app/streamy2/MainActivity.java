@@ -716,7 +716,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         TextView textView7 = this.appVersion;
         if (textView7 != null) {
-            textView7.setText("Version " + BuildConfig.VERSION_NAME + "  (" + BuildConfig.VERSION_CODE + ")");
+            textView7.setText("Version " + BuildConfig.VERSION_NAME + "  (" + BuildConfig.VERSION_CODE + ")\n" + App.lowRamLabel(this));
         }
         TextView textView8 = (TextView) findViewById(R.id.pickerHint);
         if (textView8 != null) {
@@ -942,6 +942,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             String hls = LocalHls.isReady() ? ("bereit · Port " + LocalHls.getPort()) : "nicht bereit";
             boolean lib = VlcFactory.isAvailable();
             String msg = "Engine Live: " + this.prefs.playerLive() + " · Vavoo: " + this.prefs.playerVavoo() + " · Sonst: " + this.prefs.player()
+                    + "\n" + App.lowRamLabel(this)
                     + "\nlibVLC: " + (lib ? "ja" : "nein")
                     + "\nLocalHls: " + hls
                     + "\nHost: —"
@@ -1253,6 +1254,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         BrowserController browserController = this.browser;
         if (browserController != null) {
             browserController.pause();
+            // Free WebView DOM lightly while PlayerActivity may be taking the RAM
+            if (App.isLowRam(this) && !browserController.visible()) {
+                try {
+                    BrowserController.trimForMemory(false);
+                } catch (Throwable ignored) {
+                }
+            }
         }
         super.onPause();
     }
@@ -3619,6 +3627,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void prefetchEpg() {
+        // Avoid fighting PlayerActivity + WebView for RAM on weak sticks
+        if (App.playerOpen && App.isLowRam(this)) {
+            return;
+        }
         Handler handler = UI;
         handler.removeCallbacks(this.epgLater);
         handler.postDelayed(this.epgLater, 8000L);
@@ -3702,6 +3714,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void refreshXmltv(final boolean z) {
+        if (!z && App.playerOpen && App.isLowRam(this)) {
+            return;
+        }
         EditText editText = this.inEpgUrl;
         if (editText != null) {
             this.prefs.setEpgUrl(text(editText));
@@ -3884,6 +3899,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
      * on stale local cache for the Vavoo tab.
      */
     private void ensureVavooEpg(boolean userRequested) {
+        if (!userRequested && App.playerOpen && App.isLowRam(this)) {
+            return;
+        }
         try {
             // Apply whatever is already in memory immediately so UI is not empty while downloading
             Models.Catalog catalog = this.catalog;
@@ -3940,13 +3958,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         int loadedFeeds = 0;
         try {
             String[] strArr = Vavoo.EPG_URLS;
+            boolean singleFeed = App.isLowRam() || (this.guide != null && this.guide.preferSingleFeed());
             for (int i = 0; i < strArr.length; i++) {
                 String url = strArr[i];
                 File cache = vavooEpgCacheFor(url, i);
                 try {
                     // forceNet=true → EpgGuide.download(); cache write happens after success
-                    this.guide.loadUrlMerge(url, cache, forceNet);
+                    // Low-RAM: use non-merge load for first success, then stop (one feed only)
+                    if (singleFeed) {
+                        this.guide.loadUrl(url, cache, forceNet);
+                    } else {
+                        this.guide.loadUrlMerge(url, cache, forceNet);
+                    }
                     loadedFeeds++;
+                    if (singleFeed && this.guide.programmeCount > 0) {
+                        break;
+                    }
                 } catch (Exception e2) {
                     lastErr = e2;
                 }

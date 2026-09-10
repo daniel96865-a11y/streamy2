@@ -54,6 +54,8 @@ public class BrowserController {
     private final EditText urlBar;
     private final WebView web;
     private final View webChrome;
+    /** Last created controller — used by App.onTrimMemory. */
+    private static volatile BrowserController activeInstance;
 
     private void applyScroll(int i, int i2) {
     }
@@ -74,6 +76,7 @@ public class BrowserController {
         this.cursor = (ImageView) activity.findViewById(R.id.tvCursor);
         this.adblock = new AdBlock(activity);
         this.tvCursor = Tv.isTv(activity);
+        activeInstance = this;
         setup();
     }
 
@@ -481,11 +484,65 @@ public class BrowserController {
         showCursor(false);
         WebView webView = this.web;
         if (webView != null) {
-            webView.onPause();
+            try {
+                webView.onPause();
+            } catch (Throwable ignored) {
+            }
+            try {
+                webView.clearCache(false);
+            } catch (Throwable ignored) {
+            }
+            // Free DOM when user never navigated this session
+            if (!this.userNavigated) {
+                try {
+                    webView.stopLoading();
+                    webView.loadUrl("about:blank");
+                } catch (Throwable ignored) {
+                }
+            }
         }
         View view = this.pane;
         if (view != null) {
             view.setVisibility(8);
+        }
+    }
+
+    /** Called from App.onTrimMemory — pause / blank / destroy aggressively when asked. */
+    public static void trimForMemory(boolean aggressive) {
+        BrowserController c = activeInstance;
+        if (c == null) {
+            return;
+        }
+        try {
+            WebView webView = c.web;
+            if (webView == null) {
+                return;
+            }
+            webView.onPause();
+            webView.stopLoading();
+            try {
+                webView.clearCache(false);
+            } catch (Throwable ignored) {
+            }
+            if (!c.userNavigated || aggressive) {
+                try {
+                    webView.loadUrl("about:blank");
+                } catch (Throwable ignored) {
+                }
+            }
+            if (aggressive && !c.visible()) {
+                try {
+                    webView.clearHistory();
+                    webView.clearFormData();
+                } catch (Throwable ignored) {
+                }
+                // Free hardware layer surface while hidden
+                try {
+                    webView.setLayerType(View.LAYER_TYPE_NONE, null);
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
         }
     }
 
@@ -530,6 +587,9 @@ public class BrowserController {
             webView.stopLoading();
             this.web.loadUrl("about:blank");
             this.web.destroy();
+        }
+        if (activeInstance == this) {
+            activeInstance = null;
         }
     }
 

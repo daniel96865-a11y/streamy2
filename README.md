@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.14** (versionCode **134**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.15** (versionCode **135**).
 
 ## Download
 
@@ -15,3 +15,7 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.15 notes
+
+Low-RAM hardening for weaker Android TV sticks (largeHeap, smaller Exo buffers, EPG/WebView trim, lazy VLC probe). Weak sticks can still OOM under extreme load — prefer Exo + low buffer on bedroom sticks.

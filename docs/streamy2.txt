@@ -1,5 +1,5 @@
-versionCode 134
-versionName 3.14
+versionCode 135
+versionName 3.15
 title Streamy 2 Update
-message Browser bleibt leer (MegaKino setzt HOME nicht mehr)
+message Low-RAM-Härtung (Exo-Buffer, EPG/WebView-Trim, VLC lazy)
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

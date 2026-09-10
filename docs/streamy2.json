@@ -1,7 +1,7 @@
 {
-  "versionCode": 134,
-  "versionName": "3.14",
+  "versionCode": 135,
+  "versionName": "3.15",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.14: Browser bleibt leer — MegaKino setzt BrowserController.HOME nicht mehr; show() erzwingt about:blank bis der Nutzer selbst navigiert.",
+  "changelog": "Version 3.15: Low-RAM-Härtung für schwache Android-TV-Sticks — largeHeap, kleinere Exo-Buffer, EPG/WebView-Trim, VLC lazy, Diagnose zeigt Low-RAM-Modus.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
