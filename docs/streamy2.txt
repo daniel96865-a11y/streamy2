@@ -1,5 +1,5 @@
-versionCode 140
-versionName 3.20
+versionCode 141
+versionName 3.21
 title Streamy 2 Update
-message Filme/Serien Spalten 1/2/4 — Poster nebeneinander in Einstellungen → Darstellung
+message ARM-only APK (v7a/v8a) für Fire TV — kleiner, Funktionen unverändert
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
