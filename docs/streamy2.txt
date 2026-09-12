@@ -1,5 +1,5 @@
-versionCode 144
-versionName 3.24
+versionCode 145
+versionName 3.25
 title Streamy 2 Update
-message Megakino-Serien: VOE-Spiegel-Fix, Serien A–Z gruppiert
+message Megakino-Folgen: Folge 1 statt Folge 1 · Episode 1
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

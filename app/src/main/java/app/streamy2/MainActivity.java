@@ -3009,13 +3009,26 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void bindDetail(final Models.Media media) {
+        boolean mkSeries = media.series && MegaKino.owns(media);
         TextView textView = this.detailTitle;
         if (textView != null) {
-            textView.setText(media.name);
+            if (mkSeries) {
+                String shown = MegaKino.showTitle(media.name);
+                textView.setText(shown.isEmpty() ? media.name : shown);
+            } else {
+                textView.setText(media.name);
+            }
         }
         TextView textView2 = this.detailMeta;
         if (textView2 != null) {
-            textView2.setText(detailLine(media));
+            String meta = detailLine(media);
+            if (mkSeries && MegaKino.hasSeasonSuffix(media.name)) {
+                int se = MegaKino.seasonOf(media.name);
+                if (se > 0) {
+                    meta = join("Staffel " + se, meta);
+                }
+            }
+            textView2.setText(meta);
         }
         if (this.detailCast != null) {
             String str = (media.director == null || media.director.isEmpty()) ? "" : "Regie: " + media.director;
@@ -3063,7 +3076,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 arrayList2.add(((media2.id == null || !media2.id.equals(media.id)) ? "" : "● ") + "Staffel " + MegaKino.seasonOf(media2.name));
             }
             for (Models.Episode episode : arrayList) {
-                arrayList2.add("Folge " + episode.episode + "  ·  " + (episode.title == null ? "" : episode.title));
+                arrayList2.add(MegaKino.formatEpisodeRow(episode));
             }
             this.epAdapter.set(arrayList2, -1, new PickAdapter.OnPick() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda45
                 @Override // app.streamy2.MainActivity.PickAdapter.OnPick
@@ -3558,7 +3571,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             Toast.makeText(this, err, 1).show();
         } else {
             long durMs = PlayerActivity.parseDurationMs(media != null ? media.duration : null);
-            PlayerActivity.open(this, str, null, media.name, episode == null ? join(media.genre, media.year) : "S" + episode.season + " E" + episode.episode + " · " + episode.title, false, null, durMs);
+            String sub = episode == null
+                    ? join(media.genre, media.year)
+                    : MegaKino.formatEpisodeSub(episode);
+            String playTitle = media.name;
+            if (MegaKino.owns(media) && media.series) {
+                String shown = MegaKino.showTitle(media.name);
+                if (!shown.isEmpty()) {
+                    playTitle = shown;
+                }
+            }
+            PlayerActivity.open(this, str, null, playTitle, sub, false, null, durMs);
         }
     }
 

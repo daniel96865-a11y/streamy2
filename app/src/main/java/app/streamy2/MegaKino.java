@@ -46,6 +46,8 @@ final class MegaKino {
     private static final Pattern TITLE = Pattern.compile("<h1[^>]*itemprop=\"name\"[^>]*>([^<]+)", 2);
     private static final Pattern GENRE = Pattern.compile("itemprop=\"genre\"[^>]*>([^<]+)", 2);
     private static final Pattern STAFFEL = Pattern.compile("(?:Staffel\\s*(\\d+)|-\\s*(\\d+)\\s*Staffel)", 2);
+    private static final Pattern GENERIC_EP = Pattern.compile("(?i)^\\s*(?:folge|episode|ep\\.?|e)\\s*(\\d+)\\s*$");
+    private static final Pattern SEASON_SUFFIX = Pattern.compile("(?i)staffel\\s*\\d+|\\d+\\s*staffel");
     private static final Pattern HREF = Pattern.compile("href=\"([^\"]+)\"", 2);
     private static final Pattern DATA_SRC = Pattern.compile("data-src=\"([^\"]+)\"", 2);
     private static final Pattern POSTER_TITLE = Pattern.compile("poster__title[^>]*>\\s*([^<]+)", 2);
@@ -314,12 +316,19 @@ final class MegaKino {
                 String group = matcher10.group(1);
                 String clean2 = Text.clean(matcher10.group(2));
                 if (group != null && !group.isEmpty() && !group.startsWith("#") && !group.startsWith("http")) {
+                    i++;
+                    int n = epNum(group, 0);
+                    if (n <= 0) {
+                        n = epNum(clean2, 0);
+                    }
+                    if (n <= 0) {
+                        n = i;
+                    }
                     Models.Episode episode = new Models.Episode();
                     episode.id = "mkep:" + abs(media.streamUrl) + "|" + group;
-                    episode.title = clean2.isEmpty() ? "Folge " + (i + 1) : clean2;
                     episode.season = seasonOf;
-                    i++;
-                    episode.episode = epNum(clean2, i);
+                    episode.episode = n;
+                    episode.title = isGenericEpisodeTitle(clean2) ? ("Folge " + n) : clean2;
                     episode.streamUrl = firstHttpOption(req, group);
                     if (episode.streamUrl == null) {
                         episode.streamUrl = group;
@@ -699,6 +708,35 @@ final class MegaKino {
         } catch (Exception unused) {
             return 0;
         }
+    }
+
+    static boolean isGenericEpisodeTitle(String str) {
+        return str == null || str.trim().isEmpty() || GENERIC_EP.matcher(str.trim()).matches();
+    }
+
+    static boolean hasSeasonSuffix(String str) {
+        return str != null && SEASON_SUFFIX.matcher(str).find();
+    }
+
+    /** "Folge 1" — skips redundant "Episode 1" from Megakino option labels. */
+    static String formatEpisodeRow(Models.Episode episode) {
+        if (episode == null) {
+            return "";
+        }
+        int n = episode.episode > 0 ? episode.episode : 1;
+        String t = episode.title == null ? "" : episode.title.trim();
+        if (isGenericEpisodeTitle(t)) {
+            return "Folge " + n;
+        }
+        return "Folge " + n + "  ·  " + t;
+    }
+
+    static String formatEpisodeSub(Models.Episode episode) {
+        if (episode == null) {
+            return "";
+        }
+        int se = episode.season > 0 ? episode.season : 1;
+        return "Staffel " + se + " · " + formatEpisodeRow(episode);
     }
 
     private static int epNum(String str, int i) {

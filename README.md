@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.24** (versionCode **144**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.25** (versionCode **145**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.25 notes
+
+Megakino-Folgenliste: keine doppelte Beschriftung mehr (`Folge 1 · Episode 1` → `Folge 1`). Detailtitel ohne Staffel-Suffix, Staffel in der Meta-Zeile, Player-Untertitel `Staffel 6 · Folge 1`.
 
 ## 3.24 notes
 
