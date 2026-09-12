@@ -1,7 +1,7 @@
 {
-  "versionCode": 144,
-  "versionName": "3.24",
+  "versionCode": 145,
+  "versionName": "3.25",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.24: Megakino-Serien spielen wieder (VOE-Spiegel), Serien A–Z gruppiert nach Titel, Staffeln im Detail.",
+  "changelog": "Version 3.25: Megakino-Folgen ohne doppelte Beschriftung (Folge 1 statt Folge 1 · Episode 1), Serientitel ohne Staffel-Suffix.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
