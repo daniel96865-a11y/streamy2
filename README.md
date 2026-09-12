@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.23** (versionCode **143**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.24** (versionCode **144**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.24 notes
+
+Megakino-Serien: Wiedergabe über aktuelle VOE-Spiegel (voe.sx ist DDoS-Guard). Serien in der Liste nach Titel A–Z gruppiert (eine Karte je Serie, Staffeln im Detail). Folgen numerisch sortiert.
 
 ## 3.23 notes
 

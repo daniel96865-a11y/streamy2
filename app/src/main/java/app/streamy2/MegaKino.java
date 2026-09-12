@@ -35,7 +35,7 @@ final class MegaKino {
     static volatile String lastError = "";
     static final List<Models.Media> serials;
     private static long tokenAt;
-    private static String[] BASES = {"https://megakino18.com", "https://megakino12.com", "https://megakino14.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
+    private static String[] BASES = {"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
     private static final Pattern IFRAME = Pattern.compile("<iframe[^>]+(?:data-src|src)=\"([^\"]+)\"", 2);
     private static final Pattern OPTION = Pattern.compile("<option[^>]+value=\"([^\"]+)\"[^>]*>([^<]*)", 2);
     private static final Pattern SELECT_ID = Pattern.compile("<select[^>]*id=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</select>", 2);
@@ -73,7 +73,7 @@ final class MegaKino {
 
 
     static void refreshHosts() {
-        String[] seeds = new String[]{"https://megakino18.com", "https://megakino12.com", "https://megakino19.com", "https://megakino14.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com"};
+        String[] seeds = new String[]{"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com"};
         java.util.LinkedHashSet<String> live = new java.util.LinkedHashSet<>();
         for (String seed : seeds) {
             try {
@@ -178,13 +178,25 @@ final class MegaKino {
                 }
             }
             List<Models.Media> parseList2 = parseList(req(base2 + "/serials/", null), true);
-            for (int i2 = 2; i2 <= 4; i2++) {
+            for (int i2 = 2; i2 <= 8; i2++) {
                 for (Models.Media media4 : parseList(req(base2 + "/serials/page/" + i2 + "/", null), true)) {
                     if (!contains(parseList2, media4.id)) {
                         parseList2.add(media4);
                     }
                 }
             }
+            parseList2.sort(new Comparator<Models.Media>() {
+                @Override
+                public int compare(Models.Media a, Models.Media b) {
+                    int byShow = showTitle(a == null ? null : a.name)
+                            .toLowerCase(Locale.GERMAN)
+                            .compareTo(showTitle(b == null ? null : b.name).toLowerCase(Locale.GERMAN));
+                    if (byShow != 0) {
+                        return byShow;
+                    }
+                    return Integer.compare(seasonOf(a == null ? null : a.name), seasonOf(b == null ? null : b.name));
+                }
+            });
             synchronized (MegaKino.class) {
                 List<Models.Media> list = films;
                 list.clear();
@@ -212,8 +224,8 @@ final class MegaKino {
         ArrayList arrayList = new ArrayList();
         synchronized (MegaKino.class) {
             arrayList.addAll(films);
-            arrayList.addAll(serials);
         }
+        arrayList.addAll(serialsGrouped());
         return arrayList;
     }
 
@@ -319,6 +331,13 @@ final class MegaKino {
         if (media.episodes.isEmpty()) {
             return;
         }
+        media.episodes.sort(new Comparator<Models.Episode>() {
+            @Override
+            public int compare(Models.Episode a, Models.Episode b) {
+                int se = Integer.compare(a.season, b.season);
+                return se != 0 ? se : Integer.compare(a.episode, b.episode);
+            }
+        });
         media.series = true;
     }
 
@@ -525,19 +544,96 @@ final class MegaKino {
         if (str == null) {
             return 1;
         }
-        Matcher matcher = STAFFEL.matcher(str);
-        if (!matcher.find()) {
-            return 1;
+        Matcher matcher = Pattern.compile("(?i)staffel\\s*(\\d+)").matcher(str);
+        if (matcher.find()) {
+            return parseInt(matcher.group(1));
         }
-        try {
-            return Integer.parseInt(matcher.group(1) != null ? matcher.group(1) : matcher.group(2));
-        } catch (Exception unused) {
-            return 1;
+        matcher = Pattern.compile("(?i)(?:^|\\s|-)\\s*(\\d+)\\s*staffel").matcher(str);
+        if (matcher.find()) {
+            return parseInt(matcher.group(1));
         }
+        matcher = Pattern.compile("(?i)\\bs(?:eason)?\\s*(\\d+)\\b").matcher(str);
+        if (matcher.find()) {
+            int n = parseInt(matcher.group(1));
+            return n > 0 ? n : 1;
+        }
+        return 1;
+    }
+
+    static String showTitle(String str) {
+        if (str == null) {
+            return "";
+        }
+        String t = str.replaceAll("(?i)\\s*[-–:]\\s*(?:staffel\\s*)?\\d+(?:\\s*staffel)?\\s*$", "").trim();
+        t = t.replaceAll("(?i)\\s*[-–:]\\s*s(?:eason)?\\s*\\d+\\s*$", "").trim();
+        return t.isEmpty() ? str.trim() : t;
     }
 
     static String showKey(String str) {
-        return str == null ? "" : str.replaceAll("(?i)\\s*[-–]\\s*\\d+\\s*Staffel.*", "").trim().toLowerCase(Locale.GERMAN);
+        return showTitle(str).toLowerCase(Locale.GERMAN);
+    }
+
+    /** One card per series (latest season), A–Z — seasons remain in {@link #serials} for the picker. */
+    static List<Models.Media> serialsGrouped() {
+        LinkedHashMap<String, ArrayList<Models.Media>> groups = new LinkedHashMap<>();
+        synchronized (MegaKino.class) {
+            for (Models.Media media2 : serials) {
+                if (media2 == null || media2.name == null) {
+                    continue;
+                }
+                String key = showKey(media2.name);
+                if (key.isEmpty()) {
+                    key = media2.name.toLowerCase(Locale.GERMAN);
+                }
+                ArrayList<Models.Media> g = groups.get(key);
+                if (g == null) {
+                    g = new ArrayList<>();
+                    groups.put(key, g);
+                }
+                g.add(media2);
+            }
+        }
+        ArrayList<String> keys = new ArrayList<>(groups.keySet());
+        final java.text.Collator collator = java.text.Collator.getInstance(Locale.GERMAN);
+        collator.setStrength(java.text.Collator.PRIMARY);
+        keys.sort(collator);
+        ArrayList<Models.Media> out = new ArrayList<>();
+        for (String key : keys) {
+            ArrayList<Models.Media> seasons = groups.get(key);
+            seasons.sort(new Comparator<Models.Media>() {
+                @Override
+                public int compare(Models.Media a, Models.Media b) {
+                    return Integer.compare(seasonOf(a.name), seasonOf(b.name));
+                }
+            });
+            Models.Media latest = seasons.get(seasons.size() - 1);
+            Models.Media card = copyCard(latest);
+            card.name = showTitle(latest.name);
+            card.series = true;
+            int n = seasons.size();
+            if (n > 1) {
+                card.genre = n + " Staffeln · Serie";
+            } else {
+                int se = seasonOf(latest.name);
+                card.genre = (se > 1 ? ("Staffel " + se + " · ") : "") + "Serie";
+            }
+            out.add(card);
+        }
+        return out;
+    }
+
+    private static Models.Media copyCard(Models.Media src) {
+        Models.Media m = new Models.Media();
+        m.id = src.id;
+        m.name = src.name;
+        m.poster = src.poster;
+        m.streamUrl = src.streamUrl;
+        m.series = true;
+        m.genre = src.genre;
+        m.year = src.year;
+        m.plot = src.plot;
+        m.categoryId = src.categoryId;
+        return m;
     }
 
     static List<Models.Media> seasonsOf(Models.Media media) {
