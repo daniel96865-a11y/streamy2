@@ -10,8 +10,8 @@ android {
         applicationId "app.streamy2"
         minSdk 24
         targetSdk 34
-        versionCode 143
-        versionName "3.23"
+        versionCode 144
+        versionName "3.24"
         vectorDrawables.useSupportLibrary = true
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'

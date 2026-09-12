@@ -1,7 +1,7 @@
 {
-  "versionCode": 143,
-  "versionName": "3.23",
+  "versionCode": 144,
+  "versionName": "3.24",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.23: ANR-Fix — EPG nicht mehr auf dem UI-Thread (App reagiert nicht nach 3.22). Live-TV Cache-Fix aus 3.22 bleibt.",
+  "changelog": "Version 3.24: Megakino-Serien spielen wieder (VOE-Spiegel), Serien A–Z gruppiert nach Titel, Staffeln im Detail.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
