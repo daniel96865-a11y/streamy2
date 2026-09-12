@@ -85,20 +85,26 @@ final class GxPlayer {
         httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko/20100101 Firefox/147.0");
         httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "text/html,application/xhtml+xml");
         httpURLConnection.setRequestProperty(HttpHeaders.REFERER, "https://watch.gxplayer.xyz/");
-        InputStream errorStream = httpURLConnection.getResponseCode() >= 400 ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream();
-        if (errorStream == null) {
-            return null;
-        }
-        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        while (true) {
-            String readLine = bufferedReader.readLine();
-            if (readLine == null) {
-                bufferedReader.close();
-                httpURLConnection.disconnect();
-                return sb.toString();
+        try {
+            InputStream errorStream = httpURLConnection.getResponseCode() >= 400 ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream();
+            if (errorStream == null) {
+                return null;
             }
-            sb.append(readLine).append('\n');
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8));
+            try {
+                StringBuilder sb = new StringBuilder();
+                while (true) {
+                    String readLine = bufferedReader.readLine();
+                    if (readLine == null) {
+                        return sb.toString();
+                    }
+                    sb.append(readLine).append('\n');
+                }
+            } finally {
+                bufferedReader.close();
+            }
+        } finally {
+            httpURLConnection.disconnect();
         }
     }
 }

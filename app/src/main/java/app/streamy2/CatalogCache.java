@@ -14,24 +14,27 @@ public final class CatalogCache {
         return new File(file, "streamy2-live-cache.json");
     }
 
+    static boolean isHeaderName(String name) {
+        return name != null && (name.contains("#####") || name.startsWith("---"));
+    }
+
     public static Models.Catalog read(File file) {
-        boolean z;
         if (file == null || !file.exists() || file.length() < 8) {
             return null;
         }
         try {
-            FileInputStream fileInputStream = new FileInputStream(file);
             int length = (int) file.length();
             byte[] bArr = new byte[length];
             int i = 0;
-            while (i < length) {
-                int read = fileInputStream.read(bArr, i, length - i);
-                if (read < 0) {
-                    break;
+            try (FileInputStream fileInputStream = new FileInputStream(file)) {
+                while (i < length) {
+                    int read = fileInputStream.read(bArr, i, length - i);
+                    if (read < 0) {
+                        break;
+                    }
+                    i += read;
                 }
-                i += read;
             }
-            fileInputStream.close();
             JSONObject jSONObject = new JSONObject(new String(bArr, 0, i, StandardCharsets.UTF_8));
             Models.Catalog catalog = new Models.Catalog();
             JSONArray optJSONArray = jSONObject.optJSONArray("cats");
@@ -64,13 +67,12 @@ public final class CatalogCache {
                         }
                         channel.archive = optJSONObject2.optBoolean("archive");
                         channel.archiveDays = optJSONObject2.optInt("days");
-                        if (!channel.name.contains("#####") && !channel.name.startsWith("---")) {
-                            z = false;
-                            channel.header = z;
-                            catalog.live.add(channel);
+                        // Prefer persisted flag; otherwise detect group headers like XtreamApi.
+                        if (optJSONObject2.has("header")) {
+                            channel.header = optJSONObject2.optBoolean("header");
+                        } else {
+                            channel.header = isHeaderName(channel.name);
                         }
-                        z = true;
-                        channel.header = z;
                         catalog.live.add(channel);
                     }
                 }
@@ -114,15 +116,16 @@ public final class CatalogCache {
                 }
                 jSONObject3.put("archive", channel.archive);
                 jSONObject3.put("days", channel.archiveDays);
+                jSONObject3.put("header", channel.header);
                 jSONArray2.put(jSONObject3);
             }
             jSONObject.put("cats", jSONArray);
             jSONObject.put("live", jSONArray2);
             byte[] bytes = jSONObject.toString().getBytes(StandardCharsets.UTF_8);
             File file2 = new File(file.getPath() + ".tmp");
-            FileOutputStream fileOutputStream = new FileOutputStream(file2);
-            fileOutputStream.write(bytes);
-            fileOutputStream.close();
+            try (FileOutputStream fileOutputStream = new FileOutputStream(file2)) {
+                fileOutputStream.write(bytes);
+            }
             if (file.exists()) {
                 file.delete();
             }

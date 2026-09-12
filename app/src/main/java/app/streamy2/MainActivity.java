@@ -1967,13 +1967,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 textView2.setVisibility(i);
                 this.empty.setText(this.tab == 4 ? "Vavoo wird geladen…" : "Nichts gefunden.");
-                this.chipCat.setText(this.tab == 4 ? "Vavoo Deutschland" : catName(this.catalog.liveCats, this.catId));
+                this.chipCat.setText(this.tab == 4 ? "Vavoo Deutschland" : catName(this.catalog != null ? this.catalog.liveCats : null, this.catId));
                 this.chipSort.setText(sortLabel());
                 focusFirstRow();
                 return;
             }
             if (i2 == 1) {
-                List<Models.Media> filterMedia = filterMedia(this.catalog.vod, this.catalog.vodCats);
+                List<Models.Media> filterMedia = filterMedia(
+                        this.catalog == null ? null : this.catalog.vod,
+                        this.catalog == null ? null : this.catalog.vodCats);
                 this.adapter.setMedia(filterMedia);
                 TextView textView3 = this.empty;
                 if (!filterMedia.isEmpty()) {
@@ -1981,13 +1983,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 textView3.setVisibility(i);
                 this.empty.setText("Nichts gefunden.");
-                this.chipCat.setText(catName(this.catalog.vodCats, this.catId));
+                this.chipCat.setText(catName(this.catalog == null ? null : this.catalog.vodCats, this.catId));
                 this.chipSort.setText(sortLabel());
                 focusFirstRow();
                 return;
             }
             if (i2 == 2) {
-                List<Models.Media> filterMedia2 = filterMedia(this.catalog.series, this.catalog.seriesCats);
+                List<Models.Media> filterMedia2 = filterMedia(
+                        this.catalog == null ? null : this.catalog.series,
+                        this.catalog == null ? null : this.catalog.seriesCats);
                 this.adapter.setMedia(filterMedia2);
                 TextView textView4 = this.empty;
                 if (!filterMedia2.isEmpty()) {
@@ -1995,7 +1999,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 textView4.setVisibility(i);
                 this.empty.setText("Nichts gefunden.");
-                this.chipCat.setText(catName(this.catalog.seriesCats, this.catId));
+                this.chipCat.setText(catName(this.catalog == null ? null : this.catalog.seriesCats, this.catId));
                 this.chipSort.setText(sortLabel());
                 focusFirstRow();
                 return;
@@ -2203,13 +2207,25 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         if (i == 0) {
+            if (this.catalog == null) {
+                return;
+            }
             list = this.catalog.liveCats;
         } else if (i == 1) {
+            if (this.catalog == null) {
+                return;
+            }
             list = this.catalog.vodCats;
         } else if (i != 2) {
             return;
         } else {
+            if (this.catalog == null) {
+                return;
+            }
             list = this.catalog.seriesCats;
+        }
+        if (list == null) {
+            return;
         }
         ArrayList arrayList = new ArrayList();
         final ArrayList arrayList2 = new ArrayList();
@@ -2217,10 +2233,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         arrayList2.add("all");
         int i4 = 0;
         while (i2 < list.size()) {
-            arrayList.add(list.get(i2).name);
-            arrayList2.add(list.get(i2).id);
-            if (list.get(i2).id.equals(this.catId)) {
-                i4 = i2 + 1;
+            Models.Category category = list.get(i2);
+            if (category != null && category.id != null) {
+                arrayList.add(category.name == null ? "" : category.name);
+                arrayList2.add(category.id);
+                if (category.id.equals(this.catId)) {
+                    i4 = arrayList.size() - 1;
+                }
             }
             i2++;
         }
@@ -2713,7 +2732,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         App.playing = channel;
         App.api = this.api;
         App.guide = this.guide;
-        App.live = this.catalog.live;
+        if (this.catalog != null && this.catalog.live != null) {
+            App.live = this.catalog.live;
+        }
         if (channel.epg != null && channel.epg.title != null) {
             str = channel.epg.title;
             if (channel.epg.start > 0 && channel.epg.end > 0) {
