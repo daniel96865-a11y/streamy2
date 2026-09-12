@@ -1401,7 +1401,7 @@ public class PlayerActivity extends AppCompatActivity {
         Models.Epg epg = null;
         try {
             if (App.guide != null) {
-                epg = App.guide.forChannel(channel);
+                epg = App.guide.forChannel(channel, true);
                 arrayList.addAll(App.guide.listingsFor(channel));
             }
         } catch (Throwable unused) {

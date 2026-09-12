@@ -1,5 +1,5 @@
-versionCode 142
-versionName 3.22
+versionCode 143
+versionName 3.23
 title Streamy 2 Update
-message Live-TV Cache-Fix (Sender klickbar nach Neustart), EPG-Matching, Verbindungs-Leaks
+message ANR-Fix: EPG nicht mehr auf dem UI-Thread (App reagiert nicht). Cache-Fix aus 3.22 bleibt.
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
