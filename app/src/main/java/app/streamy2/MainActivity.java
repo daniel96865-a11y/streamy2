@@ -3829,17 +3829,34 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         if (channel.epg == null || channel.epg.title == null || channel.epg.title.isEmpty()) {
-            Models.Epg forChannel = this.guide.forChannel(channel);
+            // Exact/alias only — fuzzy + full-catalog sibling walk must not run on the UI thread
+            // (3.22 cache-fix made every live row a real channel; walking thousands of names ANRs Fire TV).
+            Models.Epg forChannel = this.guide.forChannel(channel, false);
             if (forChannel != null) {
                 channel.epg = forChannel;
                 this.adapter.patchEpg(channel.id, forChannel);
-                // Cheap sibling unify only (never full-catalog applyUnified on UI thread)
-                try {
-                    Models.Catalog catalog = this.catalog;
-                    if (catalog != null && catalog.live != null) {
-                        this.guide.applyUnifiedSiblings(channel, catalog.live);
-                    }
-                } catch (Throwable ignored) {
+                final Models.Catalog catalog = this.catalog;
+                if (catalog != null && catalog.live != null) {
+                    IO.execute(new Runnable() {
+                        @Override
+                        public final void run() {
+                            try {
+                                MainActivity.this.guide.applyUnifiedSiblings(channel, catalog.live);
+                            } catch (Throwable ignored) {
+                            }
+                            UI.post(new Runnable() {
+                                @Override
+                                public final void run() {
+                                    try {
+                                        if (MainActivity.this.adapter != null) {
+                                            MainActivity.this.adapter.notifyEpg();
+                                        }
+                                    } catch (Throwable ignored) {
+                                    }
+                                }
+                            });
+                        }
+                    });
                 }
             } else if (this.guide.hasNameMatch(channel)) {
                 // Guide knows the name but current() empty (window) — still skip Xtream shortEpg
@@ -3880,18 +3897,32 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$askEpg$107(Models.Channel channel, Models.Epg epg) {
+    public /* synthetic */ void lambda$askEpg$107(final Models.Channel channel, Models.Epg epg) {
         this.adapter.patchEpg(channel.id, epg);
-        try {
-            Models.Catalog catalog = this.catalog;
-            if (catalog != null && catalog.live != null) {
-                this.guide.applyUnifiedSiblings(channel, catalog.live);
-                if (this.adapter != null) {
-                    this.adapter.notifyEpg();
-                }
-            }
-        } catch (Throwable ignored) {
+        final Models.Catalog catalog = this.catalog;
+        if (catalog == null || catalog.live == null) {
+            return;
         }
+        IO.execute(new Runnable() {
+            @Override
+            public final void run() {
+                try {
+                    MainActivity.this.guide.applyUnifiedSiblings(channel, catalog.live);
+                } catch (Throwable ignored) {
+                }
+                UI.post(new Runnable() {
+                    @Override
+                    public final void run() {
+                        try {
+                            if (MainActivity.this.adapter != null) {
+                                MainActivity.this.adapter.notifyEpg();
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                });
+            }
+        });
     }
 
     private File epgCache() {

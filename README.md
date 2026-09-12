@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.22** (versionCode **142**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.23** (versionCode **143**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.23 notes
+
+ANR-Fix: Nach dem 3.22 Cache-Fix liefen EPG-Lookups + Sibling-Unify (tausende `normName`-Regexes) auf dem UI-Thread — „App reagiert nicht“ auf Fire TV. Bulk/askEpg nutzen nur Exact-Match; Fuzzy nur im Player off-UI; Unify im IO-Thread.
 
 ## 3.22 notes
 

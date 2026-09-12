@@ -179,9 +179,16 @@ public class EpgGuide {
      * otherwise divergent Xtream epgIds (e.g. 13TH STREET HD vs FHD) split the EPG.
      */
     public Models.Epg forChannel(Models.Channel channel) {
+        return forChannel(channel, false);
+    }
+
+    /**
+     * @param allowFuzzy O(nameToId) contains-scan. Never true on the UI thread or bulk apply().
+     */
+    public Models.Epg forChannel(Models.Channel channel, boolean allowFuzzy) {
         Models.Epg lookup;
         Models.Epg lookup2;
-        if (channel == null) {
+        if (channel == null || channel.header) {
             return null;
         }
         // Exact/alias name first (no fuzzy O(n) scan) so HD/FHD share a guide without
@@ -208,8 +215,8 @@ public class EpgGuide {
         if (channel.id != null && channel.id.startsWith("iptv:") && (lookup = lookup(channel.id.substring(5))) != null) {
             return lookup;
         }
-        // Fuzzy name only as last resort (rare; avoid on bulk apply hot path)
-        if (exactNameId == null) {
+        // Fuzzy name only as last resort off the UI thread (player seed).
+        if (allowFuzzy && exactNameId == null) {
             String fuzzyId = findNameId(normName(channel.name), true);
             if (fuzzyId != null) {
                 Models.Epg byFuzzy = current(fuzzyId);
@@ -428,9 +435,13 @@ public class EpgGuide {
             if (hit != null) {
                 return hit;
             }
-            // Do not fall back to the first token alone on the exact path:
-            // "rtl crime" / "prosieben fun" would steal the parent channel's XMLTV.
-            // Regional bases ("mdr sachsen") already match via the strip list above.
+            // Only known regional bases: "mdr sachsen" → mdr. Never "rtl crime" → rtl.
+            if (isRegionalBase(split[0])) {
+                hit = lookupNameKey(split[0]);
+                if (hit != null) {
+                    return hit;
+                }
+            }
         }
         if (!allowFuzzy) {
             return null;
@@ -451,6 +462,15 @@ public class EpgGuide {
             }
         }
         return best;
+    }
+
+    private static boolean isRegionalBase(String token) {
+        if (token == null || token.length() < 2) {
+            return false;
+        }
+        return "mdr".equals(token) || "ndr".equals(token) || "wdr".equals(token)
+                || "br".equals(token) || "hr".equals(token) || "rbb".equals(token)
+                || "swr".equals(token) || "orf".equals(token) || "sr".equals(token);
     }
 
     private String lookupNameKey(String key) {
@@ -491,7 +511,10 @@ public class EpgGuide {
         try {
             for (Models.Channel channel : new ArrayList<Models.Channel>(list)) {
                 try {
-                    Models.Epg forChannel = forChannel(channel);
+                    if (channel == null || channel.header) {
+                        continue;
+                    }
+                    Models.Epg forChannel = forChannel(channel, false);
                     if (forChannel != null) {
                         channel.epg = forChannel;
                         i++;
