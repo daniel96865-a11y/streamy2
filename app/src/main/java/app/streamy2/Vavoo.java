@@ -502,19 +502,20 @@ final class Vavoo {
         httpURLConnection.setRequestProperty(HttpHeaders.REFERER, "https://vavoo.to/");
         byte[] bytes = str2.getBytes(StandardCharsets.UTF_8);
         httpURLConnection.setFixedLengthStreamingMode(bytes.length);
-        OutputStream outputStream = httpURLConnection.getOutputStream();
         try {
-            outputStream.write(bytes);
-            if (outputStream != null) {
-                outputStream.close();
+            OutputStream outputStream = httpURLConnection.getOutputStream();
+            try {
+                outputStream.write(bytes);
+            } finally {
+                if (outputStream != null) {
+                    outputStream.close();
+                }
             }
             if (httpURLConnection.getResponseCode() >= 400) {
-                httpURLConnection.disconnect();
                 return null;
             }
             InputStream inputStream = httpURLConnection.getInputStream();
             if (inputStream == null) {
-                httpURLConnection.disconnect();
                 return null;
             }
             String contentEncoding = httpURLConnection.getContentEncoding();
@@ -522,25 +523,20 @@ final class Vavoo {
                 inputStream = new GZIPInputStream(inputStream);
             }
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            while (true) {
-                String readLine = bufferedReader.readLine();
-                if (readLine == null) {
-                    bufferedReader.close();
-                    httpURLConnection.disconnect();
-                    return sb.toString();
+            try {
+                StringBuilder sb = new StringBuilder();
+                while (true) {
+                    String readLine = bufferedReader.readLine();
+                    if (readLine == null) {
+                        return sb.toString();
+                    }
+                    sb.append(readLine);
                 }
-                sb.append(readLine);
+            } finally {
+                bufferedReader.close();
             }
-        } catch (Throwable th) {
-            if (outputStream != null) {
-                try {
-                    outputStream.close();
-                } catch (Throwable th2) {
-                    th.addSuppressed(th2);
-                }
-            }
-            throw th;
+        } finally {
+            httpURLConnection.disconnect();
         }
     }
 
@@ -567,19 +563,20 @@ final class Vavoo {
         }
         byte[] bytes = str2.getBytes(StandardCharsets.UTF_8);
         httpURLConnection.setFixedLengthStreamingMode(bytes.length);
-        OutputStream outputStream = httpURLConnection.getOutputStream();
         try {
-            outputStream.write(bytes);
-            if (outputStream != null) {
-                outputStream.close();
+            OutputStream outputStream = httpURLConnection.getOutputStream();
+            try {
+                outputStream.write(bytes);
+            } finally {
+                if (outputStream != null) {
+                    outputStream.close();
+                }
             }
             if (httpURLConnection.getResponseCode() >= 400) {
-                httpURLConnection.disconnect();
                 return null;
             }
             InputStream inputStream = httpURLConnection.getInputStream();
             if (inputStream == null) {
-                httpURLConnection.disconnect();
                 return null;
             }
             String contentEncoding = httpURLConnection.getContentEncoding();
@@ -587,25 +584,20 @@ final class Vavoo {
                 inputStream = new GZIPInputStream(inputStream);
             }
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            while (true) {
-                String readLine = bufferedReader.readLine();
-                if (readLine == null) {
-                    bufferedReader.close();
-                    httpURLConnection.disconnect();
-                    return sb.toString();
+            try {
+                StringBuilder sb = new StringBuilder();
+                while (true) {
+                    String readLine = bufferedReader.readLine();
+                    if (readLine == null) {
+                        return sb.toString();
+                    }
+                    sb.append(readLine);
                 }
-                sb.append(readLine);
+            } finally {
+                bufferedReader.close();
             }
-        } catch (Throwable th) {
-            if (outputStream != null) {
-                try {
-                    outputStream.close();
-                } catch (Throwable th2) {
-                    th.addSuppressed(th2);
-                }
-            }
-            throw th;
+        } finally {
+            httpURLConnection.disconnect();
         }
     }
 

@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.21** (versionCode **141**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.22** (versionCode **142**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.22 notes
+
+Bugfix: Live-TV from disk cache no longer marks every channel as a non-clickable header (and no longer duplicates rows). EPG name matching no longer steals parent guides (e.g. RTL Crime → RTL). XMLTV `</channel>` now clears the current id; extra EPG feeds merge programmes instead of replacing them. Vavoo/Gx/logo HTTP connections always disconnect.
 
 ## 3.21 notes
 
