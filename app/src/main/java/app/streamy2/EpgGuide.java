@@ -292,6 +292,55 @@ public class EpgGuide {
         this.programmeCount = i;
     }
 
+    /** Union listings for the same XMLTV id so a weaker extra feed cannot wipe a richer first feed. */
+    @SuppressWarnings("unchecked")
+    private void mergeProgrammes(Map incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return;
+        }
+        int max = maxProgrammesPerChannel();
+        for (Object raw : incoming.entrySet()) {
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) raw;
+            if (!(e.getKey() instanceof String) || !(e.getValue() instanceof List)) {
+                continue;
+            }
+            String key = (String) e.getKey();
+            List add = (List) e.getValue();
+            if (add == null || add.isEmpty()) {
+                continue;
+            }
+            List<Listing> existing = this.byId.get(key);
+            if (existing == null || existing.isEmpty()) {
+                this.byId.put(key, new ArrayList<Listing>(add));
+                continue;
+            }
+            HashMap<String, Listing> uniq = new HashMap<>();
+            for (Listing listing : existing) {
+                if (listing != null) {
+                    uniq.put(listing.start + "|" + listing.stop, listing);
+                }
+            }
+            for (Object item : add) {
+                if (!(item instanceof Listing)) {
+                    continue;
+                }
+                Listing listing = (Listing) item;
+                uniq.putIfAbsent(listing.start + "|" + listing.stop, listing);
+            }
+            ArrayList<Listing> merged = new ArrayList<>(uniq.values());
+            merged.sort(new Comparator<Listing>() {
+                @Override
+                public int compare(Listing a, Listing b) {
+                    return Long.compare(a.start, b.start);
+                }
+            });
+            if (merged.size() > max) {
+                merged = new ArrayList<>(merged.subList(0, max));
+            }
+            this.byId.put(key, merged);
+        }
+    }
+
     private String keyOf(Models.Channel channel) {
         String nameId = findNameId(normName(channel.name), false);
         if (nameId != null && this.byId.containsKey(nameId)) {
@@ -379,13 +428,9 @@ public class EpgGuide {
             if (hit != null) {
                 return hit;
             }
-            // Regional: "mdr sachsen" / "ndr hh" → base "mdr" / "ndr"
-            if (split[0].length() >= 3) {
-                hit = lookupNameKey(split[0]);
-                if (hit != null) {
-                    return hit;
-                }
-            }
+            // Do not fall back to the first token alone on the exact path:
+            // "rtl crime" / "prosieben fun" would steal the parent channel's XMLTV.
+            // Regional bases ("mdr sachsen") already match via the strip list above.
         }
         if (!allowFuzzy) {
             return null;
@@ -827,13 +872,12 @@ public class EpgGuide {
         String str3 = null;
         while (eventType != 1) {
             int i2 = 2;
+            hashMap = hashMap3;
+            str = str3;
             if (eventType != 2) {
-                hashMap = hashMap3;
-                str = str3;
                 if (eventType == 3 && "channel".equals(newPullParser.getName())) {
                     str3 = null;
                 }
-                str3 = str;
             } else {
                 String name = newPullParser.getName();
                 if ("channel".equals(name)) {
@@ -904,9 +948,17 @@ public class EpgGuide {
         if (!z) {
             this.byId.clear();
             this.nameToId.clear();
+            this.byId.putAll(hashMap2);
+            this.nameToId.putAll(hashMap4);
+        } else {
+            mergeProgrammes(hashMap2);
+            for (Object raw : hashMap4.entrySet()) {
+                Map.Entry<?, ?> e = (Map.Entry<?, ?>) raw;
+                if (e.getKey() instanceof String && e.getValue() instanceof String) {
+                    this.nameToId.putIfAbsent((String) e.getKey(), (String) e.getValue());
+                }
+            }
         }
-        this.byId.putAll(hashMap2);
-        this.nameToId.putAll(hashMap4);
         Iterator<List<Listing>> it = this.byId.values().iterator();
         int i4 = 0;
         while (it.hasNext()) {

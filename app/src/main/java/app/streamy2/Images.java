@@ -324,14 +324,17 @@ public class Images {
             httpURLConnection.setReadTimeout(8000);
             httpURLConnection.setInstanceFollowRedirects(true);
             httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0");
-            InputStream inputStream = httpURLConnection.getInputStream();
-            byte[] readAll2 = readAll(inputStream);
-            inputStream.close();
-            httpURLConnection.disconnect();
-            if (readAll2 != null && readAll2.length > 0) {
-                writeLogo(context, str, readAll2);
+            try {
+                InputStream inputStream = httpURLConnection.getInputStream();
+                byte[] readAll2 = readAll(inputStream);
+                inputStream.close();
+                if (readAll2 != null && readAll2.length > 0) {
+                    writeLogo(context, str, readAll2);
+                }
+                return readAll2;
+            } finally {
+                httpURLConnection.disconnect();
             }
-            return readAll2;
         } catch (Exception unused) {
             return null;
         }

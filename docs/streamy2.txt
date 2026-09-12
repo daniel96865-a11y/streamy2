@@ -1,5 +1,5 @@
-versionCode 141
-versionName 3.21
+versionCode 142
+versionName 3.22
 title Streamy 2 Update
-message ARM-only APK (v7a/v8a) für Fire TV — kleiner, Funktionen unverändert
+message Live-TV Cache-Fix (Sender klickbar nach Neustart), EPG-Matching, Verbindungs-Leaks
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk
