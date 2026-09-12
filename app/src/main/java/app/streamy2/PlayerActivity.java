@@ -2897,7 +2897,13 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override // androidx.recyclerview.widget.RecyclerView.Adapter
         public void onBindViewHolder(VH vh, int i) {
+            if (i < 0 || i >= PlayerActivity.this.programmes.size()) {
+                return;
+            }
             final EpgGuide.Listing listing = (EpgGuide.Listing) PlayerActivity.this.programmes.get(i);
+            if (listing == null) {
+                return;
+            }
             long currentTimeMillis = System.currentTimeMillis();
             vh.time.setText(PlayerActivity.this.clockFmt.format(new Date(listing.start)));
             vh.title.setText(Text.clean(listing.title));

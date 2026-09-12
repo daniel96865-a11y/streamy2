@@ -1,7 +1,7 @@
 {
-  "versionCode": 141,
-  "versionName": "3.21",
+  "versionCode": 142,
+  "versionName": "3.22",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.21: ARM-only APK (armeabi-v7a + arm64-v8a) für Fire TV / Phones / Android TV — kleiner, zuverlässiger auf Stick; Funktionen unverändert.",
+  "changelog": "Version 3.22: Live-TV Cache-Fix (Sender nach Neustart wieder klickbar), EPG-Namens-Matching (kein Parent-Diebstahl), XMLTV/Merge-Fixes, Verbindungs-Leaks.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
