@@ -101,71 +101,30 @@ public class XtreamApi {
         return getRaw("get_live_streams", null);
     }
 
-    public void loadLibrary(Models.Catalog catalog) {
-        if (catalog == null) {
-            return;
-        }
+    public void loadLibrary(Models.Catalog catalog) throws Exception {
+        if (catalog == null) return;
+        ExecutorService pool = Executors.newFixedThreadPool(4);
+        java.util.List<String> failures = new ArrayList<>();
         try {
-            ExecutorService newFixedThreadPool = Executors.newFixedThreadPool(4);
-            Future submit = newFixedThreadPool.submit(new Callable() { // from class: app.streamy2.XtreamApi$$ExternalSyntheticLambda0
-                @Override // java.util.concurrent.Callable
-                public final Object call() throws Exception {
-                    Object lambda$loadLibrary$2;
-                    lambda$loadLibrary$2 = XtreamApi.this.lambda$loadLibrary$2();
-                    return lambda$loadLibrary$2;
-                }
-            });
-            Future submit2 = newFixedThreadPool.submit(new Callable() { // from class: app.streamy2.XtreamApi$$ExternalSyntheticLambda1
-                @Override // java.util.concurrent.Callable
-                public final Object call() throws Exception {
-                    Object lambda$loadLibrary$3;
-                    lambda$loadLibrary$3 = XtreamApi.this.lambda$loadLibrary$3();
-                    return lambda$loadLibrary$3;
-                }
-            });
-            Future submit3 = newFixedThreadPool.submit(new Callable() { // from class: app.streamy2.XtreamApi$$ExternalSyntheticLambda2
-                @Override // java.util.concurrent.Callable
-                public final Object call() throws Exception {
-                    Object lambda$loadLibrary$4;
-                    lambda$loadLibrary$4 = XtreamApi.this.lambda$loadLibrary$4();
-                    return lambda$loadLibrary$4;
-                }
-            });
-            Future submit4 = newFixedThreadPool.submit(new Callable() { // from class: app.streamy2.XtreamApi$$ExternalSyntheticLambda3
-                @Override // java.util.concurrent.Callable
-                public final Object call() throws Exception {
-                    Object lambda$loadLibrary$5;
-                    lambda$loadLibrary$5 = XtreamApi.this.lambda$loadLibrary$5();
-                    return lambda$loadLibrary$5;
-                }
-            });
-            catalog.vodCats = mapCats(asArray(submit.get()));
-            catalog.seriesCats = mapCats(asArray(submit2.get()));
-            fillVod(catalog, asArray(submit3.get()));
-            fillSeries(catalog, asArray(submit4.get()));
-            newFixedThreadPool.shutdownNow();
-        } catch (Exception unused) {
+            Future<Object> vodCats = pool.submit(() -> getRaw("get_vod_categories", null));
+            Future<Object> seriesCats = pool.submit(() -> getRaw("get_series_categories", null));
+            Future<Object> vod = pool.submit(() -> getRaw("get_vod_streams", null));
+            Future<Object> series = pool.submit(() -> getRaw("get_series", null));
+            try { catalog.vodCats = mapCats(asArray(vodCats.get())); }
+            catch (Exception e) { failures.add("Filmkategorien"); }
+            try { catalog.seriesCats = mapCats(asArray(seriesCats.get())); }
+            catch (Exception e) { failures.add("Serienkategorien"); }
+            try { fillVod(catalog, asArray(vod.get())); }
+            catch (Exception e) { failures.add("Filme"); }
+            try { fillSeries(catalog, asArray(series.get())); }
+            catch (Exception e) { failures.add("Serien"); }
+        } finally {
+            pool.shutdownNow();
         }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ Object lambda$loadLibrary$2() throws Exception {
-        return getRaw("get_vod_categories", null);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ Object lambda$loadLibrary$3() throws Exception {
-        return getRaw("get_series_categories", null);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ Object lambda$loadLibrary$4() throws Exception {
-        return getRaw("get_vod_streams", null);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ Object lambda$loadLibrary$5() throws Exception {
-        return getRaw("get_series", null);
+        if (!failures.isEmpty()) {
+            throw new Exception("Nicht geladen: " + android.text.TextUtils.join(", ", failures)
+                    + ". Erneut aktualisieren.");
+        }
     }
 
     public Models.Catalog loadCatalog() throws Exception {
@@ -745,31 +704,29 @@ public class XtreamApi {
         }
     }
 
-    private static String http(String str) throws Exception {
-        HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(str).openConnection();
-        httpURLConnection.setConnectTimeout(15000);
-        httpURLConnection.setReadTimeout(25000);
-        httpURLConnection.setInstanceFollowRedirects(true);
-        httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36");
-        httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "application/json,*/*");
-        int responseCode = httpURLConnection.getResponseCode();
-        InputStream errorStream = responseCode >= 400 ? httpURLConnection.getErrorStream() : httpURLConnection.getInputStream();
-        if (errorStream == null) {
-            throw new Exception("HTTP " + responseCode);
-        }
-        BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        while (true) {
-            String readLine = bufferedReader.readLine();
-            if (readLine == null) {
-                break;
+    private static String http(String url) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        try {
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(25000);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty(HttpHeaders.USER_AGENT, "Streamy2/3.29");
+            conn.setRequestProperty(HttpHeaders.ACCEPT, "application/json,*/*");
+            int code = conn.getResponseCode();
+            if (code >= 400) throw new java.io.IOException("HTTP " + code);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder body = new StringBuilder();
+                char[] buffer = new char[8192];
+                int count;
+                long deadline = android.os.SystemClock.elapsedRealtime() + 120000L;
+                while ((count = reader.read(buffer)) != -1) {
+                    if (Thread.currentThread().isInterrupted()) throw new java.io.InterruptedIOException();
+                    if (android.os.SystemClock.elapsedRealtime() > deadline) throw new java.net.SocketTimeoutException("Antwort dauert zu lange");
+                    if (body.length() + count > 64 * 1024 * 1024) throw new java.io.IOException("Katalog zu groß");
+                    body.append(buffer, 0, count);
+                }
+                return body.toString();
             }
-            sb.append(readLine);
-        }
-        bufferedReader.close();
-        if (responseCode >= 400) {
-            throw new Exception("HTTP " + responseCode);
-        }
-        return sb.toString();
+        } finally { conn.disconnect(); }
     }
 }
