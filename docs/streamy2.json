@@ -1,7 +1,7 @@
 {
-  "versionCode": 146,
-  "versionName": "3.26",
+  "versionCode": 147,
+  "versionName": "3.27",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.26: Dünner EPG-Fortschrittsbalken unter Live-TV/Vavoo-Senderzeilen (Anteil der laufenden Sendung).",
+  "changelog": "Version 3.27: EPG „Jetzt“ nur für wirklich laufende Sendung; Fortschrittsbalken nur im Slot; VIP-Prefix/Berlin-TZ-Fixes.",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }

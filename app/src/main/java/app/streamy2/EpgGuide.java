@@ -342,7 +342,25 @@ public class EpgGuide {
                 }
             });
             if (merged.size() > max) {
-                merged = new ArrayList<>(merged.subList(0, max));
+                long nowMs = System.currentTimeMillis();
+                int pivot = 0;
+                for (int i = 0; i < merged.size(); i++) {
+                    Listing L = merged.get(i);
+                    if (L == null) continue;
+                    if (L.start <= nowMs && L.stop > nowMs) {
+                        pivot = i;
+                        break;
+                    }
+                    if (L.start > nowMs) {
+                        pivot = Math.max(0, i - 1);
+                        break;
+                    }
+                    pivot = i;
+                }
+                int from = Math.max(0, pivot - Math.max(1, max / 4));
+                int to = Math.min(merged.size(), from + max);
+                from = Math.max(0, to - max);
+                merged = new ArrayList<>(merged.subList(from, to));
             }
             this.byId.put(key, merged);
         }
@@ -421,7 +439,7 @@ public class EpgGuide {
             }
         }
         // Drop common IPTV prefixes/suffixes and retry (e.g. "ard das erste", "ndr fs hh", "rtl deutschland")
-        String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup|koeln|koln|hh|hamburg|sachsen|bw|baden|wuerttemberg|berlin|brandenburg)\\b", " ")
+        String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup|koeln|koln|hh|hamburg|sachsen|bw|baden|wuerttemberg|berlin|brandenburg|vip)\\b", " ")
                 .trim().replaceAll("\\s+", " ");
         if (!stripped.isEmpty() && !stripped.equals(str)) {
             hit = findNameId(stripped, allowFuzzy);
@@ -1007,38 +1025,39 @@ public class EpgGuide {
         if (list == null || list.isEmpty()) {
             return null;
         }
-        long currentTimeMillis = System.currentTimeMillis();
-        Listing listing = null;
-        Listing listing2 = null;
-        for (Listing listing3 : list) {
-            if (listing3.start <= currentTimeMillis && listing3.stop > currentTimeMillis) {
-                listing = listing3;
-            } else if (listing3.start > currentTimeMillis && (listing2 == null || listing3.start < listing2.start)) {
-                listing2 = listing3;
+        long now = System.currentTimeMillis();
+        Listing airing = null;
+        Listing upcoming = null;
+        for (Listing listing : list) {
+            if (listing == null || listing.start <= 0 || listing.stop <= listing.start) {
+                continue;
+            }
+            // Strict: only the slot that actually covers now is "Jetzt"
+            if (listing.start <= now && listing.stop > now) {
+                airing = listing;
+            } else if (listing.start > now && (upcoming == null || listing.start < upcoming.start)) {
+                upcoming = listing;
             }
         }
-        if (listing == null) {
-            Iterator<Listing> it = list.iterator();
-            while (true) {
-                if (!it.hasNext()) {
-                    break;
-                }
-                Listing next = it.next();
-                if (next.stop > currentTimeMillis) {
-                    listing = next;
-                    break;
-                }
-            }
-        }
-        if (listing == null) {
-            listing = list.get(0);
+        // Do NOT fall back to a future (or arbitrary past) programme as current —
+        // that produced afternoon "Jetzt:" rows with a bogus full progress bar.
+        if (airing == null) {
+            return null;
         }
         Models.Epg epg = new Models.Epg();
-        epg.title = listing.title;
-        epg.start = listing.start;
-        epg.end = listing.stop;
-        if (listing2 != null) {
-            epg.nextTitle = listing2.title;
+        epg.title = airing.title;
+        epg.start = airing.start;
+        epg.end = airing.stop;
+        if (upcoming == null) {
+            for (Listing listing : list) {
+                if (listing != null && listing.start >= airing.stop
+                        && (upcoming == null || listing.start < upcoming.start)) {
+                    upcoming = listing;
+                }
+            }
+        }
+        if (upcoming != null) {
+            epg.nextTitle = upcoming.title;
         }
         if (epg.title == null || epg.title.isEmpty()) {
             return null;
@@ -1061,11 +1080,13 @@ public class EpgGuide {
         }
         try {
             String digits = trim.substring(0, 14);
-            // Offset may be " +0200", "+0200", " +02:00" — never parse wall-clock in device TZ.
+            // Offset may be " +0200", "+0200", " +02:00".
             String rest = trim.length() > 14 ? trim.substring(14).trim() : "";
             int sign = 0;
             int offMin = 0;
+            boolean hasOffset = false;
             if (!rest.isEmpty() && (rest.charAt(0) == '+' || rest.charAt(0) == '-')) {
+                hasOffset = true;
                 sign = rest.charAt(0) == '+' ? 1 : -1;
                 String num = rest.substring(1).replace(":", "");
                 if (num.length() >= 4) {
@@ -1074,7 +1095,7 @@ public class EpgGuide {
                     offMin = Integer.parseInt(num.substring(0, 2)) * 60;
                 }
             } else if (trim.length() >= 19 && (trim.charAt(14) == '+' || trim.charAt(14) == '-')) {
-                // no-space form already covered by substring(14); keep fallback for safety
+                hasOffset = true;
                 sign = trim.charAt(14) == '+' ? 1 : -1;
                 String num = trim.substring(15).replace(":", "");
                 if (num.length() >= 4) {
@@ -1082,6 +1103,13 @@ public class EpgGuide {
                 }
             }
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
+            if (!hasOffset) {
+                // German IPTV XMLTV often omits TZ; wall-clock is Europe/Berlin, not UTC.
+                // Bare-as-UTC shifted slots by +1/+2h and left gaps at "now", so current()
+                // fell through to a future afternoon programme as "Jetzt".
+                sdf.setTimeZone(TimeZone.getTimeZone("Europe/Berlin"));
+                return sdf.parse(digits).getTime();
+            }
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             long asUtc = sdf.parse(digits).getTime();
             return asUtc - ((long) sign) * offMin * 60000L;
@@ -1113,7 +1141,8 @@ public class EpgGuide {
                 .replaceAll("\\s*\\.[bcsf]\\b", " ")
                 .replaceFirst("^de:\\s*", "")
                 .replaceFirst("^\\[+\\s*", "")
-                .replaceAll("\\b(full\\s*hd|fullhd|ultra\\s*hd|ultrahd|fhd|uhd|hd\\+|hdtv|sd|4k|8k|hevc|h265|h264|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen)\\b", " ")
+                .replaceFirst("^vip\\s+", "")
+                .replaceAll("\\b(full\\s*hd|fullhd|ultra\\s*hd|ultrahd|fhd|uhd|hd\\+|hdtv|sd|4k|8k|hevc|h265|h264|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen|vip)\\b", " ")
                 .replaceAll("(?<!\\w)hd(?!\\w)", " ")
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim()
