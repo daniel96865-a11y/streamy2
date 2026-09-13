@@ -15,32 +15,20 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 /* loaded from: classes.dex */
 final class LocalHls {
     private static volatile int port;
     private static ServerSocket server;
-    private static volatile SSLSocketFactory ssl;
     private static final ExecutorService POOL = Executors.newCachedThreadPool();
     private static final Map<String, Held> HELD = new ConcurrentHashMap();
 
-    static /* synthetic */ boolean lambda$open$2(String str, SSLSession sSLSession) {
-        return true;
-    }
+
 
     LocalHls() {
     }
@@ -375,16 +363,7 @@ final class LocalHls {
             httpURLConnection.setConnectTimeout(i);
             httpURLConnection.setReadTimeout(Math.max(i, 15000));
             httpURLConnection.setInstanceFollowRedirects(true);
-            if (httpURLConnection instanceof HttpsURLConnection) {
-                HttpsURLConnection httpsURLConnection = (HttpsURLConnection) httpURLConnection;
-                httpsURLConnection.setSSLSocketFactory(insecureSsl());
-                httpsURLConnection.setHostnameVerifier(new HostnameVerifier() { // from class: app.streamy2.LocalHls$$ExternalSyntheticLambda1
-                    @Override // javax.net.ssl.HostnameVerifier
-                    public final boolean verify(String str2, SSLSession sSLSession) {
-                        return LocalHls.lambda$open$2(str2, sSLSession);
-                    }
-                });
-            }
+
             if (!playable.contains("gxplayer") && !playable.contains("master.txt")) {
                 if (!Vavoo.isCdn(playable) && !Vavoo.isPlayUrl(playable) && !playable.contains("/sunshine/") && !playable.contains("ngolpdky")) {
                     httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "libmpv");
@@ -410,29 +389,7 @@ final class LocalHls {
         }
     }
 
-    private static SSLSocketFactory insecureSsl() throws Exception {
-        if (ssl != null) {
-            return ssl;
-        }
-        TrustManager[] trustManagerArr = {new X509TrustManager() { // from class: app.streamy2.LocalHls.1
-            @Override // javax.net.ssl.X509TrustManager
-            public void checkClientTrusted(X509Certificate[] x509CertificateArr, String str) {
-            }
 
-            @Override // javax.net.ssl.X509TrustManager
-            public void checkServerTrusted(X509Certificate[] x509CertificateArr, String str) {
-            }
-
-            @Override // javax.net.ssl.X509TrustManager
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        }};
-        SSLContext sSLContext = SSLContext.getInstance("TLS");
-        sSLContext.init(null, trustManagerArr, new SecureRandom());
-        ssl = sSLContext.getSocketFactory();
-        return ssl;
-    }
 
     private static void write(OutputStream outputStream, int i, String str, byte[] bArr) throws Exception {
         outputStream.write(("HTTP/1.1 " + i + " " + (i == 200 ? "OK" : "ERR") + "\r\nContent-Type: " + str + "\r\nContent-Length: " + bArr.length + "\r\nCache-Control: no-cache\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));

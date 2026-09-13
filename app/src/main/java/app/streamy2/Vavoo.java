@@ -14,20 +14,12 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -48,9 +40,7 @@ final class Vavoo {
     };
     private static volatile String activeHost = "https://kool.to";
 
-    static /* synthetic */ boolean lambda$trustSsl$0(String str, SSLSession sSLSession) {
-        return true;
-    }
+
 
     Vavoo() {
     }
@@ -402,34 +392,7 @@ final class Vavoo {
         return sig == null ? "" : sig;
     }
 
-    static void trustSsl() {
-        try {
-            TrustManager[] trustManagerArr = {new X509TrustManager() { // from class: app.streamy2.Vavoo.1
-                @Override // javax.net.ssl.X509TrustManager
-                public void checkClientTrusted(X509Certificate[] x509CertificateArr, String str) {
-                }
 
-                @Override // javax.net.ssl.X509TrustManager
-                public void checkServerTrusted(X509Certificate[] x509CertificateArr, String str) {
-                }
-
-                @Override // javax.net.ssl.X509TrustManager
-                public X509Certificate[] getAcceptedIssuers() {
-                    return new X509Certificate[0];
-                }
-            }};
-            SSLContext sSLContext = SSLContext.getInstance("TLS");
-            sSLContext.init(null, trustManagerArr, new SecureRandom());
-            HttpsURLConnection.setDefaultSSLSocketFactory(sSLContext.getSocketFactory());
-            HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() { // from class: app.streamy2.Vavoo$$ExternalSyntheticLambda0
-                @Override // javax.net.ssl.HostnameVerifier
-                public final boolean verify(String str, SSLSession sSLSession) {
-                    return Vavoo.lambda$trustSsl$0(str, sSLSession);
-                }
-            });
-        } catch (Throwable unused) {
-        }
-    }
 
     private static String pingBody() {
         try {

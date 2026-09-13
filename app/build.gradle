@@ -8,34 +8,41 @@ android {
 
     defaultConfig {
         applicationId "app.streamy2"
-        minSdk 24
+        minSdk providers.gradleProperty('streamyMinSdk').map { it.toInteger() }.getOrElse(24)
         targetSdk 34
-        versionCode 148
-        versionName "3.28"
+        versionCode 149
+        versionName "3.29"
         vectorDrawables.useSupportLibrary = true
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
     }
 
+    // Release credentials live outside Git. Debug builds use Android's local debug key.
+    def releaseStore = providers.environmentVariable('STREAMY_KEYSTORE').orNull
     signingConfigs {
         release {
-            storeFile file('../keystore/debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            if (releaseStore) {
+                storeFile file(releaseStore)
+                storePassword providers.environmentVariable('STREAMY_STORE_PASSWORD').orNull
+                keyAlias providers.environmentVariable('STREAMY_KEY_ALIAS').getOrElse('streamy')
+                keyPassword providers.environmentVariable('STREAMY_KEY_PASSWORD').orNull
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
+            if (releaseStore) signingConfig signingConfigs.release
         }
         debug {
-            signingConfig signingConfigs.release
+            applicationIdSuffix '.preview'
+            versionNameSuffix '-preview'
         }
     }
+
+    testOptions { unitTests.includeAndroidResources = true }
 
     buildFeatures {
         buildConfig true
@@ -64,6 +71,11 @@ android {
 }
 
 dependencies {
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.85'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+    testImplementation 'com.squareup.okhttp3:okhttp-tls:4.12.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.activity:activity:1.9.0'
     implementation 'androidx.core:core:1.13.1'

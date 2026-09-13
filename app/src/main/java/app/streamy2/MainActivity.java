@@ -150,11 +150,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private View updateBanner;
     private TextView updateText;
     private volatile boolean vavooBusy;
-    /** Last successful EPG *network* pull in this process (0 = never this session). */
-    private volatile long vavooEpgNetAt;
-    private volatile boolean vavooEpgBusy;
-    /** Net EPG refresh at most every ~45 min (Live-TV + Vavoo); disk/memory cache shown instantly. */
-    private static final long VAVOO_EPG_NET_TTL_MS = 45L * 60L * 1000L;
     private static final ExecutorService IO = Executors.newFixedThreadPool(6);
     private static final ExecutorService EPG = Executors.newSingleThreadExecutor(new ThreadFactory() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda111
         @Override // java.util.concurrent.ThreadFactory
@@ -1265,6 +1260,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     protected void onResume() {
         RecyclerView recyclerView;
         super.onResume();
+        UI.removeCallbacks(epgTick);
+        UI.postDelayed(epgTick, 1000L);
         this.resumeAt = SystemClock.uptimeMillis();
         try {
             if (this.resumeUpdateAfterSettings) {
@@ -1301,6 +1298,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onPause() {
+        UI.removeCallbacks(epgTick);
         BrowserController browserController = this.browser;
         if (browserController != null) {
             browserController.pause();
@@ -1379,6 +1377,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             text4 = this.prefs.name();
         }
         String startHost = Pairing.startHost(Pairing.pack(text4, text, text2, text3, text(this.inEpgUrl)));
+        if (startHost == null) {
+            Toast.makeText(this, "Kopplung konnte nicht gestartet werden", Toast.LENGTH_LONG).show();
+            return;
+        }
         TextView textView = (TextView) findViewById(R.id.pairPin);
         TextView textView2 = (TextView) findViewById(R.id.pairTitle);
         TextView textView3 = (TextView) findViewById(R.id.pairHint);
@@ -1398,7 +1400,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             textView2.setText("PIN auf dem TV eingeben");
         }
         if (textView3 != null) {
-            textView3.setText("Am TV: Einstellungen → PIN vom Handy eingeben.\nBeide Geräte im gleichen WLAN.");
+            textView3.setText("Am TV: Einstellungen → PIN vom Handy eingeben.\nGleiches WLAN, beide ab Version 3.29. PIN gilt 2 Minuten.");
         }
         View view = this.pairPane;
         if (view != null) {
@@ -1433,7 +1435,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             textView2.setText("PIN vom Handy");
         }
         if (textView3 != null) {
-            textView3.setText("PIN mit den Zahlentasten eingeben, dann Playlist holen.\nGleiches WLAN wie das Handy.");
+            textView3.setText("PIN mit den Zahlentasten eingeben, dann Playlist holen.\nGleiches WLAN, beide ab Version 3.29.");
         }
         View view = this.pairPane;
         if (view != null) {
@@ -1471,7 +1473,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadPairPin$48(String str) {
-        final String fetch = Pairing.fetch(str, 14000);
+        final String fetch = Pairing.fetch(str, 30000);
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda58
             @Override // java.lang.Runnable
             public final void run() {
@@ -1682,6 +1684,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void setEpgInterval(int i) {
         this.prefs.setEpgIntervalHours(i);
+        EpgRefresh.schedule(this);
         paintEpgInterval();
     }
 
@@ -2348,6 +2351,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void checkUpdate(final boolean z) {
+        if (BuildConfig.DEBUG) {
+            if (z) Toast.makeText(this, "Vorschau-Version: Updates erfolgen über eine neue Test-APK.", Toast.LENGTH_LONG).show();
+            return;
+        }
         if (z) {
             try { Toast.makeText(this, "Suche Update…", 0).show(); } catch (Throwable ignored) {}
         }
@@ -2624,7 +2631,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void installViaSystemInstaller(File file) throws Exception {
-        Uri uriForFile = FileProvider.getUriForFile(this, "app.streamy2.file", file);
+        Uri uriForFile = FileProvider.getUriForFile(this, getPackageName() + ".file", file);
         Intent intent2 = new Intent(Intent.ACTION_VIEW);
         intent2.setDataAndType(uriForFile, "application/vnd.android.package-archive");
         intent2.setClipData(ClipData.newRawUri("", uriForFile));
@@ -2687,13 +2694,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 || lower.contains("signatures do not match");
         String msg;
         if (signature) {
-            msg = "Andere Signatur — alte Streamy-App deinstallieren, dann 3.10 neu installieren.";
+            msg = "Andere Signatur. Bitte die zur installierten Version passende APK verwenden. Vor einer Neuinstallation Playlist-Zugangsdaten sichern.";
             if (detail != null && !detail.isEmpty()) {
                 msg = msg + "\n\n" + detail;
             }
         } else {
             msg = "Update konnte nicht installiert werden.\n\n"
-                    + "Falls die Signatur nicht übereinstimmt: Streamy 2 zuerst deinstallieren, dann 3.10 neu installieren.";
+                    + "Bei abweichender Signatur wird eine passende APK benötigt. Eine Deinstallation löscht die lokalen Einstellungen.";
             if (detail != null && !detail.isEmpty()) {
                 msg = msg + "\n\n" + detail;
             }
@@ -3312,7 +3319,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         MainActivity.this.lambda$connect$84(loadLive);
                     }
                 });
-                xtreamApi.loadLibrary(loadLive);
+                loadLibrarySafely(xtreamApi, loadLive);
                 handler.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda9
                     @Override // java.lang.Runnable
                     public final void run() {
@@ -3760,7 +3767,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     MainActivity.this.lambda$loadXtream$102(loadLive, z);
                 }
             });
-            this.api.loadLibrary(loadLive);
+            loadLibrarySafely(xtreamApi, loadLive);
             handler.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda63
                 @Override // java.lang.Runnable
                 public final void run() {
@@ -3853,11 +3860,30 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
+    /** Build library lists off the UI thread, then publish all successful sections together. */
+    private void loadLibrarySafely(XtreamApi source, Models.Catalog target) {
+        Models.Catalog library = new Models.Catalog();
+        String warning = null;
+        try { source.loadLibrary(library); }
+        catch (Exception e) { warning = e.getMessage(); }
+        final String message = warning;
+        UI.post(() -> {
+            if (isFinishing() || isDestroyed() || api != source || catalog != target) return;
+            target.vodCats = library.vodCats;
+            target.seriesCats = library.seriesCats;
+            target.vod = library.vod;
+            target.series = library.series;
+            paintTabs();
+            renderList();
+            if (message != null) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        });
+    }
+
     private void askEpg(final Models.Channel channel) {
         if (channel == null || channel.header || channel.id == null) {
             return;
         }
-        if (channel.epg == null || channel.epg.title == null || channel.epg.title.isEmpty()) {
+        if (!EpgTime.isCurrent(channel.epg, System.currentTimeMillis())) {
             // Exact/alias only — fuzzy + full-catalog sibling walk must not run on the UI thread
             // (3.22 cache-fix made every live row a real channel; walking thousands of names ANRs Fire TV).
             Models.Epg forChannel = this.guide.forChannel(channel, false);
@@ -3887,9 +3913,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         }
                     });
                 }
-            } else if (this.guide.hasNameMatch(channel)) {
-                // Guide knows the name but current() empty (window) — still skip Xtream shortEpg
-                return;
+
             } else if ((channel.vavooUrl == null || channel.vavooUrl.isEmpty()) && this.api != null) {
                 synchronized (this.epgAsked) {
                     if (this.epgAsked.contains(channel.id)) {
@@ -3909,20 +3933,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$askEpg$108(final Models.Channel channel) {
-        final Models.Epg shortEpg = this.api.shortEpg(channel);
-        if (shortEpg == null) {
-            synchronized (this.epgAsked) {
-                this.epgAsked.remove(channel.id);
+        XtreamApi source = this.api;
+        Models.Epg result = null;
+        try { if (source != null) result = source.shortEpg(channel); }
+        finally { synchronized (this.epgAsked) { this.epgAsked.remove(channel.id); } }
+        final Models.Epg epg = result;
+        UI.post(() -> {
+            if (isFinishing() || isDestroyed() || api != source) return;
+            if (EpgTime.isCurrent(epg, System.currentTimeMillis())) {
+                channel.epg = epg;
+                lambda$askEpg$107(channel, epg);
             }
-        } else {
-            channel.epg = shortEpg;
-            UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda26
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$askEpg$107(channel, shortEpg);
-                }
-            });
-        }
+        });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3954,564 +3976,36 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         });
     }
 
-    private File epgCache() {
-        return new File(getCacheDir(), "streamy2-epg.xml");
-    }
-
-    private void refreshXmltv(final boolean z) {
-        if (!z && App.playerOpen && App.isLowRam(this)) {
-            return;
-        }
-        EditText editText = this.inEpgUrl;
-        if (editText != null) {
-            this.prefs.setEpgUrl(text(editText));
-        }
-        if (!z && this.guide.channelCount > 30) {
-            IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda20
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$refreshXmltv$110();
-                }
-            });
-            return;
-        }
-        if (!this.guide.loading || z) {
-            if (!z) {
-                long epgLast = this.prefs.epgLast();
-                long epgIntervalHours = this.prefs.epgIntervalHours() * 3600000;
-                final File epgCache = epgCache();
-                final File vavooEpgCache = vavooEpgCache();
-                if (epgLast > 0 && System.currentTimeMillis() - epgLast < epgIntervalHours && epgCache.exists() && epgCache.length() > 200) {
-                    IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda21
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            MainActivity.this.lambda$refreshXmltv$113(epgCache, vavooEpgCache);
-                        }
-                    });
-                    return;
-                }
-            }
-            EditText editText2 = this.inEpgUrl;
-            String epgUrl = editText2 == null ? this.prefs.epgUrl() : text(editText2);
-            if (epgUrl == null || epgUrl.isEmpty()) {
-                XtreamApi xtreamApi = this.api;
-                epgUrl = xtreamApi != null ? xtreamApi.xmltvUrl() : null;
-            }
-            final String epgUrlFinal = epgUrl;
-            this.guide.loading = true;
-            updateEpgStatus();
-            IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda23
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$refreshXmltv$116(epgUrlFinal, z);
-                }
-            });
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$110() {
-        try {
-            EpgGuide epgGuide = this.guide;
-            Models.Catalog catalog = this.catalog;
-            final int apply = epgGuide.apply(catalog == null ? null : catalog.live);
-            UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda89
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$refreshXmltv$109(apply);
-                }
-            });
-        } catch (Throwable unused) {
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$109(int i) {
-        ChannelAdapter channelAdapter;
-        if (i > 0 && (channelAdapter = this.adapter) != null) {
-            channelAdapter.notifyEpg();
-        }
-        updateEpgStatus();
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$113(File file, File file2) {
-        try {
-            this.guide.loadFile(file);
-            // Soft path: reuse Vavoo caches; Vavoo tab uses ensureVavooEpg() for net-first
-            mergeVavooEpgFeeds(false);
-            EpgGuide epgGuide = this.guide;
-            Models.Catalog catalog = this.catalog;
-            final int apply = epgGuide.apply(catalog == null ? null : catalog.live);
-            UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda51
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$refreshXmltv$111(apply);
-                }
-            });
-        } catch (Exception unused) {
-            UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda52
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$refreshXmltv$112();
-                }
-            });
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$111(int i) {
-        ChannelAdapter channelAdapter;
-        updateEpgStatus();
-        if (i <= 0 || (channelAdapter = this.adapter) == null) {
-            return;
-        }
-        channelAdapter.notifyEpg();
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$112() {
-        refreshXmltv(true);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$116(String str, final boolean z) {
-        if (str != null) {
-            try {
-                if (!str.isEmpty()) {
-                    try {
-                        this.guide.loadUrl(str, epgCache(), z);
-                    } catch (Throwable unused) {
-                    }
-                }
-            } catch (Throwable th) {
-                this.guide.loading = false;
-                this.guide.error = th.getMessage();
-                UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda78
-                    @Override // java.lang.Runnable
-                    public final void run() {
-                        MainActivity.this.lambda$refreshXmltv$115(z, th);
-                    }
-                });
-                return;
-            }
-        }
-        try {
-            mergeVavooEpgFeeds(z);
-        } catch (Throwable unused2) {
-        }
-        EpgGuide epgGuide = this.guide;
-        Models.Catalog catalog = this.catalog;
-        final int apply = epgGuide.apply(catalog == null ? null : catalog.live);
-        this.prefs.setEpgLast(System.currentTimeMillis());
-        if (z) {
-            this.vavooEpgNetAt = System.currentTimeMillis();
-        }
-        this.guide.loading = false;
-        UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda67
-            @Override // java.lang.Runnable
-            public final void run() {
-                MainActivity.this.lambda$refreshXmltv$114(z, apply);
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$114(boolean z, int i) {
-        updateEpgStatus();
-        if (z) {
-            Toast.makeText(this, i + " Sender mit EPG", 0).show();
-        }
-        ChannelAdapter channelAdapter = this.adapter;
-        if (channelAdapter != null) {
-            channelAdapter.notifyEpg();
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$refreshXmltv$115(boolean z, Throwable th) {
-        updateEpgStatus();
-        if (z) {
-            Toast.makeText(this, "EPG: " + th.getMessage(), 1).show();
-        }
-    }
-
-    /**
-     * Live-TV + Vavoo EPG: never block the UI.
-     * <ul>
-     *   <li>Apply memory cache instantly (off UI thread) so „Jetzt: …“ appears immediately.</li>
-     *   <li>If memory empty, hydrate from disk XMLTV cache first, then optional net refresh.</li>
-     *   <li>Session/TTL: do not re-download on every leave/re-enter — at most every ~45 min
-     *       (prefs.epgLast / session stamp), or cold start with no valid cache.</li>
-     *   <li>Subtle status „EPG lädt…“ while background work runs; fail soft (keep cache).</li>
-     *   <li>userRequested (settings refresh) forces a net pull.</li>
-     * </ul>
-     * HD/FHD/UHD unify via EpgGuide.apply → applyUnified (off UI thread).
-     */
-    private void ensureNetEpg(boolean userRequested) {
-        if (!userRequested && App.playerOpen && App.isLowRam(this)) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        long lastNet = Math.max(this.vavooEpgNetAt, this.prefs.epgLast());
-        boolean ttlFresh = lastNet > 0L && (now - lastNet) <= VAVOO_EPG_NET_TTL_MS;
-        boolean hasMem = this.guide.channelCount > 0 && this.guide.programmeCount > 0;
-
-        // Instant: re-bind in-memory guide off the UI thread (never freeze setTab).
-        if (hasMem) {
-            try {
-                Models.Catalog catalog = this.catalog;
-                if (catalog != null && catalog.live != null) {
-                    final List<Models.Channel> live = catalog.live;
-                    IO.execute(new Runnable() {
-                        @Override
-                        public final void run() {
-                            int applied = 0;
-                            try {
-                                applied = MainActivity.this.guide.apply(live);
-                            } catch (Throwable ignored) {
-                            }
-                            final int appliedFinal = applied;
-                            UI.post(new Runnable() {
-                                @Override
-                                public final void run() {
-                                    try {
-                                        ChannelAdapter channelAdapter = MainActivity.this.adapter;
-                                        if (channelAdapter != null) {
-                                            channelAdapter.notifyEpg();
-                                        }
-                                        MainActivity.this.updateEpgStatus();
-                                        if (appliedFinal > 0) {
-                                            MainActivity.this.loadVisibleEpg();
-                                        }
-                                    } catch (Throwable ignored) {
-                                    }
-                                }
-                            });
-                        }
-                    });
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-
-        // Leave/re-enter within TTL with warm memory → no net re-download.
-        if (!userRequested && hasMem && ttlFresh) {
-            return;
-        }
-        if (this.vavooEpgBusy && !userRequested) {
-            return;
-        }
-
-        boolean forceNet = userRequested || !ttlFresh;
-        boolean cacheFirst = !hasMem;
-        // Cold start with fresh prefs stamp: disk only (no net).
-        // Stale / missing / user force: disk-first (if needed) then background net.
-        try {
-            this.guide.loading = true;
-            updateEpgStatus();
-        } catch (Throwable ignored) {
-        }
-        loadVavooXmltv(forceNet, cacheFirst, userRequested);
-    }
-
-    /** @deprecated alias — Live-TV and Vavoo both use {@link #ensureNetEpg(boolean)}. */
-    @Deprecated
-    private void ensureVavooEpg(boolean userRequested) {
-        ensureNetEpg(userRequested);
-    }
-
-    /** Live-TV tab: internet XMLTV + name-unified EPG (same path as Vavoo). */
-    private void ensureLiveEpg(boolean userRequested) {
-        ensureNetEpg(userRequested);
-    }
-
-    /**
-     * @param forceNet     download from network (after optional cache hydrate)
-     * @param cacheFirst   parse disk caches before any net pull for instant „Jetzt“
-     * @param showToast    true only for explicit user refresh (keep auto path quiet)
-     */
-    private void loadVavooXmltv(final boolean forceNet, final boolean cacheFirst, final boolean showToast) {
-        if (this.vavooEpgBusy) {
-            return;
-        }
-        this.vavooEpgBusy = true;
-        IO.execute(new Runnable() {
-            @Override
-            public final void run() {
-                MainActivity.this.lambda$loadVavooXmltv$118(forceNet, cacheFirst, showToast);
-            }
-        });
-    }
-
-    /** Backward-compatible entry: net pull, no extra toast. */
-    private void loadVavooXmltv(final boolean forceNet) {
-        loadVavooXmltv(forceNet, false, false);
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public void lambda$loadVavooXmltv$118(boolean forceNet, boolean cacheFirst, final boolean showToast) {
-        Exception lastErr = null;
-        int loadedFeeds = 0;
-        boolean showedCache = false;
-        try {
-            String[] strArr = Vavoo.EPG_URLS;
-            boolean singleFeed = App.isLowRam() || (this.guide != null && this.guide.preferSingleFeed());
-
-            // Phase 1: disk/memory cache first — open UI with last known „Jetzt: …“
-            if (cacheFirst || !forceNet) {
-                int diskFeeds = 0;
-                for (int i = 0; i < strArr.length; i++) {
-                    String url = strArr[i];
-                    File cache = vavooEpgCacheFor(url, i);
-                    if (cache == null || !cache.exists() || cache.length() < 200) {
-                        continue;
-                    }
-                    try {
-                        if (singleFeed) {
-                            this.guide.loadUrl(url, cache, false);
-                        } else {
-                            this.guide.loadUrlMerge(url, cache, false);
-                        }
-                        diskFeeds++;
-                        if (singleFeed && this.guide.programmeCount > 0) {
-                            break;
-                        }
-                    } catch (Exception eDisk) {
-                        lastErr = eDisk;
-                    }
-                }
-                if (diskFeeds > 0 && this.guide.programmeCount > 0) {
-                    EpgGuide epgGuide = this.guide;
-                    Models.Catalog catalog = this.catalog;
-                    List<Models.Channel> list = catalog == null ? null : catalog.live;
-                    final int applyCache = epgGuide.apply(list);
-                    showedCache = true;
-                    final boolean keepLoading = forceNet;
-                    if (!keepLoading) {
-                        this.guide.loading = false;
-                        this.guide.error = null;
-                    }
-                    UI.post(new Runnable() {
-                        @Override
-                        public final void run() {
-                            MainActivity.this.lambda$loadVavooXmltv$117(applyCache);
-                        }
-                    });
-                    if (!forceNet) {
-                        return;
-                    }
-                    // TTL stale / user force: keep showing cache, continue to background net.
-                } else if (!forceNet) {
-                    // No disk and no net requested — clear loading, fail soft.
-                    this.guide.loading = false;
-                    if (this.guide.error == null && lastErr != null) {
-                        this.guide.error = lastErr.getMessage();
-                    }
-                    UI.post(new Runnable() {
-                        @Override
-                        public final void run() {
-                            MainActivity.this.lambda$loadVavooXmltv$117(0);
-                        }
-                    });
-                    return;
-                }
-            }
-
-            // Phase 2: network refresh (background; UI already open with cache if any)
-            if (forceNet) {
-                loadedFeeds = 0;
-                lastErr = null;
-                for (int i = 0; i < strArr.length; i++) {
-                    String url = strArr[i];
-                    File cache = vavooEpgCacheFor(url, i);
-                    try {
-                        if (singleFeed) {
-                            this.guide.loadUrl(url, cache, true);
-                        } else {
-                            this.guide.loadUrlMerge(url, cache, true);
-                        }
-                        loadedFeeds++;
-                        if (singleFeed && this.guide.programmeCount > 0) {
-                            break;
-                        }
-                    } catch (Exception e2) {
-                        lastErr = e2;
-                    }
-                }
-                // Offline fallback only if every network source failed and we have no in-memory data yet
-                if (loadedFeeds == 0 && !showedCache && this.guide.programmeCount <= 0) {
-                    for (int i = 0; i < strArr.length; i++) {
-                        String url = strArr[i];
-                        File cache = vavooEpgCacheFor(url, i);
-                        if (cache == null || !cache.exists() || cache.length() < 200) {
-                            continue;
-                        }
-                        try {
-                            this.guide.loadUrlMerge(url, cache, false);
-                            loadedFeeds++;
-                        } catch (Exception e3) {
-                            lastErr = e3;
-                        }
-                    }
-                    if (loadedFeeds == 0 && this.guide.programmeCount <= 0) {
-                        throw (lastErr != null ? lastErr : new Exception("Alle EPG-Netzquellen fehlgeschlagen"));
-                    }
-                    EpgGuide epgGuide = this.guide;
-                    Models.Catalog catalog = this.catalog;
-                    List<Models.Channel> list = catalog == null ? null : catalog.live;
-                    final int applyCache = epgGuide.apply(list);
-                    this.guide.loading = false;
-                    this.guide.error = lastErr != null ? lastErr.getMessage() : "Netz fehlgeschlagen, Cache genutzt";
-                    UI.post(new Runnable() {
-                        @Override
-                        public final void run() {
-                            MainActivity.this.lambda$loadVavooXmltv$117(applyCache);
-                            if (showToast && (MainActivity.this.tab == 0 || MainActivity.this.tab == 4)) {
-                                try {
-                                    Toast.makeText(MainActivity.this,
-                                            "EPG-Netz fehlgeschlagen — Cache genutzt (" + applyCache + " Sender)",
-                                            Toast.LENGTH_LONG).show();
-                                } catch (Throwable ignored) {
-                                }
-                            }
-                        }
-                    });
-                    return;
-                }
-                if (loadedFeeds == 0 && lastErr != null && this.guide.channelCount == 0) {
-                    throw lastErr;
-                }
-                // Net failed but we already showed cache — fail soft
-                if (loadedFeeds == 0 && showedCache) {
-                    this.guide.loading = false;
-                    this.guide.error = lastErr != null ? lastErr.getMessage() : null;
-                    UI.post(new Runnable() {
-                        @Override
-                        public final void run() {
-                            MainActivity.this.updateEpgStatus();
-                        }
-                    });
-                    return;
-                }
-                EpgGuide epgGuide = this.guide;
-                Models.Catalog catalog = this.catalog;
-                List<Models.Channel> list = catalog == null ? null : catalog.live;
-                final int apply = epgGuide.apply(list);
-                if (apply < 3 && this.guide.programmeCount > 100 && list != null) {
-                    try {
-                        this.guide.apply(list);
-                    } catch (Throwable ignored) {
-                    }
-                }
-                if (loadedFeeds > 0) {
-                    this.vavooEpgNetAt = System.currentTimeMillis();
-                    this.prefs.setEpgLast(System.currentTimeMillis());
-                }
-                this.guide.loading = false;
-                if (lastErr != null && loadedFeeds > 0) {
-                    this.guide.error = null; // partial success
-                }
-                final int applyFinal = this.guide.apply(list);
-                final boolean fromNet = loadedFeeds > 0;
-                UI.post(new Runnable() {
-                    @Override
-                    public final void run() {
-                        MainActivity.this.lambda$loadVavooXmltv$117(applyFinal);
-                        if (showToast && fromNet && (MainActivity.this.tab == 0 || MainActivity.this.tab == 4)) {
-                            try {
-                                Toast.makeText(MainActivity.this,
-                                        "EPG aus dem Netz geladen (" + applyFinal + " Sender)",
-                                        Toast.LENGTH_LONG).show();
-                            } catch (Throwable ignored) {
-                            }
-                        }
-                    }
-                });
-            }
-        } catch (Throwable th) {
-            try {
-                this.guide.loading = false;
-                // Fail soft: keep existing cache; only surface hard error when empty
-                if (this.guide.channelCount == 0 && this.guide.programmeCount == 0) {
-                    this.guide.error = th.getMessage();
-                } else {
-                    this.guide.error = th.getMessage();
-                }
-                EpgGuide epgGuide2 = this.guide;
-                Models.Catalog catalog2 = this.catalog;
-                final int apply2 = epgGuide2 == null ? 0 : epgGuide2.apply(catalog2 == null ? null : catalog2.live);
-                UI.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        MainActivity.this.lambda$loadVavooXmltv$117(apply2);
-                        if (showToast && (MainActivity.this.tab == 0 || MainActivity.this.tab == 4)) {
-                            try {
-                                Toast.makeText(MainActivity.this,
-                                        "EPG-Netzfehler: " + (th.getMessage() == null ? "unbekannt" : th.getMessage()),
-                                        Toast.LENGTH_LONG).show();
-                            } catch (Throwable ignored) {
-                            }
-                        }
-                    }
-                });
-            } catch (Throwable unused) {
-            }
-        } finally {
-            this.vavooEpgBusy = false;
-        }
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$loadVavooXmltv$117(int i) {
-        updateEpgStatus();
-        ChannelAdapter channelAdapter = this.adapter;
-        if (channelAdapter != null) {
-            channelAdapter.notifyEpg();
-        }
-        try {
+    private final Runnable epgTick = new Runnable() {
+        @Override public void run() {
+            if (isFinishing() || isDestroyed()) return;
+            if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
-        } catch (Throwable unused) {
+            ensureNetEpg(false);
+            UI.postDelayed(this, 60000L);
         }
-        if (this.tab == 0 || this.tab == 4) {
-            try {
-                if (this.adapter != null && i > 0) {
-                    loadVisibleEpg();
-                }
-            } catch (Throwable ignored) {
-            }
-        }
+    };
+
+    private void refreshXmltv(boolean force) {
+        if (force && inEpgUrl != null) prefs.setEpgUrl(text(inEpgUrl));
+        ensureNetEpg(force);
     }
 
-    /** Download/merge all Vavoo.EPG_URLS. forceNet skips local cache short-circuit. */
-    private void mergeVavooEpgFeeds(boolean forceNet) {
-        String[] urls = Vavoo.EPG_URLS;
-        for (int i = 0; i < urls.length; i++) {
-            try {
-                this.guide.loadUrlMerge(urls[i], vavooEpgCacheFor(urls[i], i), forceNet);
-            } catch (Throwable ignored) {
-            }
-        }
+    private void ensureNetEpg(boolean force) {
+        EpgRefresh.schedule(this);
+        boolean started = EpgRefresh.request(this, force, error -> {
+            if (isFinishing() || isDestroyed()) return;
+            updateEpgStatus();
+            if (adapter != null) adapter.notifyEpg();
+            loadVisibleEpg();
+            if (force) Toast.makeText(this, error == null ? "EPG aktualisiert" : error, Toast.LENGTH_LONG).show();
+        });
+        if (force && !started) Toast.makeText(this, "EPG-Aktualisierung läuft bereits", Toast.LENGTH_SHORT).show();
+        updateEpgStatus();
     }
 
-    private File vavooEpgCache() {
-        return new File(getCacheDir(), "streamy2-vavoo-epg.xml");
-    }
-
-    private File vavooEpgCacheFor(String url, int index) {
-        if (index <= 0) {
-            return vavooEpgCache();
-        }
-        String safe = "u" + index;
-        try {
-            if (url != null) {
-                int h = url.hashCode();
-                safe = "u" + Integer.toHexString(h);
-            }
-        } catch (Throwable unused) {
-        }
-        return new File(getCacheDir(), "streamy2-vavoo-epg-" + safe + ".xml");
-    }
+    private void ensureVavooEpg(boolean force) { ensureNetEpg(force); }
+    private void ensureLiveEpg(boolean force) { ensureNetEpg(force); }
 
     private void updateEpgStatus() {
         String str;

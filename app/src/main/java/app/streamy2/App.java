@@ -72,7 +72,7 @@ public class App extends Application {
             CookieHandler.setDefault(cookieManager);
         } catch (Throwable unused) {
         }
-        Vavoo.trustSsl();
+        EpgRefresh.schedule(this);
         try {
             LocalHls.start();
         } catch (Throwable ignored) {
