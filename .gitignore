@@ -8,3 +8,11 @@ local.properties
 captures/
 releases/*.apk
 app/build/
+
+# Signing material must never be committed
+keystore/
+*.keystore
+*.jks
+*.p12
+*.lineage
+signing.properties

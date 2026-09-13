@@ -533,7 +533,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     private String epgLine(Models.Channel channel) {
-        if (channel.epg == null || channel.epg.title == null || channel.epg.title.isEmpty()) {
+        if (!EpgTime.isCurrent(channel.epg, System.currentTimeMillis())) {
             // Prefer a quiet placeholder over a silent blank on Vavoo/Live while EPG catches up
             if (!channel.header && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
                 return "EPG…";

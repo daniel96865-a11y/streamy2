@@ -26,10 +26,6 @@ public final class Updates {
         public String changelog = "";
     }
 
-    private static boolean looksLikeHtml(HttpURLConnection httpURLConnection) {
-        return false;
-    }
-
     public static Info fetch() {
         Info info = null;
         for (String str : FEEDS) {
@@ -44,94 +40,52 @@ public final class Updates {
         return info;
     }
 
-    public static void download(String str, File file) throws Exception {
-        LinkedHashSet linkedHashSet = new LinkedHashSet();
-        if (str != null && !str.isEmpty()) {
-            linkedHashSet.add(str);
-        }
-        Iterator it = linkedHashSet.iterator();
-        Exception e = null;
-        while (it.hasNext()) {
-            try {
-                downloadOne((String) it.next(), file);
-                return;
-            } catch (Exception e2) {
-                e = e2;
-                String extractApk = extractApk(e.getMessage());
-                if (extractApk != null) {
-                    if (linkedHashSet.add(extractApk)) {
-                        try {
-                            downloadOne(extractApk, file);
-                            return;
-                        } catch (Exception e3) {
-                            e = e3;
-                        }
-                    } else {
-                        continue;
-                    }
-                }
-            }
-        }
-        if (e == null) {
-            throw new Exception("Download fehlgeschlagen");
-        }
+    public static void download(String url, File file) throws Exception {
+        if (url == null || url.isEmpty()) throw new Exception("Keine Download-Adresse");
+        downloadOne(url, file, 0);
     }
 
-    private static void downloadOne(String str, File file) throws Exception {
-        HttpURLConnection open = open(str);
-        int responseCode = open.getResponseCode();
-        String lowerCase = open.getContentType() == null ? "" : open.getContentType().toLowerCase();
-        if (responseCode >= 400) {
-            open.disconnect();
-            throw new Exception("HTTP " + responseCode);
-        }
-        if (lowerCase.contains("text/html") || (lowerCase.contains("text/plain") && looksLikeHtml(open))) {
-            String readLimited = readLimited(open, 120000);
-            open.disconnect();
-            String extractTmpfiles = extractTmpfiles(readLimited);
-            if (extractTmpfiles != null) {
-                downloadOne(extractTmpfiles, file);
-                return;
+    private static void downloadOne(String url, File file, int hops) throws Exception {
+        if (hops > 3) throw new Exception("Zu viele Download-Weiterleitungen");
+        HttpURLConnection connection = open(url);
+        File part = new File(file.getPath() + ".part");
+        String linkedApk = null;
+        try {
+            int code = connection.getResponseCode();
+            if (code >= 400) throw new Exception("HTTP " + code);
+            String type = connection.getContentType();
+            if (type != null && (type.contains("text/") || type.contains("json"))) {
+                String body = readLimited(connection, 120000);
+                linkedApk = extractTmpfiles(body);
+                if (linkedApk == null) linkedApk = extractApk(body);
+                if (linkedApk == null || linkedApk.equals(url)) throw new Exception("Keine APK im Download");
+            } else {
+                long total = 0;
+                long expected = connection.getContentLengthLong();
+                long deadline = android.os.SystemClock.elapsedRealtime() + 300000;
+                try (InputStream in = connection.getInputStream(); FileOutputStream out = new FileOutputStream(part)) {
+                    byte[] buffer = new byte[16384];
+                    int count;
+                    while ((count = in.read(buffer)) != -1) {
+                        total += count;
+                        if (total > 300L * 1024 * 1024 || Thread.currentThread().isInterrupted()
+                                || android.os.SystemClock.elapsedRealtime() > deadline) throw new Exception("Download-Limit erreicht");
+                        out.write(buffer, 0, count);
+                    }
+                }
+                if (expected >= 0 && expected != total) throw new Exception("Download unvollständig");
+                try (java.util.zip.ZipFile apk = new java.util.zip.ZipFile(part)) {
+                    if (apk.getEntry("AndroidManifest.xml") == null || apk.getEntry("classes.dex") == null)
+                        throw new Exception("Keine gültige APK");
+                }
+                // Keep any previous APK until the new download has been validated.
+                if (!part.renameTo(file)) throw new Exception("APK konnte nicht gespeichert werden");
             }
-            throw new Exception("keine APK (HTML) " + str);
+        } finally {
+            connection.disconnect();
+            if (part.exists()) part.delete();
         }
-        InputStream inputStream = open.getInputStream();
-        File file2 = new File(file.getParentFile(), file.getName() + ".part");
-        FileOutputStream fileOutputStream = new FileOutputStream(file2);
-        byte[] bArr = new byte[16384];
-        long j = 0;
-        while (true) {
-            int read = inputStream.read(bArr);
-            if (read < 0) {
-                break;
-            }
-            fileOutputStream.write(bArr, 0, read);
-            j += read;
-        }
-        fileOutputStream.flush();
-        fileOutputStream.close();
-        inputStream.close();
-        open.disconnect();
-        if (j < 1000000) {
-            file2.delete();
-            throw new Exception("Datei zu klein");
-        }
-        RandomAccessFile randomAccessFile = new RandomAccessFile(file2, "r");
-        byte[] bArr2 = new byte[2];
-        randomAccessFile.readFully(bArr2);
-        randomAccessFile.close();
-        if (bArr2[0] != 80 || bArr2[1] != 75) {
-            file2.delete();
-            throw new Exception("keine APK");
-        }
-        if (file.exists()) {
-            file.delete();
-        }
-        if (file2.renameTo(file)) {
-            return;
-        }
-        Files.copy(file2.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        file2.delete();
+        if (linkedApk != null) downloadOne(linkedApk, file, hops + 1);
     }
 
     public static String directApk(String str) {
@@ -194,7 +148,7 @@ public final class Updates {
         while (i < 8) {
             HttpURLConnection httpURLConnection = (HttpURLConnection) url.openConnection();
             httpURLConnection.setConnectTimeout(10000);
-            httpURLConnection.setReadTimeout(180000);
+            httpURLConnection.setReadTimeout(25000);
             httpURLConnection.setInstanceFollowRedirects(false);
             httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2");
             httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "*/*");
