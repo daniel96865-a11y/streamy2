@@ -513,15 +513,21 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         if (epg == null || epg.start <= 0 || epg.end <= epg.start) {
             return -1;
         }
+        long now = System.currentTimeMillis();
+        // Future / past: hide (avoids empty track looking "full" and any underflow clamp)
+        if (now < epg.start || now >= epg.end) {
+            return -1;
+        }
         long duration = epg.end - epg.start;
-        long elapsed = System.currentTimeMillis() - epg.start;
-        if (elapsed <= 0) {
+        long elapsed = now - epg.start;
+        int pct = (int) ((elapsed * 1000L) / duration);
+        if (pct < 0) {
             return 0;
         }
-        if (elapsed >= duration) {
+        if (pct > 1000) {
             return 1000;
         }
-        return (int) ((elapsed * 1000L) / duration);
+        return pct;
     }
 
     private String epgLine(Models.Channel channel) {

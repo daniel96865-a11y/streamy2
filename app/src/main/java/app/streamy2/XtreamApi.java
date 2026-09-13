@@ -565,48 +565,49 @@ public class XtreamApi {
     }
 
     private Models.Epg parseEpgList(JSONArray jSONArray) {
-        JSONObject jSONObject;
         if (jSONArray != null && jSONArray.length() != 0) {
-            long currentTimeMillis = System.currentTimeMillis();
-            JSONObject jSONObject2 = null;
-            int i = 0;
-            while (true) {
-                if (i >= jSONArray.length()) {
-                    jSONObject = null;
-                    break;
+            long now = System.currentTimeMillis();
+            JSONObject airing = null;
+            JSONObject upcoming = null;
+            long upcomingStart = Long.MAX_VALUE;
+            for (int i = 0; i < jSONArray.length(); i++) {
+                JSONObject obj = jSONArray.optJSONObject(i);
+                if (obj == null) {
+                    continue;
                 }
-                jSONObject = jSONArray.optJSONObject(i);
-                if (jSONObject != null) {
-                    long ts = ts(jSONObject, "stop_timestamp");
-                    if (ts == 0) {
-                        ts = parseDate(jSONObject.optString("end", jSONObject.optString("stop", "")));
-                    }
-                    if (jSONObject2 == null && (ts == 0 || ts > currentTimeMillis)) {
-                        jSONObject2 = jSONObject;
-                    } else if (jSONObject2 != null) {
-                        break;
+                long start = ts(obj, "start_timestamp");
+                if (start == 0) {
+                    start = parseDate(obj.optString("start", ""));
+                }
+                long stop = ts(obj, "stop_timestamp");
+                if (stop == 0) {
+                    stop = parseDate(obj.optString("end", obj.optString("stop", "")));
+                }
+                if (start > 0 && stop > start) {
+                    if (start <= now && stop > now) {
+                        airing = obj;
+                    } else if (start > now && start < upcomingStart) {
+                        upcoming = obj;
+                        upcomingStart = start;
                     }
                 }
-                i++;
             }
-            if (jSONObject2 == null) {
-                jSONObject2 = jSONArray.optJSONObject(0);
-            }
-            if (jSONObject2 == null) {
+            // Strict: never promote a future (or first) listing to "Jetzt"
+            if (airing == null) {
                 return null;
             }
             Models.Epg epg = new Models.Epg();
-            epg.title = decodeMaybe(jSONObject2.optString("title", jSONObject2.optString("name", "")));
-            epg.start = ts(jSONObject2, "start_timestamp");
+            epg.title = decodeMaybe(airing.optString("title", airing.optString("name", "")));
+            epg.start = ts(airing, "start_timestamp");
             if (epg.start == 0) {
-                epg.start = parseDate(jSONObject2.optString("start", ""));
+                epg.start = parseDate(airing.optString("start", ""));
             }
-            epg.end = ts(jSONObject2, "stop_timestamp");
+            epg.end = ts(airing, "stop_timestamp");
             if (epg.end == 0) {
-                epg.end = parseDate(jSONObject2.optString("end", jSONObject2.optString("stop", "")));
+                epg.end = parseDate(airing.optString("end", airing.optString("stop", "")));
             }
-            if (jSONObject != null) {
-                epg.nextTitle = decodeMaybe(jSONObject.optString("title", ""));
+            if (upcoming != null) {
+                epg.nextTitle = decodeMaybe(upcoming.optString("title", ""));
             }
             if (epg.title != null && !epg.title.isEmpty()) {
                 return epg;
