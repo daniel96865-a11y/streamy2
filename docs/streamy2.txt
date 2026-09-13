@@ -1,5 +1,5 @@
-versionCode 147
-versionName 3.27
+versionCode 148
+versionName 3.28
 title Streamy 2 Update
-message EPG-Jetzt/Fortschritt: nur laufende Sendung (keine Zukunft), VIP-Namen, Berlin-TZ
+message Fire-TV-Hang: EPG-Balken ohne ProgressBar, nur sichtbare Zeilen updaten
 url https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk

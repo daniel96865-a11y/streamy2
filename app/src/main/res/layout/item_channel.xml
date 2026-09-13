@@ -65,19 +65,14 @@
             android:layout_marginTop="2dp"
             android:maxLines="2"
             android:singleLine="false"/>
-        <ProgressBar
+        <app.streamy2.EpgBar
             android:id="@+id/epgProgress"
-            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="3dp"
             android:layout_marginTop="4dp"
-            android:max="1000"
-            android:progress="0"
-            android:visibility="gone"
             android:focusable="false"
             android:clickable="false"
-            android:importantForAccessibility="no"
-            android:progressDrawable="@drawable/bg_epg_progress"/>
+            android:importantForAccessibility="no"/>
         <TextView
             android:textSize="12sp"
             android:textColor="@color/muted"

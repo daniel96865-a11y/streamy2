@@ -36,6 +36,8 @@ final class MegaKino {
     static final List<Models.Media> serials;
     private static long tokenAt;
     private static String[] BASES = {"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
+    private static final Object HOST = new Object();
+    private static List<Models.Media> groupedSerials;
     private static final Pattern IFRAME = Pattern.compile("<iframe[^>]+(?:data-src|src)=\"([^\"]+)\"", 2);
     private static final Pattern OPTION = Pattern.compile("<option[^>]+value=\"([^\"]+)\"[^>]*>([^<]*)", 2);
     private static final Pattern SELECT_ID = Pattern.compile("<select[^>]*id=\"([^\"]+)\"[^>]*>([\\s\\S]*?)</select>", 2);
@@ -107,11 +109,14 @@ final class MegaKino {
         }
     }
 
-    static synchronized String base() {
-        synchronized (MegaKino.class) {
-            String str = base;
-            if (str != null) {
-                return str;
+    static String base() {
+        String cached = base;
+        if (cached != null) {
+            return cached;
+        }
+        synchronized (HOST) {
+            if (base != null) {
+                return base;
             }
             try { refreshHosts(); } catch (Throwable ignored) {}
             String[] strArr = BASES;
@@ -206,6 +211,7 @@ final class MegaKino {
                 List<Models.Media> list2 = serials;
                 list2.clear();
                 list2.addAll(parseList2);
+                groupedSerials = null;
                 loaded = true;
                 if (list.isEmpty() && list2.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
@@ -215,6 +221,7 @@ final class MegaKino {
                     lastError = "";
                 }
             }
+            serialsGrouped();
         } catch (Throwable th) {
             lastError = "Megakino-Laden fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
@@ -223,12 +230,23 @@ final class MegaKino {
     }
 
     static List<Models.Media> all() {
-        ArrayList arrayList = new ArrayList();
+        ArrayList<Models.Media> arrayList = new ArrayList<>();
+        List<Models.Media> grouped;
         synchronized (MegaKino.class) {
             arrayList.addAll(films);
+            grouped = groupedSerials;
         }
-        arrayList.addAll(serialsGrouped());
+        if (grouped == null) {
+            grouped = serialsGrouped();
+        }
+        arrayList.addAll(grouped);
         return arrayList;
+    }
+
+    static boolean isCatalogEmpty() {
+        synchronized (MegaKino.class) {
+            return films.isEmpty() && serials.isEmpty();
+        }
     }
 
     static List<Models.Media> search(String str) {
@@ -584,23 +602,28 @@ final class MegaKino {
 
     /** One card per series (latest season), A–Z — seasons remain in {@link #serials} for the picker. */
     static List<Models.Media> serialsGrouped() {
-        LinkedHashMap<String, ArrayList<Models.Media>> groups = new LinkedHashMap<>();
+        List<Models.Media> snap;
         synchronized (MegaKino.class) {
-            for (Models.Media media2 : serials) {
-                if (media2 == null || media2.name == null) {
-                    continue;
-                }
-                String key = showKey(media2.name);
-                if (key.isEmpty()) {
-                    key = media2.name.toLowerCase(Locale.GERMAN);
-                }
-                ArrayList<Models.Media> g = groups.get(key);
-                if (g == null) {
-                    g = new ArrayList<>();
-                    groups.put(key, g);
-                }
-                g.add(media2);
+            if (groupedSerials != null) {
+                return groupedSerials;
             }
+            snap = new ArrayList<>(serials);
+        }
+        LinkedHashMap<String, ArrayList<Models.Media>> groups = new LinkedHashMap<>();
+        for (Models.Media media2 : snap) {
+            if (media2 == null || media2.name == null) {
+                continue;
+            }
+            String key = showKey(media2.name);
+            if (key.isEmpty()) {
+                key = media2.name.toLowerCase(Locale.GERMAN);
+            }
+            ArrayList<Models.Media> g = groups.get(key);
+            if (g == null) {
+                g = new ArrayList<>();
+                groups.put(key, g);
+            }
+            g.add(media2);
         }
         ArrayList<String> keys = new ArrayList<>(groups.keySet());
         final java.text.Collator collator = java.text.Collator.getInstance(Locale.GERMAN);
@@ -628,7 +651,12 @@ final class MegaKino {
             }
             out.add(card);
         }
-        return out;
+        synchronized (MegaKino.class) {
+            if (groupedSerials == null) {
+                groupedSerials = out;
+            }
+            return groupedSerials;
+        }
     }
 
     private static Models.Media copyCard(Models.Media src) {
