@@ -40,3 +40,22 @@ Die sichere Signaturrotation ist für Android 9+ vorbereitet. Android 7/8 benöt
 den neuen Schlüssel eine Neuinstallation nach Sicherung der Playlist-Zugangsdaten.
 Ein bereits öffentlich gewordener Schlüssel lässt sich nicht rückwirkend widerrufen.
 Details und Build-Befehle: [SIGNING.md](SIGNING.md).
+
+## Installationsfehler des ersten 3.29-Kandidaten
+
+Der erste Gerätetest meldete eine abgelehnte Installation. Die nachfolgende
+Offline-Prüfung reproduzierte einen konkreten Update-Blocker:
+`INSTALL_FAILED_DUPLICATE_PERMISSION` für die erneut deklarierte interne
+AndroidX-Receiver-Berechtigung. Die eingeschränkte Signatur-Lineage erlaubt
+Datenübernahme, entzieht dem alten Schlüssel aber bewusst Berechtigungszugriff.
+Android prüft diese Freigabe auch beim Aktualisieren derselben App.
+
+Die Berechtigung wird nun im Manifest und in AndroidX ContextCompat gemeinsam
+umbenannt. Die Signaturprüfung der Receiver bleibt erhalten, ebenso die restriktive
+Lineage und der neue private Schlüssel. Zwei zusätzliche Tests prüfen die
+Receiver-Registrierung mit der neuen Berechtigung und die Ablehnung ohne Berechtigung
+auf Android 9. Der Signiervorgang prüft jetzt zusätzlich die wirklichen APKs auf
+Versions-, Signatur- und Berechtigungs-Kompatibilität.
+
+Der bereits hochgeladene erste APK-Kandidat muss nach erneutem Gerätetest durch die
+korrigierte APK ersetzt werden. Die öffentliche Update-Info bleibt bis dahin auf 3.28.
