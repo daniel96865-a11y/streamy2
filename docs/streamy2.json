@@ -1,7 +1,7 @@
 {
-  "versionCode": 145,
-  "versionName": "3.25",
+  "versionCode": 146,
+  "versionName": "3.26",
   "title": "Streamy 2 Update",
-  "changelog": "Version 3.25: Megakino-Folgen ohne doppelte Beschriftung (Folge 1 statt Folge 1 · Episode 1), Serientitel ohne Staffel-Suffix.",
+  "changelog": "Version 3.26: Dünner EPG-Fortschrittsbalken unter Live-TV/Vavoo-Senderzeilen (Anteil der laufenden Sendung).",
   "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
 }
