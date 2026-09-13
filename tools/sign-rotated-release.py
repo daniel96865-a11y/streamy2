@@ -10,7 +10,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('apk', type=Path)
 parser.add_argument('output', type=Path)
 args = parser.parse_args()
-required = ['ANDROID_BUILD_TOOLS', 'STREAMY_KEYSTORE', 'STREAMY_STORE_PASSWORD', 'STREAMY_KEY_PASSWORD', 'STREAMY_LINEAGE']
+required = ['ANDROID_BUILD_TOOLS', 'STREAMY_KEYSTORE', 'STREAMY_STORE_PASSWORD', 'STREAMY_KEY_PASSWORD', 'STREAMY_LINEAGE', 'STREAMY_PREVIOUS_APK']
 missing = [key for key in required if not os.environ.get(key)]
 if missing:
     parser.error('Missing environment variables: ' + ', '.join(missing))
@@ -29,3 +29,7 @@ subprocess.run([
     '--out', str(args.output), str(args.apk)
 ], check=True)
 subprocess.run([str(tools / 'apksigner'), 'verify', '--verbose', '--print-certs', str(args.output)], check=True)
+java = str(Path(os.environ['JAVA_HOME']) / 'bin/java') if os.environ.get('JAVA_HOME') else 'java'
+subprocess.run([java, '-cp', str(tools / 'lib/apksigner.jar'),
+                str(Path(__file__).with_name('VerifyUpgrade.java')),
+                os.environ['STREAMY_PREVIOUS_APK'], str(args.output), str(tools / 'aapt')], check=True)

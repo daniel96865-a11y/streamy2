@@ -37,6 +37,7 @@ Die folgenden Umgebungsvariablen privat setzen:
 - `STREAMY_KEYSTORE`: absoluter Pfad des neuen Keystores.
 - `STREAMY_STORE_PASSWORD`, `STREAMY_KEY_PASSWORD`: dessen Passwörter.
 - `STREAMY_LINEAGE`: absoluter Pfad der vorbereiteten Lineage.
+- `STREAMY_PREVIOUS_APK`: tatsächlich veröffentlichte vorherige APK für die Upgrade-Prüfung.
 - `STREAMY_KEY_ALIAS`: optional, Standard `streamy`.
 
 ```sh
@@ -47,6 +48,9 @@ python3 tools/sign-rotated-release.py \
 
 Das Skript prüft die Mindestversion der APK, signiert ausschließlich mit dem neuen
 Schlüssel und dem Android-v3-Signaturverfahren und prüft anschließend die Signatur.
+Zusätzlich vergleicht es Paketname, Versionscode, Signatur-Abstammung und die
+Berechtigungsnamen mit der vorherigen APK. Der alte Schlüssel behält ausschließlich
+die für die Datenübernahme nötige Freigabe.
 Es lädt keine Datei hoch und veröffentlicht kein Release. Vor einer Veröffentlichung
 muss ein Upgrade von der tatsächlich veröffentlichten 3.28 auf einem Gerät getestet
 werden; die Prüfung mit `apksigner` ersetzt diesen Gerätetest nicht.
@@ -61,3 +65,24 @@ Eine mit dem alten Schlüssel signierte Kompatibilitäts-APK würde das Sicherhe
 auf diesen Geräten bestehen lassen und wird deshalb nicht automatisch erzeugt.
 
 Android-Dokumentation: https://developer.android.com/tools/apksigner
+
+## Installationskorrektur nach dem ersten 3.29-Test
+
+Der erste, noch nicht veröffentlichte 3.29-Kandidat wurde auf dem Handy abgelehnt.
+Ein nachgewiesener Fehler war die erneut deklarierte AndroidX-Berechtigung
+`app.streamy2.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`: Android verlangt auch beim
+Update derselben App die PERMISSION-Freigabe des alten Schlüssels, wenn sie denselben
+Berechtigungsnamen wieder verwendet. Diese Freigabe wurde bewusst widerrufen.
+
+Die Berechtigung erhält deshalb den Suffix `_2026`. Ein eng begrenzter ASM-Schritt
+passt den dazugehörigen Namen in AndroidX ContextCompat an, damit die bestehende
+Signaturprüfung für dynamische Receiver auch auf Android 9–12 weiter funktioniert.
+Die Prüfung selbst wird nicht entfernt. Ändert AndroidX die erwartete Konstante,
+bricht der Build ab. Der neue private Schlüssel und die restriktive Lineage bleiben
+unverändert; Datenübernahme erfordert keine Deinstallation.
+
+`tools/VerifyUpgrade.java` erkennt den Fehler anhand der tatsächlichen signierten
+APKs und Manifest-Dateien und ist Teil des Signierskripts. Ein erfolgreicher
+Offline-Vergleich ersetzt weiterhin keinen Installationstest auf dem Gerät.
+
+Androids Prüfung: https://github.com/aosp-mirror/platform_frameworks_base/blob/main/services/core/java/com/android/server/pm/InstallPackageHelper.java
