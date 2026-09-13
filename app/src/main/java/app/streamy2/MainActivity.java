@@ -3491,16 +3491,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void loadKino() {
-        if ((!MegaKino.loaded || MegaKino.all().isEmpty()) && !MegaKino.loading) {
+        if (MegaKino.loading) {
+            return;
+        }
+        if (MegaKino.loaded && !MegaKino.isCatalogEmpty()) {
+            return;
+        }
+        if (this.empty != null) {
             this.empty.setText("Megakino wird geladen…");
             this.empty.setVisibility(0);
-            IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda59
-                @Override // java.lang.Runnable
-                public final void run() {
-                    MainActivity.this.lambda$loadKino$96();
-                }
-            });
         }
+        IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda59
+            @Override // java.lang.Runnable
+            public final void run() {
+                MainActivity.this.lambda$loadKino$96();
+            }
+        });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3521,7 +3527,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$loadKino$95() {
         if (this.tab == 5) {
             renderList();
-            if (MegaKino.all().isEmpty()) {
+            if (MegaKino.isCatalogEmpty()) {
                 String err = MegaKino.lastError != null && !MegaKino.lastError.isEmpty()
                         ? MegaKino.lastError
                         : "Megakino-Katalog leer. Später erneut versuchen.";

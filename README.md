@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.27** (versionCode **147**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.28** (versionCode **148**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,14 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.28 notes
+
+Fire-TV-Hang nach 3.26/3.27: der EPG-Fortschrittsbalken nutzt kein Android-`ProgressBar` mehr (animierter Refresh + Clip-Drawable hat die UI auf dem Stick eingefroren). Stattdessen eine leichte Zeichen-View; EPG-Updates nur für sichtbare Zeilen. Megakino hält beim Host-Lookup nicht mehr den UI-Lock.
+
+## 3.27 notes
+
+EPG „Jetzt“ nur für wirklich laufende Sendung (`start ≤ jetzt < ende`); Fortschrittsbalken nur im Slot. Bare XMLTV-Zeiten als Europe/Berlin; VIP-Playlist-Prefix wird beim Namensmatch entfernt.
 
 ## 3.26 notes
 
