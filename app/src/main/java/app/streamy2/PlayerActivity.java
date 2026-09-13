@@ -101,6 +101,12 @@ public class PlayerActivity extends AppCompatActivity {
     private View topBar;
     private boolean useVlc;
     private boolean userPaused;
+    private boolean foreground;
+    private boolean resumePlayback;
+    private boolean restartOnResume;
+    private long playbackGeneration;
+    private long nextEpgSync;
+    private boolean vlcStarting;
     private String vavooHot;
     private String vavooKeep;
     private boolean vavooTriedVlc;
@@ -135,7 +141,9 @@ public class PlayerActivity extends AppCompatActivity {
     private final Runnable watchdog = new Runnable() { // from class: app.streamy2.PlayerActivity.5
         @Override // java.lang.Runnable
         public void run() {
-            if (PlayerActivity.this.useVlc) {
+            if (!PlayerActivity.this.foreground || PlayerActivity.this.userPaused) {
+                PlayerActivity.this.freezeTicks = 0;
+            } else if (PlayerActivity.this.useVlc) {
                 if (PlayerActivity.this.vlc == null || !PlayerActivity.this.vlc.isPlaying()) {
                     PlayerActivity.this.freezeTicks++;
                 } else {
@@ -155,7 +163,7 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
                 }
-                if (PlayerActivity.this.freezeTicks == 8) {
+                if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.liveMode && !PlayerActivity.this.catchup) {
                     try {
                         PlayerActivity.this.player.seekToDefaultPosition();
                     } catch (Throwable unused) {
@@ -193,7 +201,7 @@ public class PlayerActivity extends AppCompatActivity {
         intent.putExtra("live", z);
         boolean vavoo = (str4 != null && str4.toLowerCase(Locale.US).contains("vavoo"))
                 || Vavoo.isPlayUrl(str) || Vavoo.isPlayUrl(str2) || Vavoo.isCdn(str) || Vavoo.isCdn(str2);
-        if (!vavoo) {
+        if (!vavoo && z) {
             Models.Channel playing = App.playing;
             if (playing != null && playing.vavooUrl != null && !playing.vavooUrl.isEmpty()) {
                 vavoo = true;
@@ -283,7 +291,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
         String stringExtra3 = getIntent().getStringExtra("title");
         String stringExtra4 = getIntent().getStringExtra("sub");
-        this.channel = App.playing;
+        this.channel = this.liveMode ? App.playing : null;
         this.playerTitle = (TextView) findViewById(R.id.playerTitle);
         this.playerSub = (TextView) findViewById(R.id.playerSub);
         this.errorView = (TextView) findViewById(R.id.playerError);
@@ -686,7 +694,7 @@ public class PlayerActivity extends AppCompatActivity {
         @Override // androidx.media3.common.Player.Listener
         public void onIsPlayingChanged(boolean z) {
             PlayerActivity.this.updatePlayIcon();
-            if (!z || PlayerActivity.this.player == null) {
+            if (!z || !foreground || useVlc || userPaused || PlayerActivity.this.player == null) {
                 return;
             }
             PlayerActivity.this.player.setVolume(1.0f);
@@ -696,14 +704,16 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override // androidx.media3.common.Player.Listener
         public void onPlaybackStateChanged(int i) {
+            if (!foreground || useVlc || userPaused) return;
             if (i == 3) {
                 PlayerActivity.this.freezeTicks = 0;
             }
             if (i == 4 && PlayerActivity.this.liveMode && !PlayerActivity.this.userPaused) {
+                final long request = playbackGeneration;
                 PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda1
                     @Override // java.lang.Runnable
                     public final void run() {
-                        PlayerActivity.AnonymousClass3.this.lambda$onPlaybackStateChanged$0();
+                        if (acceptPlayback(request) && !userPaused && !useVlc) PlayerActivity.AnonymousClass3.this.lambda$onPlaybackStateChanged$0();
                     }
                 }, 400L);
             }
@@ -727,6 +737,8 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override // androidx.media3.common.Player.Listener
         public void onPlayerError(PlaybackException playbackException) {
+            if (!foreground || useVlc || userPaused) return;
+            final long request = playbackGeneration;
             String str;
             String str2;
             if (playbackException == null) {
@@ -755,7 +767,7 @@ public class PlayerActivity extends AppCompatActivity {
                 PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda0
                     @Override // java.lang.Runnable
                     public final void run() {
-                        PlayerActivity.AnonymousClass3.this.lambda$onPlayerError$1();
+                        if (acceptPlayback(request) && !userPaused && !useVlc) PlayerActivity.AnonymousClass3.this.lambda$onPlayerError$1();
                     }
                 }, 400L);
                 return;
@@ -947,6 +959,16 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         setIntent(intent);
+        this.userPaused = false;
+        this.nextEpgSync = 0;
+        hideVlc();
+        this.programmes.clear();
+        this.current = null;
+        this.vavooKeep = null;
+        this.vavooHot = null;
+        this.recoverTries = 0;
+        this.metaDurationMs = intent.getLongExtra("durationMs", 0L);
+        this.playerTitle.setText(Text.clean(intent.getStringExtra("title")));
         String stringExtra = intent.getStringExtra("url");
         String stringExtra2 = intent.getStringExtra("alt");
         this.liveMode = intent.getBooleanExtra("live", false);
@@ -955,7 +977,7 @@ public class PlayerActivity extends AppCompatActivity {
         this.useVlc = "vlc".equals(this.forceEngine);
         this.vlcSoft = false;
         this.freezeTicks = 0;
-        this.channel = App.playing;
+        this.channel = this.liveMode ? App.playing : null;
         ExoPlayer exoPlayer = this.player;
         if (exoPlayer != null) {
             exoPlayer.stop();
@@ -1324,41 +1346,19 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void togglePlay() {
-        boolean z = false;
-        if (this.useVlc) {
-            LiveEngine liveEngine = this.vlc;
-            if (liveEngine != null) {
-                liveEngine.toggle();
-            }
-            LiveEngine liveEngine2 = this.vlc;
-            if (liveEngine2 != null && liveEngine2.isPlaying()) {
-                z = true;
-            }
-            this.userPaused = !z;
-            updatePlayIcon();
-            setHud(true);
-            if (z) {
-                scheduleHide();
-                return;
-            }
-            return;
+        if (useVlc) {
+            if (vlc == null) return;
+            userPaused = !userPaused;
+            if (userPaused) vlc.pause(); else vlc.resume();
+        } else {
+            if (player == null) return;
+            userPaused = !userPaused;
+            player.setPlayWhenReady(!userPaused);
         }
-        ExoPlayer exoPlayer = this.player;
-        if (exoPlayer == null) {
-            return;
-        }
-        if (exoPlayer.isPlaying()) {
-            this.player.pause();
-            this.userPaused = true;
-            updatePlayIcon();
-            setHud(true);
-            return;
-        }
-        this.userPaused = false;
-        this.player.play();
+        freezeTicks = 0;
         updatePlayIcon();
         setHud(true);
-        scheduleHide();
+        if (!userPaused) scheduleHide();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1382,7 +1382,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (isFinishing() || (channel = this.channel) == null || this.epgNow == null) {
             return;
         }
-        if (channel.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+        if (EpgTime.isCurrent(channel.epg, System.currentTimeMillis())) {
             Models.Channel channel2 = this.channel;
             lambda$seedEpg$11(channel2, channel2.epg, null);
         }
@@ -1429,23 +1429,17 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
         }
-        if (list != null && !list.isEmpty()) {
+        if (list != null) {
             this.programmes.clear();
             this.programmes.addAll(list);
         }
-        if (this.programmes.isEmpty() && this.channel.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+        if (this.programmes.isEmpty() && EpgTime.isCurrent(this.channel.epg, System.currentTimeMillis())) {
             EpgGuide.Listing listing = new EpgGuide.Listing();
             listing.title = this.channel.epg.title;
             listing.start = this.channel.epg.start;
             listing.stop = this.channel.epg.end;
             this.programmes.add(listing);
-            if (this.channel.epg.nextTitle != null && !this.channel.epg.nextTitle.isEmpty() && this.channel.epg.end > 0) {
-                EpgGuide.Listing listing2 = new EpgGuide.Listing();
-                listing2.title = this.channel.epg.nextTitle;
-                listing2.start = this.channel.epg.end;
-                listing2.stop = this.channel.epg.end + 1800000;
-                this.programmes.add(listing2);
-            }
+
         }
         pickCurrent();
         RecyclerView recyclerView = this.epgList;
@@ -1497,7 +1491,9 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadProgrammes$15(final Models.Channel channel) {
-        final List<EpgGuide.Listing> programmes = App.api.programmes(channel);
+        XtreamApi source = App.api;
+        if (source == null) return;
+        final List<EpgGuide.Listing> programmes = source.programmes(channel);
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda13
             @Override // java.lang.Runnable
             public final void run() {
@@ -1508,7 +1504,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadProgrammes$14(List list, Models.Channel channel) {
-        if (isFinishing()) {
+        if (isFinishing() || isDestroyed() || this.channel != channel) {
             return;
         }
         if (list != null && !list.isEmpty() && App.guide != null) {
@@ -1518,44 +1514,18 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void pickCurrent() {
-        long currentTimeMillis = System.currentTimeMillis();
-        EpgGuide.Listing listing = null;
-        this.current = null;
-        Iterator<EpgGuide.Listing> it = this.programmes.iterator();
-        while (true) {
-            if (!it.hasNext()) {
-                break;
-            }
-            EpgGuide.Listing next = it.next();
-            if (next.start <= currentTimeMillis && next.stop > currentTimeMillis) {
-                this.current = next;
-            } else if (this.current != null && next.start >= this.current.stop) {
-                listing = next;
-                break;
-            }
-        }
+        this.current = EpgTime.current(this.programmes, System.currentTimeMillis());
+        if (this.channel == null) return;
         if (this.current == null) {
-            Iterator<EpgGuide.Listing> it2 = this.programmes.iterator();
-            while (true) {
-                if (!it2.hasNext()) {
-                    break;
-                }
-                EpgGuide.Listing next2 = it2.next();
-                if (next2.stop > currentTimeMillis) {
-                    this.current = next2;
-                    break;
-                }
-            }
-        }
-        if (this.current == null || this.channel == null) {
+            this.channel.epg = null;
             return;
         }
         Models.Epg epg = new Models.Epg();
         epg.title = this.current.title;
         epg.start = this.current.start;
         epg.end = this.current.stop;
-        if (listing != null) {
-            epg.nextTitle = listing.title;
+        for (EpgGuide.Listing item : this.programmes) {
+            if (item.start >= this.current.stop) { epg.nextTitle = item.title; break; }
         }
         this.channel.epg = epg;
     }
@@ -1566,23 +1536,19 @@ public class PlayerActivity extends AppCompatActivity {
         Models.Channel channel2;
         if (this.liveMode) {
             EpgGuide.Listing listing2 = this.current;
-            if (listing2 == null && (channel2 = this.channel) != null && channel2.epg != null && this.channel.epg.title != null && !this.channel.epg.title.isEmpty()) {
+            if (listing2 == null && (channel2 = this.channel) != null && EpgTime.isCurrent(channel2.epg, System.currentTimeMillis())) {
                 listing2 = new EpgGuide.Listing();
                 listing2.title = this.channel.epg.title;
                 listing2.start = this.channel.epg.start;
                 listing2.stop = this.channel.epg.end;
                 this.current = listing2;
             }
+            listing = null;
             if (listing2 != null) {
-                Iterator<EpgGuide.Listing> it = this.programmes.iterator();
-                while (it.hasNext()) {
-                    listing = it.next();
-                    if (listing.start >= listing2.stop) {
-                        break;
-                    }
+                for (EpgGuide.Listing candidate : this.programmes) {
+                    if (candidate.start >= listing2.stop) { listing = candidate; break; }
                 }
             }
-            listing = null;
             if (listing2 != null) {
                 TextView textView = this.epgNow;
                 if (textView != null) {
@@ -1637,6 +1603,15 @@ public class PlayerActivity extends AppCompatActivity {
         if (textView != null) {
             textView.setText(this.clockFmt.format(new Date()));
         }
+        if (liveMode && !catchup) {
+            EpgGuide.Listing airing = EpgTime.current(programmes, System.currentTimeMillis());
+            if (airing != current) { pickCurrent(); bindEpg(); }
+            if (foreground && System.currentTimeMillis() >= nextEpgSync) {
+                nextEpgSync = System.currentTimeMillis() + 60000L;
+                EpgRefresh.request(this, false, error -> { if (foreground) seedEpg(); });
+                seedEpg();
+            }
+        }
         if (this.seeking || this.epgSeek == null) {
             return;
         }
@@ -1646,6 +1621,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
         EpgGuide.Listing listing = this.current;
         if (listing == null) {
+            this.epgSeek.setProgress(0);
             return;
         }
         long j = listing.start;
@@ -1917,6 +1893,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void buildQueue(String str, String str2) {
+        invalidatePlayback();
         this.queue.clear();
         addUrl(str);
         addUrl(str2);
@@ -2010,6 +1987,10 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     public void playCurrent() {
+        if (isFinishing() || isDestroyed() || !foreground) {
+            restartOnResume = true;
+            return;
+        }
         int i = this.index;
         if (i < 0 || i >= this.queue.size() || this.player == null) {
             TextView textView2 = this.errorView;
@@ -2041,17 +2022,18 @@ public class PlayerActivity extends AppCompatActivity {
                 }
                 this.vavooKeep = str;
                 final String resolveUrl = str;
+                final long request = playbackGeneration;
                 final Runnable runnable = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda20
                     @Override // java.lang.Runnable
                     public final void run() {
-                        PlayerActivity.this.lambda$playCurrent$17();
+                        if (request == playbackGeneration) PlayerActivity.this.lambda$playCurrent$17();
                     }
                 };
                 UI.postDelayed(runnable, 10000);
                 IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
                     @Override // java.lang.Runnable
                     public final void run() {
-                        PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable);
+                        PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable, request);
                     }
                 });
                 return;
@@ -2136,7 +2118,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$playCurrent$19(String str, final Runnable runnable) {
+    public /* synthetic */ void lambda$playCurrent$19(String str, final Runnable runnable, final long request) {
         String resolved = null;
         try {
             resolved = Vavoo.resolve(str);
@@ -2147,7 +2129,7 @@ public class PlayerActivity extends AppCompatActivity {
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda25
             @Override // java.lang.Runnable
             public final void run() {
-                PlayerActivity.this.lambda$playCurrent$18(runnable, str2);
+                if (acceptPlayback(request)) PlayerActivity.this.lambda$playCurrent$18(runnable, str2);
             }
         });
     }
@@ -2231,30 +2213,8 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private boolean isVavooPlayback() {
-        try {
-            if (getIntent() != null && getIntent().getBooleanExtra("vavoo", false)) {
-                return true;
-            }
-        } catch (Throwable unused) {
-        }
-        Models.Channel channel = App.playing;
-        if (channel != null && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
-            return true;
-        }
-        String sub = null;
-        try {
-            sub = getIntent() != null ? getIntent().getStringExtra("sub") : null;
-        } catch (Throwable unused2) {
-        }
-        if (sub != null && sub.toLowerCase(Locale.US).contains("vavoo")) {
-            return true;
-        }
-        String url = null;
-        try {
-            url = getIntent() != null ? getIntent().getStringExtra("url") : null;
-        } catch (Throwable unused3) {
-        }
-        return Vavoo.isPlayUrl(url) || Vavoo.isCdn(url);
+        if (liveMode && channel != null) return channel.vavooUrl != null && !channel.vavooUrl.isEmpty();
+        return getIntent() != null && getIntent().getBooleanExtra("vavoo", false);
     }
 
     /** Source-specific player pref: Vavoo / Live TV / other (VOD). */
@@ -2341,6 +2301,7 @@ public class PlayerActivity extends AppCompatActivity {
 
 
     private void bindVlcPlaybackListener(LiveEngine liveEngine) {
+        final long request = playbackGeneration;
         this.vlcHudArmed = false;
         if (!(liveEngine instanceof VlcEngine)) {
             return;
@@ -2349,7 +2310,7 @@ public class PlayerActivity extends AppCompatActivity {
             @Override public void onPlaying() {
                 PlayerActivity.UI.post(new Runnable() {
                     @Override public void run() {
-                        if (!PlayerActivity.this.isFinishing()) {
+                        if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
                             PlayerActivity.this.onVlcPlaying();
                         }
                     }
@@ -2358,7 +2319,7 @@ public class PlayerActivity extends AppCompatActivity {
             @Override public void onPaused() {
                 PlayerActivity.UI.post(new Runnable() {
                     @Override public void run() {
-                        if (!PlayerActivity.this.isFinishing()) {
+                        if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
                             PlayerActivity.this.updatePlayIcon();
                         }
                     }
@@ -2367,7 +2328,7 @@ public class PlayerActivity extends AppCompatActivity {
             @Override public void onError() {
                 PlayerActivity.UI.post(new Runnable() {
                     @Override public void run() {
-                        if (!PlayerActivity.this.isFinishing() && PlayerActivity.this.useVlc) {
+                        if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
                             PlayerActivity.this.tryExoAfterVlc();
                         }
                     }
@@ -2378,6 +2339,8 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void playWithVlc(final String str) {
         this.useVlc = true;
+        if (vlcStarting) return;
+        final long request = playbackGeneration;
         try {
             ExoPlayer exoPlayer = this.player;
             if (exoPlayer != null) {
@@ -2418,10 +2381,11 @@ public class PlayerActivity extends AppCompatActivity {
                 textView2.setVisibility(0);
                 this.errorView.setText("VLC startet…");
             }
+            vlcStarting = true;
             IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda18
                 @Override // java.lang.Runnable
                 public final void run() {
-                    PlayerActivity.this.lambda$playWithVlc$21(str);
+                    PlayerActivity.this.lambda$playWithVlc$21(str, request);
                 }
             });
         } catch (Throwable unused) {
@@ -2436,7 +2400,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$playWithVlc$21(final String str) {
+    public /* synthetic */ void lambda$playWithVlc$21(final String str, final long request) {
         LiveEngine engine = null;
         try {
             engine = VlcFactory.create(this, this.vlcHost);
@@ -2457,6 +2421,11 @@ public class PlayerActivity extends AppCompatActivity {
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda19
             @Override // java.lang.Runnable
             public final void run() {
+                if (!acceptPlayback(request) || !useVlc) {
+                    if (liveEngine != null) liveEngine.stop(true);
+                    return;
+                }
+                vlcStarting = false;
                 PlayerActivity.this.lambda$playWithVlc$20(liveEngine, str);
             }
         });
@@ -2660,9 +2629,16 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void playChannel(Models.Channel channel) {
-        if (channel == null) {
-            return;
-        }
+        if (channel == null) return;
+        this.userPaused = false;
+        this.programmes.clear();
+        this.current = null;
+        this.nextEpgSync = 0;
+        this.forceEngine = null;
+        this.vavooKeep = null;
+        this.vavooHot = null;
+        this.vavooTriedVlc = false;
+        this.recoverTries = 0;
         App.playing = channel;
         this.channel = channel;
         this.liveMode = true;
@@ -2713,27 +2689,26 @@ public class PlayerActivity extends AppCompatActivity {
         @Override // java.lang.Runnable
         public void run() {
             final String str = PlayerActivity.this.vavooKeep;
-            if (str == null || PlayerActivity.this.isFinishing()) {
+            if (str == null || !foreground || userPaused || PlayerActivity.this.isFinishing()) {
                 return;
             }
+            final long request = playbackGeneration;
             PlayerActivity.IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$6$$ExternalSyntheticLambda0
                 @Override // java.lang.Runnable
                 public final void run() {
-                    PlayerActivity.AnonymousClass6.this.lambda$run$0(str);
+                    PlayerActivity.AnonymousClass6.this.lambda$run$0(str, request);
                 }
             });
         }
 
         /* JADX INFO: Access modifiers changed from: private */
-        public /* synthetic */ void lambda$run$0(String str) {
-            String resolve = Vavoo.resolve(str);
-            if (resolve != null && !resolve.isEmpty()) {
-                PlayerActivity.this.vavooHot = resolve;
-            }
-            if (PlayerActivity.this.isFinishing() || PlayerActivity.this.vavooKeep == null) {
-                return;
-            }
-            PlayerActivity.UI.postDelayed(this, C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
+        public void lambda$run$0(String str, final long request) {
+            final String resolved = Vavoo.resolve(str);
+            UI.post(() -> {
+                if (!acceptPlayback(request) || !str.equals(vavooKeep) || userPaused) return;
+                if (resolved != null && !resolved.isEmpty()) vavooHot = resolved;
+                UI.postDelayed(this, 15000L);
+            });
         }
     }
 
@@ -2756,21 +2731,22 @@ public class PlayerActivity extends AppCompatActivity {
         }
         this.resolving = true;
         final String str3 = this.vavooKeep;
+        final long request = playbackGeneration;
         IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda16
             @Override // java.lang.Runnable
             public final void run() {
-                PlayerActivity.this.lambda$swapVavoo$23(str3);
+                PlayerActivity.this.lambda$swapVavoo$23(str3, request);
             }
         });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$swapVavoo$23(String str) {
+    public /* synthetic */ void lambda$swapVavoo$23(String str, final long request) {
         final String resolve = Vavoo.resolve(str);
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda0
             @Override // java.lang.Runnable
             public final void run() {
-                PlayerActivity.this.lambda$swapVavoo$22(resolve);
+                if (acceptPlayback(request)) PlayerActivity.this.lambda$swapVavoo$22(resolve);
             }
         });
     }
@@ -2790,6 +2766,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public void recoverStuck() {
+        if (!foreground || userPaused || isFinishing()) return;
         if (this.vavooKeep != null) {
             swapVavoo(true);
             return;
@@ -2816,51 +2793,65 @@ public class PlayerActivity extends AppCompatActivity {
         return true;
     }
 
-    @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
-    protected void onResume() {
-        LiveEngine liveEngine;
-        super.onResume();
-        try {
-            if (this.useVlc && (liveEngine = this.vlc) != null) {
-                liveEngine.resume();
-            }
-            PlayerView playerView = this.playerView;
-            if (playerView == null || this.player == null || this.useVlc || playerView.getPlayer() != null) {
-                return;
-            }
-            this.playerView.setPlayer(this.player);
-            this.player.setPlayWhenReady(true);
-        } catch (Throwable unused) {
-        }
+    private boolean acceptPlayback(long request) {
+        return foreground && !isFinishing() && !isDestroyed() && request == playbackGeneration;
     }
 
-    @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
-    protected void onPause() {
-        try {
-            ExoPlayer exoPlayer = this.player;
-            if (exoPlayer != null) {
-                exoPlayer.setPlayWhenReady(false);
+    private void invalidatePlayback() {
+        playbackGeneration++;
+        resolving = false;
+        vlcStarting = false;
+        UI.removeCallbacks(vavooPrefetch);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        foreground = true;
+        UI.removeCallbacks(tick);
+        UI.removeCallbacks(watchdog);
+        UI.post(tick);
+        UI.post(watchdog);
+        if (restartOnResume && !userPaused) {
+            restartOnResume = false;
+            playCurrent();
+        } else if (resumePlayback && !userPaused) {
+            if (useVlc && vlc != null) { bindVlcPlaybackListener(vlc); vlc.resume(); }
+            else if (player != null) {
+                if (playerView != null) playerView.setPlayer(player);
+                player.setPlayWhenReady(true);
             }
-        } catch (Throwable unused) {
         }
+        resumePlayback = false;
+        if (vavooKeep != null && !userPaused) startVavooPrefetch();
+    }
+
+    @Override
+    protected void onPause() {
+        resumePlayback = !userPaused;
+        restartOnResume = resolving || vlcStarting;
+        foreground = false;
+        invalidatePlayback();
+        UI.removeCallbacks(tick);
+        UI.removeCallbacks(watchdog);
+        UI.removeCallbacks(hideHud);
+        if (vlc != null) vlc.pause();
+        if (player != null) player.setPlayWhenReady(false);
         super.onPause();
     }
 
-    @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
+    @Override
     protected void onStop() {
-        try {
-            ExoPlayer exoPlayer = this.player;
-            if (exoPlayer != null) {
-                exoPlayer.setPlayWhenReady(false);
-            }
-        } catch (Throwable unused) {
-        }
+        if (vlc != null) vlc.pause();
+        if (player != null) player.setPlayWhenReady(false);
         super.onStop();
     }
 
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
         App.playerOpen = false;
+        foreground = false;
+        invalidatePlayback();
         stopPlayback();
         releasePlayer();
         super.onDestroy();

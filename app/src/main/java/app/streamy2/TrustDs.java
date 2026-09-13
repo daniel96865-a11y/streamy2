@@ -9,30 +9,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.security.SecureRandom;
-import java.security.cert.X509Certificate;
 import java.util.HashMap;
 import java.util.Map;
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 
 /* loaded from: classes.dex */
 final class TrustDs extends BaseDataSource {
-    private static volatile SSLSocketFactory ssl;
     private HttpURLConnection conn;
     private final Map<String, String> extra;
     private InputStream in;
     private long remaining;
     private final String ua;
 
-    static /* synthetic */ boolean lambda$open$1(String str, SSLSession sSLSession) {
-        return true;
-    }
+
 
     TrustDs(String str, Map<String, String> map) {
         super(true);
@@ -67,16 +55,7 @@ final class TrustDs extends BaseDataSource {
         close();
         try {
             HttpURLConnection httpURLConnection = (HttpURLConnection) new URL(dataSpec.uri.toString()).openConnection();
-            if (httpURLConnection instanceof HttpsURLConnection) {
-                HttpsURLConnection httpsURLConnection = (HttpsURLConnection) httpURLConnection;
-                httpsURLConnection.setSSLSocketFactory(ssl());
-                httpsURLConnection.setHostnameVerifier(new HostnameVerifier() { // from class: app.streamy2.TrustDs$$ExternalSyntheticLambda0
-                    @Override // javax.net.ssl.HostnameVerifier
-                    public final boolean verify(String str2, SSLSession sSLSession) {
-                        return TrustDs.lambda$open$1(str2, sSLSession);
-                    }
-                });
-            }
+
             httpURLConnection.setConnectTimeout(15000);
             httpURLConnection.setReadTimeout(10000);
             httpURLConnection.setInstanceFollowRedirects(true);
@@ -181,27 +160,5 @@ final class TrustDs extends BaseDataSource {
         this.remaining = -1L;
     }
 
-    private static SSLSocketFactory ssl() throws Exception {
-        if (ssl != null) {
-            return ssl;
-        }
-        TrustManager[] trustManagerArr = {new X509TrustManager() { // from class: app.streamy2.TrustDs.1
-            @Override // javax.net.ssl.X509TrustManager
-            public void checkClientTrusted(X509Certificate[] x509CertificateArr, String str) {
-            }
 
-            @Override // javax.net.ssl.X509TrustManager
-            public void checkServerTrusted(X509Certificate[] x509CertificateArr, String str) {
-            }
-
-            @Override // javax.net.ssl.X509TrustManager
-            public X509Certificate[] getAcceptedIssuers() {
-                return new X509Certificate[0];
-            }
-        }};
-        SSLContext sSLContext = SSLContext.getInstance("TLS");
-        sSLContext.init(null, trustManagerArr, new SecureRandom());
-        ssl = sSLContext.getSocketFactory();
-        return ssl;
-    }
 }

@@ -533,10 +533,8 @@ public class EpgGuide {
                         continue;
                     }
                     Models.Epg forChannel = forChannel(channel, false);
-                    if (forChannel != null) {
-                        channel.epg = forChannel;
-                        i++;
-                    }
+                    if (forChannel != null || !EpgTime.isCurrent(channel.epg, System.currentTimeMillis())) channel.epg = forChannel;
+                    if (channel.epg != null) i++;
                 } catch (Exception unused) {
                 }
             }
@@ -587,7 +585,7 @@ public class EpgGuide {
                 }
                 if (best == null) {
                     for (Models.Channel c : g) {
-                        if (c.epg != null && c.epg.title != null && !c.epg.title.isEmpty()) {
+                        if (EpgTime.isCurrent(c.epg, System.currentTimeMillis())) {
                             best = c.epg;
                             break;
                         }
@@ -628,7 +626,7 @@ public class EpgGuide {
                     best = byName;
                 }
             }
-            if (best == null || best.title == null || best.title.isEmpty()) {
+            if (!EpgTime.isCurrent(best, System.currentTimeMillis())) {
                 return 0;
             }
             for (Models.Channel c : new ArrayList<>(list)) {
@@ -665,10 +663,11 @@ public class EpgGuide {
         if (file != null && file.exists() && file.length() > 100663296) {
             file.delete();
         }
-        if (!z && file != null && file.exists() && file.length() > 200) {
-            int beforeProgrammes = this.programmeCount;
+        if (!z && file != null && file.exists() && file.length() > 0) {
+            boolean parsed = false;
             try {
                 parseFile(file, z2);
+                parsed = true;
             } catch (Exception unused) {
                 try {
                     file.delete();
@@ -678,14 +677,13 @@ public class EpgGuide {
             if (!z2 && this.channelCount > 0 && this.programmeCount > 0) {
                 return;
             }
-            // Merge mode: only reuse cache if THIS file actually contributed programmes.
-            // Otherwise channelCount may already be >0 from a prior feed and we'd keep a bad/empty cache.
-            if (z2 && this.programmeCount > beforeProgrammes) {
+            // Successful parsing also counts when all programmes were already present.
+            if (z2 && parsed) {
                 return;
             }
         }
         download(trim, file);
-        parseFile(file, z2);
+        if (!z2) parseFile(file, false);
         if (this.channelCount == 0 || this.programmeCount == 0) {
             throw new Exception("XMLTV ohne Programme");
         }
@@ -695,7 +693,6 @@ public class EpgGuide {
         parseFile(file, false);
     }
 
-    private static final long EPG_MIN_BYTES = 100 * 1024L;
     private static final long EPG_MAX_BYTES = 90 * 1024 * 1024L;
     private static final long EPG_MAX_BYTES_LOW = 32 * 1024 * 1024L;
 
@@ -744,7 +741,7 @@ public class EpgGuide {
         try {
             conn = (HttpURLConnection) new URL(str).openConnection();
             conn.setConnectTimeout(15000);
-            conn.setReadTimeout(120000);
+            conn.setReadTimeout(25000);
             conn.setInstanceFollowRedirects(true);
             conn.setRequestProperty(HttpHeaders.USER_AGENT,
                     "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36");
@@ -774,7 +771,9 @@ public class EpgGuide {
             out = new FileOutputStream(part);
             byte[] buf = new byte[16384];
             long total = 0;
+            long deadline = android.os.SystemClock.elapsedRealtime() + 120000;
             while (true) {
+                if (Thread.currentThread().isInterrupted() || android.os.SystemClock.elapsedRealtime() > deadline) throw new java.io.IOException("EPG-Zeitlimit");
                 int n = in.read(buf);
                 if (n < 0) {
                     break;
@@ -794,15 +793,10 @@ public class EpgGuide {
             if (code >= 400 || total < 40) {
                 throw new Exception("HTTP " + code);
             }
-            if (total < EPG_MIN_BYTES) {
-                throw new Exception("EPG zu klein (" + total + " Bytes)");
-            }
             // Validate gzip magic or XML/text start so we do not cache HTML error pages.
             // Body stays gzip only for .gz URLs; transport gzip was already unwrapped above.
             validateEpgPart(part, urlGz);
-            if (file.exists()) {
-                file.delete();
-            }
+            parseFile(part, true);
             if (!part.renameTo(file)) {
                 throw new Exception("EPG-Cache fehlgeschlagen");
             }
@@ -872,6 +866,8 @@ public class EpgGuide {
             }
         }
     }
+
+    public void loadFileMerge(File file) throws Exception { parseFile(file, true); }
 
     private void parseFile(File file, boolean z) throws Exception {
         if (file == null || !file.exists()) {
@@ -986,6 +982,7 @@ public class EpgGuide {
             str2 = null;
         }
         HashMap hashMap4 = hashMap3;
+        if (hashMap2.isEmpty()) throw new Exception("XMLTV ohne Programme im Zeitfenster");
         if (!z) {
             this.byId.clear();
             this.nameToId.clear();
