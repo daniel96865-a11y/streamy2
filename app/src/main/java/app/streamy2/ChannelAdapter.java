@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import androidx.recyclerview.widget.RecyclerView;
 import app.streamy2.ChannelAdapter;
@@ -231,10 +232,12 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     /* renamed from: onBindViewHolder, reason: avoid collision after fix types in other method */
     public void onBindViewHolder2(VH vh, int i, List<Object> list) {
         if (!list.isEmpty() && (this.items.get(i) instanceof Models.Channel)) {
+            Models.Channel channel = (Models.Channel) this.items.get(i);
             if (vh.sub != null) {
                 vh.sub.setVisibility(android.view.View.VISIBLE);
-                vh.sub.setText(epgLine((Models.Channel) this.items.get(i)));
+                vh.sub.setText(epgLine(channel));
             }
+            bindEpgProgress(vh, channel);
         } else {
             super.onBindViewHolder(vh, i, list);
         }
@@ -262,6 +265,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
             }
             vh.sub.setText(epgLine(channel));
         }
+        bindEpgProgress(vh, channel);
         sizeLogo(vh, 48, 48);
         vh.logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
         applyLogo(vh, channel.logo, channel.name);
@@ -300,6 +304,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         if (vh.live != null) {
             vh.live.setVisibility(8);
         }
+        hideEpgProgress(vh);
         vh.title.setText(media.name == null ? "" : media.name);
         String join = join(media.genre, media.year);
         if (media.rating != null && !media.rating.isEmpty()) {
@@ -479,6 +484,46 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         }
     }
 
+
+    private void bindEpgProgress(VH vh, Models.Channel channel) {
+        if (vh.epgProgress == null) {
+            return;
+        }
+        int progress = epgProgressPercent(channel == null ? null : channel.epg);
+        if (progress < 0 || (channel != null && channel.header)) {
+            hideEpgProgress(vh);
+            return;
+        }
+        vh.epgProgress.setMax(1000);
+        vh.epgProgress.setProgress(progress);
+        vh.epgProgress.setVisibility(View.VISIBLE);
+        vh.epgProgress.setFocusable(false);
+        vh.epgProgress.setClickable(false);
+    }
+
+    private static void hideEpgProgress(VH vh) {
+        if (vh.epgProgress != null) {
+            vh.epgProgress.setVisibility(View.GONE);
+            vh.epgProgress.setProgress(0);
+        }
+    }
+
+    /** @return 0..1000 progress, or -1 when bar should be hidden */
+    private static int epgProgressPercent(Models.Epg epg) {
+        if (epg == null || epg.start <= 0 || epg.end <= epg.start) {
+            return -1;
+        }
+        long duration = epg.end - epg.start;
+        long elapsed = System.currentTimeMillis() - epg.start;
+        if (elapsed <= 0) {
+            return 0;
+        }
+        if (elapsed >= duration) {
+            return 1000;
+        }
+        return (int) ((elapsed * 1000L) / duration);
+    }
+
     private String epgLine(Models.Channel channel) {
         if (channel.epg == null || channel.epg.title == null || channel.epg.title.isEmpty()) {
             // Prefer a quiet placeholder over a silent blank on Vavoo/Live while EPG catches up
@@ -542,6 +587,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     public static class VH extends RecyclerView.ViewHolder {
+        ProgressBar epgProgress;
         TextView live;
         ImageView logo;
         TextView logoText;
@@ -557,6 +603,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
             this.logo = (ImageView) view.findViewById(R.id.logo);
             this.title = (TextView) view.findViewById(R.id.title);
             this.sub = (TextView) view.findViewById(R.id.sub);
+            this.epgProgress = (ProgressBar) view.findViewById(R.id.epgProgress);
             this.live = (TextView) view.findViewById(R.id.live);
             this.plot = (TextView) view.findViewById(R.id.plot);
         }

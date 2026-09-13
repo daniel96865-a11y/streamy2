@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.25** (versionCode **145**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.26** (versionCode **146**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 
@@ -17,6 +17,10 @@ export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
 ```
 
 APK: `app/build/outputs/apk/release/app-release.apk`
+
+## 3.26 notes
+
+Live-TV / Vavoo: dünner Fortschrittsbalken unter der „Jetzt:“-Zeile zeigt den Anteil der laufenden EPG-Sendung (Start→Ende vs. jetzt). Versteckt ohne gültige Zeiten; Filme/Serien-Poster unverändert.
 
 ## 3.25 notes
 
