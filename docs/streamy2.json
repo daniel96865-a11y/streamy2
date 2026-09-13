@@ -1,7 +1,7 @@
 {
-  "versionCode": 148,
-  "versionName": "3.28",
-  "title": "Streamy 2 Update",
-  "changelog": "Version 3.28: Fire-TV-Hang behoben — EPG-Balken ohne ProgressBar, EPG-Updates nur sichtbare Zeilen, Megakino-Host nicht mehr auf UI-Lock.",
-  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk"
+  "versionCode": 149,
+  "versionName": "3.29",
+  "title": "Streamy 2 Update — ab Android 9",
+  "changelog": "Version 3.29 (ab Android 9): Korrekturen an EPG, Player, Downloads und TLS; verschlüsselte Kopplung. Für die neue Kopplung beide Geräte aktualisieren. Android 7/8 werden von dieser Update-APK nicht unterstützt.",
+  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.29/Streamy2-latest.apk"
 }
