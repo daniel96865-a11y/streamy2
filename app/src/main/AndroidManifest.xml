@@ -65,6 +65,8 @@
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Streamy"/>
 
+        <activity android:name=".UpdateActivity" android:exported="false"/>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.file"
@@ -79,7 +81,7 @@
 
         <receiver
             android:name=".InstallReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
                 <action android:name="android.content.pm.action.SESSION_COMMITTED"/>
