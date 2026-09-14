@@ -1,26 +1,15 @@
 package app.streamy2;
 
-import android.Manifest;
 import android.app.AlertDialog;
-import android.app.DownloadManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.ClipData;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageInstaller;
-import android.content.pm.ResolveInfo;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
@@ -37,8 +26,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.FileProvider;
-import androidx.media3.common.C;
 import androidx.media3.ui.DefaultTimeBar;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -50,8 +37,6 @@ import app.streamy2.Theme;
 import app.streamy2.Updates;
 import com.google.android.material.appbar.AppBarLayout;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -151,6 +136,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView updateText;
     private volatile boolean vavooBusy;
     private static final ExecutorService IO = Executors.newFixedThreadPool(6);
+    private static final ExecutorService UPDATE_IO = Executors.newSingleThreadExecutor();
     private static final ExecutorService EPG = Executors.newSingleThreadExecutor(new ThreadFactory() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda111
         @Override // java.util.concurrent.ThreadFactory
         public final Thread newThread(Runnable runnable) {
@@ -165,28 +151,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private int sort = 0;
     private String query = "";
     private final Set<String> plotFetch = new HashSet();
-    private long updateDownloadId = -1;
-    private boolean resumeUpdateAfterSettings = false;
-    private boolean updateBusy = false;
     private final Runnable searchRun = new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda35
         @Override // java.lang.Runnable
         public final void run() {
             MainActivity.this.renderList();
-        }
-    };
-    private final BroadcastReceiver downloadDone = new BroadcastReceiver() { // from class: app.streamy2.MainActivity.1
-        @Override // android.content.BroadcastReceiver
-        public void onReceive(Context context, Intent intent) {
-            long longExtra = intent.getLongExtra("extra_download_id", -1L);
-            if (longExtra != MainActivity.this.updateDownloadId || longExtra < 0) {
-                return;
-            }
-            Uri uriForDownloadedFile = ((DownloadManager) MainActivity.this.getSystemService("download")).getUriForDownloadedFile(longExtra);
-            if (uriForDownloadedFile == null) {
-                Toast.makeText(MainActivity.this, "Download unvollständig", 1).show();
-            } else {
-                MainActivity.this.installDownloaded(uriForDownloadedFile);
-            }
         }
     };
     private final Runnable epgLater = new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda36
@@ -738,11 +706,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             });
         }
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(this.downloadDone, new IntentFilter("android.intent.action.DOWNLOAD_COMPLETE"), 2);
-        } else {
-            registerReceiver(this.downloadDone, new IntentFilter("android.intent.action.DOWNLOAD_COMPLETE"));
-        }
         TextView textView7 = this.appVersion;
         if (textView7 != null) {
             textView7.setText("Version " + BuildConfig.VERSION_NAME + "  (" + BuildConfig.VERSION_CODE + ")\n" + App.lowRamLabel(this));
@@ -1264,13 +1227,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         UI.postDelayed(epgTick, 1000L);
         this.resumeAt = SystemClock.uptimeMillis();
         try {
-            if (this.resumeUpdateAfterSettings) {
-                boolean allowed = Build.VERSION.SDK_INT < 26 || getPackageManager().canRequestPackageInstalls();
-                if (allowed) {
-                    this.resumeUpdateAfterSettings = false;
-                    installUpdate();
-                }
-            }
             BrowserController browserController = this.browser;
             if (browserController != null && browserController.visible()) {
                 this.browser.resume();
@@ -2356,9 +2312,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         if (z) {
-            try { Toast.makeText(this, "Suche Update…", 0).show(); } catch (Throwable ignored) {}
+            setUpdateStatus("Suche nach Updates …");
+            findViewById(R.id.btnCheckUpdate).setEnabled(false);
         }
-        IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda122
+        UPDATE_IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda122
             @Override // java.lang.Runnable
             public final void run() {
                 MainActivity.this.lambda$checkUpdate$63(z);
@@ -2380,9 +2337,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     /* renamed from: applyUpdate, reason: merged with bridge method [inline-methods] */
     public void lambda$checkUpdate$62(Updates.Info info, boolean z) {
+        if (isFinishing() || isDestroyed()) return;
+        if (z) findViewById(R.id.btnCheckUpdate).setEnabled(true);
         if (info == null) {
             if (z) {
-                Toast.makeText(this, "Update-Check fehlgeschlagen — Feed nicht erreichbar", 1).show();
+                setUpdateStatus("Update-Suche fehlgeschlagen. Prüfe die Verbindung und versuche es erneut.");
             }
             return;
         }
@@ -2411,152 +2370,30 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (z) {
             if (z2) {
-                Toast.makeText(this, "Update " + info.versionName + " — Download startet", 0).show();
+                setUpdateStatus("Version " + info.versionName + " verfügbar.");
                 installUpdate();
             } else {
-                Toast.makeText(this, "Du bist auf dem neuesten Stand (" + BuildConfig.VERSION_NAME + ")", 0).show();
+                setUpdateStatus("Du bist auf dem neuesten Stand (" + BuildConfig.VERSION_NAME + ").");
             }
         }
     }
 
     private void installUpdate() {
         Updates.Info info = this.pendingUpdate;
-        if (info == null || info.apkUrl == null || this.pendingUpdate.apkUrl.isEmpty()) {
-            Toast.makeText(this, "Kein Download-Link.", Toast.LENGTH_SHORT).show();
+        if (info == null || info.apkUrl == null || info.apkUrl.isEmpty()) {
+            setUpdateStatus("Kein Download-Link gefunden. Bitte erneut nach Updates suchen.");
             return;
         }
-        if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
-            this.resumeUpdateAfterSettings = true;
-            Toast.makeText(this,
-                    "Bitte „Unbekannte Apps“ für Streamy 2 erlauben, dann mit OK/Zurück — Update startet automatisch.",
-                    Toast.LENGTH_LONG).show();
-            openUnknownSourcesSettings();
-            return;
-        }
-        if (this.updateBusy) {
-            Toast.makeText(this, "Update wird bereits geladen…", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        this.updateBusy = true;
-        try {
-            Toast.makeText(this, "Lade Update…", Toast.LENGTH_SHORT).show();
-        } catch (Throwable ignored) {}
-        IO.execute(new Runnable() {
-            @Override
-            public final void run() {
-                MainActivity.this.lambda$installUpdate$65();
-            }
-        });
+        startActivity(UpdateActivity.intent(this, info));
     }
 
-    private void openUnknownSourcesSettings() {
-        try {
-            Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    Uri.parse("package:" + getPackageName()));
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-            return;
-        } catch (Exception unused) {
-        }
-        try {
-            startActivity(new Intent(Settings.ACTION_SECURITY_SETTINGS));
-        } catch (Exception unused2) {
-        }
-    }
-
-    private File updateApkFile() {
-        File dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
-        if (dir == null) {
-            dir = getCacheDir();
-        }
-        if (dir != null && !dir.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            dir.mkdirs();
-        }
-        return new File(dir != null ? dir : getFilesDir(), "streamy2-update.apk");
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$installUpdate$65() {
-        Exception downloadError = null;
-        File dest = null;
-        try {
-            final String directApk = Updates.directApk(this.pendingUpdate.apkUrl);
-            dest = updateApkFile();
-            Updates.download(directApk, dest);
-            final File ready = dest;
-            UI.post(new Runnable() {
-                @Override
-                public final void run() {
-                    try {
-                        Toast.makeText(MainActivity.this, "Installiere…", Toast.LENGTH_SHORT).show();
-                        startApkInstall(ready);
-                    } catch (Exception e) {
-                        showInstallFailedDialog(e.getMessage());
-                    } finally {
-                        MainActivity.this.updateBusy = false;
-                    }
-                }
-            });
-            return;
-        } catch (Exception e) {
-            downloadError = e;
-        }
-        final Exception err = downloadError;
-        String fb;
-        try {
-            fb = Updates.directApk(this.pendingUpdate != null ? this.pendingUpdate.apkUrl : null);
-        } catch (Exception unused) {
-            fb = this.pendingUpdate != null ? this.pendingUpdate.apkUrl : null;
-        }
-        final String fallbackUrl = fb;
-        UI.post(new Runnable() {
-            @Override
-            public final void run() {
-                MainActivity.this.updateBusy = false;
-                try {
-                    Toast.makeText(MainActivity.this,
-                            "Direkt-Download fehlgeschlagen — versuche DownloadManager…",
-                            Toast.LENGTH_SHORT).show();
-                    enqueueUpdateViaDownloadManager(fallbackUrl);
-                } catch (Exception e2) {
-                    openApkInBrowser();
-                }
-            }
-        });
-    }
-
-    /* JADX INFO: Access modifiers changed from: private */
-    /* renamed from: enqueueUpdate, reason: merged with bridge method [inline-methods] */
-    public void lambda$installUpdate$64(String str) {
-        enqueueUpdateViaDownloadManager(str);
-    }
-
-    private void enqueueUpdateViaDownloadManager(String str) {
-        if (str == null || str.isEmpty()) {
-            Toast.makeText(this, "Kein Download-Link.", Toast.LENGTH_SHORT).show();
-            openApkInBrowser();
-            return;
-        }
-        try {
-            DownloadManager downloadManager = (DownloadManager) getSystemService("download");
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(str));
-            request.setTitle("Streamy 2 " + this.pendingUpdate.versionName);
-            request.setDescription("Update wird geladen");
-            request.setMimeType("application/vnd.android.package-archive");
-            request.setNotificationVisibility(1);
-            request.setAllowedOverMetered(true);
-            request.setAllowedOverRoaming(true);
-            request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, "streamy2-update.apk");
-            this.updateDownloadId = downloadManager.enqueue(request);
-            Toast.makeText(this, "Download gestartet — oben in den Benachrichtigungen", Toast.LENGTH_LONG).show();
-        } catch (Exception unused) {
-            openApkInBrowser();
-        }
+    private void setUpdateStatus(String message) {
+        TextView status = findViewById(R.id.updateStatus);
+        if (status != null) status.setText(message);
     }
 
     private void openApkInBrowser() {
-        IO.execute(new Runnable() {
+        UPDATE_IO.execute(new Runnable() {
             @Override
             public final void run() {
                 MainActivity.this.lambda$openApkInBrowser$67();
@@ -2594,134 +2431,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
-    /* JADX INFO: Access modifiers changed from: private */
-    public void installDownloaded(Uri uri) {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setDataAndType(uri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            Iterator<ResolveInfo> it = getPackageManager().queryIntentActivities(intent, 0).iterator();
-            while (it.hasNext()) {
-                grantUriPermission(it.next().activityInfo.packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            }
-            startActivity(intent);
-        } catch (Exception e) {
-            File file = updateApkFile();
-            if (file.exists()) {
-                startApkInstall(file);
-            } else {
-                showInstallFailedDialog(e.getMessage());
-            }
-        }
-    }
-
-    private void startApkInstall(File file) {
-        // Primary: user-visible system installer via FileProvider
-        try {
-            installViaSystemInstaller(file);
-            return;
-        } catch (Exception primary) {
-            try {
-                installViaPackageInstaller(file);
-            } catch (Exception secondary) {
-                String detail = primary.getMessage() != null ? primary.getMessage() : String.valueOf(secondary.getMessage());
-                showInstallFailedDialog(detail);
-            }
-        }
-    }
-
-    private void installViaSystemInstaller(File file) throws Exception {
-        Uri uriForFile = FileProvider.getUriForFile(this, getPackageName() + ".file", file);
-        Intent intent2 = new Intent(Intent.ACTION_VIEW);
-        intent2.setDataAndType(uriForFile, "application/vnd.android.package-archive");
-        intent2.setClipData(ClipData.newRawUri("", uriForFile));
-        intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // Prefer ACTION_INSTALL_PACKAGE where available
-        try {
-            Intent install = new Intent(Intent.ACTION_INSTALL_PACKAGE);
-            install.setData(uriForFile);
-            install.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
-            install.putExtra(Intent.EXTRA_RETURN_RESULT, false);
-            install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
-            Iterator<ResolveInfo> itInstall = getPackageManager().queryIntentActivities(install, 0).iterator();
-            while (itInstall.hasNext()) {
-                grantUriPermission(itInstall.next().activityInfo.packageName, uriForFile, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            }
-            if (getPackageManager().queryIntentActivities(install, 0).size() > 0) {
-                startActivity(install);
-                return;
-            }
-        } catch (Exception ignored) {
-        }
-        Iterator<ResolveInfo> it = getPackageManager().queryIntentActivities(intent2, 0).iterator();
-        while (it.hasNext()) {
-            grantUriPermission(it.next().activityInfo.packageName, uriForFile, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        }
-        startActivity(intent2);
-    }
-
-    private void installViaPackageInstaller(File file) throws Exception {
-        PackageInstaller packageInstaller = getPackageManager().getPackageInstaller();
-        PackageInstaller.SessionParams sessionParams = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-        sessionParams.setSize(file.length());
-        int createSession = packageInstaller.createSession(sessionParams);
-        PackageInstaller.Session openSession = packageInstaller.openSession(createSession);
-        FileInputStream fileInputStream = new FileInputStream(file);
-        OutputStream openWrite = openSession.openWrite("app.apk", 0L, file.length());
-        byte[] bArr = new byte[65536];
-        while (true) {
-            int read = fileInputStream.read(bArr);
-            if (read <= 0) {
-                break;
-            } else {
-                openWrite.write(bArr, 0, read);
-            }
-        }
-        openSession.fsync(openWrite);
-        openWrite.close();
-        fileInputStream.close();
-        Intent intent = new Intent(this, (Class<?>) InstallReceiver.class);
-        intent.setAction(InstallReceiver.ACTION);
-        openSession.commit(PendingIntent.getBroadcast(this, createSession, intent, Build.VERSION.SDK_INT >= 31 ? 167772160 : C.BUFFER_FLAG_FIRST_SAMPLE).getIntentSender());
-        openSession.close();
-    }
-
-    private void showInstallFailedDialog(String detail) {
-        String lower = detail == null ? "" : detail.toLowerCase(Locale.ROOT);
-        boolean signature = lower.contains("signature")
-                || lower.contains("incompatible")
-                || lower.contains("update_incompatible")
-                || lower.contains("signatures do not match");
-        String msg;
-        if (signature) {
-            msg = "Andere Signatur. Bitte die zur installierten Version passende APK verwenden. Vor einer Neuinstallation Playlist-Zugangsdaten sichern.";
-            if (detail != null && !detail.isEmpty()) {
-                msg = msg + "\n\n" + detail;
-            }
-        } else {
-            msg = "Update konnte nicht installiert werden.\n\n"
-                    + "Bei abweichender Signatur wird eine passende APK benötigt. Eine Deinstallation löscht die lokalen Einstellungen.";
-            if (detail != null && !detail.isEmpty()) {
-                msg = msg + "\n\n" + detail;
-            }
-        }
-        try {
-            new AlertDialog.Builder(this)
-                    .setTitle("Update fehlgeschlagen")
-                    .setMessage(msg)
-                    .setPositiveButton("OK", null)
-                    .show();
-        } catch (Exception unused) {
-            Toast.makeText(this, msg.replace('\n', ' '), Toast.LENGTH_LONG).show();
-        }
-    }
-
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
-        try {
-            unregisterReceiver(this.downloadDone);
-        } catch (Exception unused) {
-        }
         BrowserController browserController = this.browser;
         if (browserController != null) {
             browserController.destroy();

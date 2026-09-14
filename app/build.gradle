@@ -20,8 +20,8 @@ android {
         applicationId "app.streamy2"
         minSdk providers.gradleProperty('streamyMinSdk').map { it.toInteger() }.getOrElse(24)
         targetSdk 34
-        versionCode 149
-        versionName "3.29"
+        versionCode 150
+        versionName "3.30"
         vectorDrawables.useSupportLibrary = true
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
@@ -52,7 +52,13 @@ android {
         }
     }
 
-    testOptions { unitTests.includeAndroidResources = true }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            // Robolectric's Android 14 file-descriptor bridge runs on JDK 17.
+            all { jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED' }
+        }
+    }
 
     buildFeatures {
         buildConfig true

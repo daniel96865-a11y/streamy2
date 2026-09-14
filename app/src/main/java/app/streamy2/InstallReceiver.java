@@ -12,6 +12,7 @@ public class InstallReceiver extends BroadcastReceiver {
 
     @Override // android.content.BroadcastReceiver
     public void onReceive(Context context, Intent intent) {
+        if (!ACTION.equals(intent.getAction())) return;
         int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
             Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
@@ -40,17 +41,18 @@ public class InstallReceiver extends BroadcastReceiver {
 
     static String mapStatus(int status, String systemMsg) {
         String lower = systemMsg == null ? "" : systemMsg.toLowerCase();
-        boolean signature = status == PackageInstaller.STATUS_FAILURE_INCOMPATIBLE
-                || lower.contains("signature")
-                || lower.contains("incompatible")
+        boolean signature = lower.contains("signature")
                 || lower.contains("signatures do not match")
                 || lower.contains("update_incompatible");
         if (signature) {
-            return "Andere Signatur — alte Streamy-App deinstallieren, dann 3.10 neu installieren."
+            return "Die Signatur passt nicht zur installierten App. Bitte eine passende Update-APK verwenden."
                     + (systemMsg != null && !systemMsg.isEmpty() ? (" (" + systemMsg + ")") : "");
         }
         String base;
         switch (status) {
+            case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
+                base = "Diese APK ist mit dem Gerät nicht kompatibel";
+                break;
             case PackageInstaller.STATUS_FAILURE_BLOCKED:
                 base = "Update blockiert (Sicherheitsrichtlinie)";
                 break;
