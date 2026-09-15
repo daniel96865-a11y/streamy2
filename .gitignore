@@ -17,3 +17,10 @@ keystore/
 *.p12
 *.lineage
 signing.properties
+
+# Extra credential / key material patterns
+.env
+.env.*
+*.pem
+*.pk8
+keystore.properties
