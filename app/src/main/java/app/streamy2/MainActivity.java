@@ -956,11 +956,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     + "\nHost: —"
                     + "\nExo-Fehler: —"
                     + "\nVLC-Fehler: " + ((VlcFactory.lastError == null || VlcFactory.lastError.isEmpty()) ? "—" : VlcFactory.lastError);
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Wiedergabe-Diagnose")
-                    .setMessage(msg)
-                    .setPositiveButton("OK", null)
-                    .show();
+            PlaybackDiagnostics.show(this, msg);
         } catch (Throwable t) {
             Toast.makeText(this, "Diagnose fehlgeschlagen", 0).show();
         }

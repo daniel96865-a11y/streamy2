@@ -832,11 +832,7 @@ public class PlayerActivity extends AppCompatActivity {
                     + "\nHost: " + host
                     + "\nExo-Fehler: " + exo
                     + "\nVLC-Fehler: " + vlc;
-            new androidx.appcompat.app.AlertDialog.Builder(this)
-                    .setTitle("Wiedergabe-Diagnose")
-                    .setMessage(msg)
-                    .setPositiveButton("OK", null)
-                    .show();
+            PlaybackDiagnostics.show(this, msg);
         } catch (Throwable t) {
             Toast.makeText(this, "Diagnose: " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()), Toast.LENGTH_LONG).show();
         }
