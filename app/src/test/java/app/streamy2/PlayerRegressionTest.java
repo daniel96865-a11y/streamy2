@@ -34,6 +34,25 @@ public class PlayerRegressionTest {
         assertEquals(0,field("freezeTicks")); assertEquals(0,engine.plays); assertEquals(0,engine.stops); assertTrue((Boolean)field("useVlc"));
     }
 
+    @Test @Config(sdk={28,34}) public void playingLiveStreamWithoutClockIsNotRestarted() throws Exception {
+        FakeEngine engine=new FakeEngine() {
+            @Override public boolean isPlaying(){return true;}
+            @Override public long getPositionMs(){return 0;}
+        };
+        field("vlc",engine); field("useVlc",true); field("foreground",true); field("liveMode",true);
+        Runnable watchdog=(Runnable)field("watchdog");
+        try {
+            watchdog.run();
+            org.robolectric.shadows.ShadowLooper.idleMainLooper(60,java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(0,engine.plays); assertEquals(0,engine.stops);
+            assertEquals(0,field("recoverTries")); assertEquals(0,field("freezeTicks"));
+            assertTrue((Boolean)field("useVlc"));
+        } finally {
+            ((android.os.Handler)field("UI")).removeCallbacks(watchdog);
+            field("foreground",false);
+        }
+    }
+
     @Test public void exoResumesWithoutStoppingOrLosingItsPosition() throws Exception {
         startActivity();
         ExoPlayer original=(ExoPlayer)field("player");
