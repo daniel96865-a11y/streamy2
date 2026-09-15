@@ -163,6 +163,16 @@ public class Prefs {
         this.p.edit().putString("buffer", str).apply();
     }
 
+    /** VLC now honors the same user buffer setting as Exo. */
+    public int vlcBufferMs(boolean tv) {
+        switch (buffer()) {
+            case "low": return tv ? 1000 : 800;
+            case "high": return tv ? 3500 : 3000;
+            case "max": return 5000;
+            default: return tv ? 2800 : 2200;
+        }
+    }
+
     public int bufferMs() {
         String buffer = buffer();
         buffer.hashCode();
