@@ -115,7 +115,6 @@ final class Vavoo {
     }
 
     static String resolve(String str) {
-        if (Thread.currentThread().isInterrupted()) return null;
         String parseResolve = null;
         if (str != null && !str.isEmpty()) {
             if (!isPlayUrl(str) && str.startsWith("http")) {
@@ -124,12 +123,7 @@ final class Vavoo {
             String replace = str.replace("https://vavoo.to", "https://kool.to").replace("vavoo-iptv", "kool-iptv");
             String replace2 = str.replace("https://kool.to", "https://vavoo.to").replace("kool-iptv", "vavoo-iptv");
             String[][] strArr = {new String[]{"https://kool.to", replace}, new String[]{"https://kool.to", replace2}, new String[]{"https://vavoo.to", replace2}};
-            // Reuse the last working host instead of repeating failed hosts on every zap.
-            if ("https://vavoo.to".equals(activeHost) || "https://www.vavoo.to".equals(activeHost)) {
-                String[] first = strArr[0]; strArr[0] = strArr[2]; strArr[2] = first;
-            }
             for (int i = 0; i < 3; i++) {
-                if (Thread.currentThread().isInterrupted()) return null;
                 String[] strArr2 = strArr[i];
                 try {
                     JSONObject jSONObject = new JSONObject();
@@ -137,7 +131,6 @@ final class Vavoo {
                     jSONObject.put("region", "DE");
                     jSONObject.put("url", strArr2[1]);
                     String sig = signature();
-                    if (Thread.currentThread().isInterrupted()) return null;
                     parseResolve = parseResolve(OkPlay.postJson(strArr2[0] + "/mediahubmx-resolve.json", jSONObject.toString(), sig));
                     if (parseResolve == null) {
                         lastError = "Vavoo-Stream konnte nicht aufgelöst werden (Resolve)";
@@ -375,7 +368,6 @@ final class Vavoo {
         }
         String pingBody = pingBody();
         for (String str2 : PINGS) {
-            if (Thread.currentThread().isInterrupted()) return "";
             try {
                 String post = post(str2, pingBody, false);
                 if (post != null && !post.isEmpty()) {
