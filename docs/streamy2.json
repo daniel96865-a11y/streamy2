@@ -1,7 +1,1 @@
-{
-  "versionCode": 150,
-  "versionName": "3.30",
-  "title": "Streamy 2 Update — ab Android 9",
-  "changelog": "Version 3.30 (ab Android 9): Update-Aufträge bleiben beim Wechsel in die Android-Einstellungen und nach einem Neustart erhalten. Sichtbarer Download-Fortschritt und verständliche Fehlermeldungen; zuverlässigere Übergabe an den Android-Installer.",
-  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.30/Streamy2-3.30.apk"
-}
+{"versionCode":155,"versionName":"3.35","apkUrl":"https://litter.catbox.moe/p5uxb4.apk","changelog":"Update-Feed in der App. Player-Fixes aus 3.34."}
