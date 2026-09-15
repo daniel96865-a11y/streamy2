@@ -89,7 +89,10 @@ public class PlayerActivity extends AppCompatActivity {
     private int freezeTicks;
     private DefaultHttpDataSource.Factory http;
     private int index;
-    private long lastPos;
+    private final LivePlaybackHealth liveHealth = new LivePlaybackHealth();
+    private boolean recoveryExhausted, recoveryScheduled, alternateEngineTried;
+    private long vavooHotAt;
+    private java.util.concurrent.Future<?> resolveJob, prefetchJob;
     private boolean liveMode;
     private ExoPlayer player;
     private TextView playerSub;
@@ -143,6 +146,16 @@ public class PlayerActivity extends AppCompatActivity {
         public void run() {
             if (!PlayerActivity.this.foreground || PlayerActivity.this.userPaused) {
                 PlayerActivity.this.freezeTicks = 0;
+            } else if (liveMode && !catchup) {
+                if (!resolving && !recoveryExhausted && !recoveryScheduled) {
+                    long now = android.os.SystemClock.elapsedRealtime();
+                    long position = useVlc ? (vlc == null ? 0 : vlc.getPositionMs())
+                            : (player == null ? 0 : player.getCurrentPosition());
+                    boolean playing = useVlc ? (vlc != null && vlc.isPlaying())
+                            : (player != null && player.isPlaying());
+                    if (liveHealth.stalled(now, position, playing)) scheduleLiveRecovery();
+                    else if (liveHealth.stable(now)) recoverTries = 0;
+                }
             } else if (PlayerActivity.this.useVlc) {
                 if (PlayerActivity.this.vlc == null || !PlayerActivity.this.vlc.isPlaying()) {
                     PlayerActivity.this.freezeTicks++;
@@ -724,7 +737,8 @@ public class PlayerActivity extends AppCompatActivity {
             if (PlayerActivity.this.isFinishing() || PlayerActivity.this.player == null || PlayerActivity.this.userPaused) {
                 return;
             }
-            PlayerActivity.this.playCurrent();
+            if (liveMode && !catchup) scheduleLiveRecovery();
+            else PlayerActivity.this.playCurrent();
         }
 
         @Override // androidx.media3.common.Player.Listener
@@ -754,6 +768,7 @@ public class PlayerActivity extends AppCompatActivity {
                 PlayerActivity.this.lastExoError = str;
                 PlayerActivity.this.toastPlaybackError("Player: " + str);
             } catch (Throwable ignored) {}
+            if (liveMode && !catchup) { scheduleLiveRecovery(); return; }
             if (PlayerActivity.this.vavooKeep != null && PlayerActivity.this.recoverTries < 2) {
                 PlayerActivity.this.recoverTries++;
                 LocalHls.forget(PlayerActivity.this.vavooKeep);
@@ -967,6 +982,8 @@ public class PlayerActivity extends AppCompatActivity {
         this.vavooKeep = null;
         this.vavooHot = null;
         this.recoverTries = 0;
+        this.alternateEngineTried = false;
+        this.recoveryExhausted = false;
         this.metaDurationMs = intent.getLongExtra("durationMs", 0L);
         this.playerTitle.setText(Text.clean(intent.getStringExtra("title")));
         String stringExtra = intent.getStringExtra("url");
@@ -1894,6 +1911,8 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void buildQueue(String str, String str2) {
         invalidatePlayback();
+        this.recoveryExhausted = false;
+        this.recoveryScheduled = false;
         this.queue.clear();
         addUrl(str);
         addUrl(str2);
@@ -2000,6 +2019,9 @@ public class PlayerActivity extends AppCompatActivity {
             }
             return;
         }
+        if (resolving) return;
+        invalidatePlayback();
+        liveHealth.reset(android.os.SystemClock.elapsedRealtime());
         try {
             String str = this.queue.get(this.index);
             boolean isPlayUrl = Vavoo.isPlayUrl(str);
@@ -2007,9 +2029,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (isPlayUrl) {
                 this.vavooKeep = str;
             }
-            if (z && !isPlayUrl) {
-                this.vavooHot = str;
-            }
+            // vavooHot is only a freshly resolved replacement, never a copy of the current URL.
             if (isPlayUrl) {
                 if (this.resolving) {
                     return;
@@ -2029,8 +2049,10 @@ public class PlayerActivity extends AppCompatActivity {
                         if (request == playbackGeneration) PlayerActivity.this.lambda$playCurrent$17();
                     }
                 };
-                UI.postDelayed(runnable, 10000);
-                IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
+                // Three bounded resolver attempts may each take up to eight seconds.
+                // Leave time for fallback hosts; still reject late results after timeout/zapping.
+                UI.postDelayed(runnable, 30000);
+                resolveJob = IO.submit(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
                     @Override // java.lang.Runnable
                     public final void run() {
                         PlayerActivity.this.lambda$playCurrent$19(resolveUrl, runnable, request);
@@ -2043,12 +2065,13 @@ public class PlayerActivity extends AppCompatActivity {
                 str = LocalHls.wrap(str);
             }
             this.lastPlayUrl = str;
+            if (vavooKeep != null && liveMode && !catchup) startVavooPrefetch();
             this.freezeTicks = 0;
             this.userPaused = false;
             applyHeaders(headerUrl);
             if ("exo".equals(this.forceEngine)) {
                 // session fallback or forced Exo — never re-enter VLC
-            } else if ((!z && wantVlc()) || "vlc".equals(this.forceEngine)) {
+            } else if (wantVlc()) {
                 playWithVlc(str);
                 return;
             }
@@ -2073,7 +2096,7 @@ public class PlayerActivity extends AppCompatActivity {
                 uri.setMimeType(MimeTypes.VIDEO_MP2T);
             }
             MediaItem build = uri.build();
-            LiveRetry liveRetry = new LiveRetry();
+            LoadErrorHandlingPolicy liveRetry = new LiveRetry(liveMode && !catchup);
             DataSource.Factory factory = this.http;
             if (z) {
                 factory = OkPlay.factory();
@@ -2107,7 +2130,7 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$playCurrent$17() {
         if (this.resolving) {
-            this.resolving = false;
+            invalidatePlayback();
             TextView textView = this.errorView;
             if (textView != null) {
                 textView.setVisibility(0);
@@ -2155,7 +2178,9 @@ public class PlayerActivity extends AppCompatActivity {
             toastPlaybackError(err);
             return;
         }
-        this.vavooHot = str;
+        this.vavooHot = null;
+        this.vavooHotAt = 0;
+        this.resolveJob = null;
         int i = this.index;
         if (i >= 0 && i < this.queue.size()) {
             this.queue.set(this.index, str);
@@ -2273,6 +2298,9 @@ public class PlayerActivity extends AppCompatActivity {
                 minBuf = 4000; maxBuf = 14000; playback = 1500; afterRebuffer = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
             }
         }
+        if (liveMode && !catchup && ("normal".equals(buf) || "low".equals(buf))) {
+            playback = "low".equals(buf) ? 600 : 1000;
+        }
         return new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(minBuf, maxBuf, playback, afterRebuffer)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -2325,11 +2353,20 @@ public class PlayerActivity extends AppCompatActivity {
                     }
                 });
             }
+            @Override public void onEnded() {
+                PlayerActivity.UI.post(() -> {
+                    if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
+                        updatePlayIcon();
+                        if (liveMode && !catchup) scheduleLiveRecovery();
+                    }
+                });
+            }
             @Override public void onError() {
                 PlayerActivity.UI.post(new Runnable() {
                     @Override public void run() {
                         if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
-                            PlayerActivity.this.tryExoAfterVlc();
+                            if (liveMode && !catchup) scheduleLiveRecovery();
+                            else PlayerActivity.this.tryExoAfterVlc();
                         }
                     }
                 });
@@ -2549,6 +2586,9 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void cyclePlayer() {
+        recoveryExhausted = false;
+        recoverTries = 0;
+        alternateEngineTried = false;
         String player = playerPref();
         String str = "auto";
         if ("auto".equals(player)) {
@@ -2634,7 +2674,11 @@ public class PlayerActivity extends AppCompatActivity {
         this.programmes.clear();
         this.current = null;
         this.nextEpgSync = 0;
-        this.forceEngine = null;
+        String pref = channel.vavooUrl != null && !channel.vavooUrl.isEmpty()
+                ? new Prefs(this).playerVavoo() : new Prefs(this).playerLive();
+        this.forceEngine = "auto".equals(pref) ? null : pref;
+        this.recoveryExhausted = false;
+        this.alternateEngineTried = false;
         this.vavooKeep = null;
         this.vavooHot = null;
         this.vavooTriedVlc = false;
@@ -2651,11 +2695,10 @@ public class PlayerActivity extends AppCompatActivity {
             exoPlayer.stop();
             this.player.clearMediaItems();
         }
-        hideVlc();
+        if (!"vlc".equals(pref)) hideVlc();
+        else if (vlc != null) vlc.stop(false);
         PlayerView playerView = this.playerView;
-        if (playerView != null) {
-            playerView.setVisibility(0);
-        }
+        if (playerView != null) playerView.setVisibility("vlc".equals(pref) ? 8 : 0);
         this.playerTitle.setText(Text.clean(channel.name));
         this.playerSub.setText("");
         buildQueue(channel.hlsUrl, channel.tsUrl);
@@ -2678,7 +2721,10 @@ public class PlayerActivity extends AppCompatActivity {
     private void startVavooPrefetch() {
         Handler handler = UI;
         handler.removeCallbacks(this.vavooPrefetch);
-        handler.postDelayed(this.vavooPrefetch, 12000L);
+        if (vavooKeep != null && foreground && !userPaused
+                && (prefetchJob == null || prefetchJob.isDone())) {
+            handler.postDelayed(this.vavooPrefetch, 12000L);
+        }
     }
 
     /* renamed from: app.streamy2.PlayerActivity$6, reason: invalid class name */
@@ -2693,7 +2739,8 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
             final long request = playbackGeneration;
-            PlayerActivity.IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$6$$ExternalSyntheticLambda0
+            if (prefetchJob != null && !prefetchJob.isDone()) return;
+            prefetchJob = PlayerActivity.IO.submit(new Runnable() { // from class: app.streamy2.PlayerActivity$6$$ExternalSyntheticLambda0
                 @Override // java.lang.Runnable
                 public final void run() {
                     PlayerActivity.AnonymousClass6.this.lambda$run$0(str, request);
@@ -2706,38 +2753,29 @@ public class PlayerActivity extends AppCompatActivity {
             final String resolved = Vavoo.resolve(str);
             UI.post(() -> {
                 if (!acceptPlayback(request) || !str.equals(vavooKeep) || userPaused) return;
-                if (resolved != null && !resolved.isEmpty()) vavooHot = resolved;
+                prefetchJob = null;
+                if (resolved != null && !resolved.isEmpty()) {
+                    vavooHot = resolved;
+                    vavooHotAt = android.os.SystemClock.elapsedRealtime();
+                }
                 UI.postDelayed(this, 15000L);
             });
         }
     }
 
-    private void swapVavoo(boolean z) {
-        int i;
-        if (this.vavooKeep == null) {
-            return;
+    private void swapVavoo(boolean force) {
+        if (vavooKeep == null || resolving || index < 0 || index >= queue.size()) return;
+        String hot = vavooHot;
+        boolean fresh = hot != null && !hot.isEmpty() && !hot.equals(queue.get(index))
+                && android.os.SystemClock.elapsedRealtime() - vavooHotAt < 30000;
+        vavooHot = null;
+        vavooHotAt = 0;
+        if (fresh) queue.set(index, hot);
+        else {
+            LocalHls.forget(vavooKeep);
+            queue.set(index, vavooKeep);
         }
-        String str = this.vavooHot;
-        if (str != null && (i = this.index) >= 0 && i < this.queue.size()) {
-            String str2 = this.queue.get(this.index);
-            if (z || !str.equals(str2)) {
-                this.queue.set(this.index, str);
-                playCurrent();
-                return;
-            }
-        }
-        if (this.resolving) {
-            return;
-        }
-        this.resolving = true;
-        final String str3 = this.vavooKeep;
-        final long request = playbackGeneration;
-        IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda16
-            @Override // java.lang.Runnable
-            public final void run() {
-                PlayerActivity.this.lambda$swapVavoo$23(str3, request);
-            }
-        });
+        playCurrent();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -2767,6 +2805,7 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public void recoverStuck() {
         if (!foreground || userPaused || isFinishing()) return;
+        if (liveMode && !catchup) { scheduleLiveRecovery(); return; }
         if (this.vavooKeep != null) {
             swapVavoo(true);
             return;
@@ -2781,6 +2820,52 @@ public class PlayerActivity extends AppCompatActivity {
         if (textView != null) {
             textView.setVisibility(0);
             this.errorView.setText("Sender hängt. Oben auf VLC oder Exo tippen.");
+        }
+    }
+
+    private void scheduleLiveRecovery() {
+        if (!foreground || userPaused || recoveryExhausted || recoveryScheduled || resolving) return;
+        recoveryScheduled = true;
+        final long request = playbackGeneration;
+        UI.postDelayed(() -> {
+            if (!acceptPlayback(request) || userPaused) return;
+            recoveryScheduled = false;
+            recoverLivePlayback();
+        }, 250);
+    }
+
+    private void recoverLivePlayback() {
+        if (!foreground || userPaused || resolving || recoveryExhausted) return;
+        if (recoverTries >= 3) {
+            recoveryExhausted = true;
+            invalidatePlayback();
+            if (vlc != null) vlc.stop(false);
+            if (player != null) player.stop();
+            if (errorView != null) {
+                errorView.setVisibility(0);
+                errorView.setText("Sender nicht erreichbar. Anderen Sender wählen oder Player wechseln.");
+            }
+            return;
+        }
+        recoverTries++;
+        if (errorView != null) {
+            errorView.setVisibility(0);
+            errorView.setText("Verbindung wird wiederhergestellt…");
+        }
+        if (vavooKeep != null) {
+            if (recoverTries == 3 && "auto".equals(playerPref()) && !alternateEngineTried) {
+                alternateEngineTried = true;
+                forceEngine = useVlc ? "exo" : "vlc";
+            }
+            swapVavoo(true);
+        } else {
+            if (index + 1 < queue.size()) index++;
+            else if ("auto".equals(playerPref()) && !alternateEngineTried) {
+                alternateEngineTried = true;
+                forceEngine = useVlc ? "exo" : "vlc";
+                index = 0;
+            }
+            playCurrent();
         }
     }
 
@@ -2799,6 +2884,9 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void invalidatePlayback() {
         playbackGeneration++;
+        recoveryScheduled = false;
+        if (resolveJob != null) { resolveJob.cancel(true); resolveJob = null; }
+        if (prefetchJob != null) { prefetchJob.cancel(true); prefetchJob = null; }
         resolving = false;
         vlcStarting = false;
         UI.removeCallbacks(vavooPrefetch);
@@ -2808,6 +2896,7 @@ public class PlayerActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         foreground = true;
+        liveHealth.reset(android.os.SystemClock.elapsedRealtime());
         UI.removeCallbacks(tick);
         UI.removeCallbacks(watchdog);
         UI.post(tick);
@@ -2858,18 +2947,13 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private static final class LiveRetry extends DefaultLoadErrorHandlingPolicy {
-        @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-        public int getMinimumLoadableRetryCount(int i) {
-            return 10;
-        }
-
-        @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-        public long getRetryDelayMsFor(LoadErrorHandlingPolicy.LoadErrorInfo loadErrorInfo) {
-            return 700L;
-        }
-
-        LiveRetry() {
-            super(10);
+        private final boolean live;
+        LiveRetry(boolean live) { super(live ? 2 : 10); this.live = live; }
+        @Override public long getRetryDelayMsFor(LoadErrorHandlingPolicy.LoadErrorInfo error) {
+            if (!live) return 700;
+            if (error.errorCount > 2) return C.TIME_UNSET;
+            long delay = super.getRetryDelayMsFor(error);
+            return delay == C.TIME_UNSET ? delay : Math.min(700, Math.max(250, delay));
         }
     }
 
