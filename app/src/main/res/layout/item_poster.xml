@@ -24,13 +24,13 @@
             android:id="@+id/logoText"
             android:background="@drawable/bg_logo"
             android:layout_width="match_parent"
-            android:layout_height="160dp"/>
+            android:layout_height="200dp"/>
         <ImageView
             android:id="@+id/logo"
             android:background="@drawable/bg_logo"
             android:visibility="gone"
             android:layout_width="match_parent"
-            android:layout_height="160dp"
+            android:layout_height="200dp"
             android:scaleType="centerCrop"
             android:adjustViewBounds="false"
             android:contentDescription="@null"/>

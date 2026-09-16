@@ -222,7 +222,7 @@
                     android:background="@drawable/bg_btn_sec"
                     android:layout_width="wrap_content"
                     android:layout_height="36dp"
-                    android:text="Fit"
+                    android:text="Füllen"
                     android:paddingStart="14dp"
                     android:paddingEnd="14dp"
                     android:layout_marginStart="8dp"/>

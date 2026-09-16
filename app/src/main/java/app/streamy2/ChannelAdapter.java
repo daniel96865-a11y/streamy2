@@ -349,15 +349,21 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         boolean isTv = Tv.isTv(vh.itemView.getContext());
         boolean posterGrid = this.gridColumns > 1;
         if (posterGrid) {
-            int ph = this.gridColumns >= 4 ? (isTv ? 140 : 120) : (isTv ? 200 : 170);
-            sizeLogo(vh, 0, ph); // width match_parent handled below
+            // Width-driven 2:3 posters so phone/TV columns fill available space (no tiny fixed DP).
+            android.util.DisplayMetrics dm = vh.itemView.getResources().getDisplayMetrics();
+            int gutter = dp(vh.logo, this.gridColumns >= 4 ? 10 : 14);
+            int colW = Math.max(dp(vh.logo, 72), (dm.widthPixels / Math.max(1, this.gridColumns)) - gutter);
+            int phPx = Math.round(colW * 1.5f);
+            int minH = dp(vh.logo, this.gridColumns >= 4 ? (isTv ? 140 : 130) : (isTv ? 200 : 180));
+            int maxH = dp(vh.logo, this.gridColumns >= 4 ? (isTv ? 220 : 260) : (isTv ? 320 : 360));
+            phPx = Math.max(minH, Math.min(maxH, phPx));
             ViewGroup.LayoutParams lp = vh.logo.getLayoutParams();
             lp.width = ViewGroup.LayoutParams.MATCH_PARENT;
-            lp.height = dp(vh.logo, ph);
+            lp.height = phPx;
             vh.logo.setLayoutParams(lp);
             ViewGroup.LayoutParams lp2 = vh.logoText.getLayoutParams();
             lp2.width = ViewGroup.LayoutParams.MATCH_PARENT;
-            lp2.height = dp(vh.logoText, ph);
+            lp2.height = phPx;
             vh.logoText.setLayoutParams(lp2);
             vh.logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
             vh.title.setTextSize(isTv ? 14.0f : 12.0f);

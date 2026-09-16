@@ -1,7 +1,7 @@
 {
-  "versionCode": 155,
-  "versionName": "3.35",
+  "versionCode": 156,
+  "versionName": "3.36",
   "title": "Streamy 2 Update",
-  "changelog": "Update-Feed in der App. Player-Fixes aus 3.34.",
-  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.35/Streamy2-latest.apk"
+  "changelog": "Handy: Bild/Video füllt den Screen (Füllen/Zoom auch für VLC); Poster passen sich der Displaybreite an. TV unverändert korrekt.",
+  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.36/Streamy2-latest.apk"
 }

@@ -1,6 +1,7 @@
 package app.streamy2;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.net.Uri;
@@ -14,6 +15,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.SeekBar;
@@ -43,6 +45,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector;
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy;
 import androidx.media3.extractor.DefaultExtractorsFactory;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -547,7 +550,7 @@ public class PlayerActivity extends AppCompatActivity {
             ExoPlayer build2 = new ExoPlayer.Builder(this).setRenderersFactory(extensionRendererMode).setTrackSelector(defaultTrackSelector).setLoadControl(build).setWakeMode(2).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), false).setHandleAudioBecomingNoisy(true).build();
             this.player = build2;
             build2.setVolume(1.0f);
-            this.player.setVideoScalingMode(1);
+            this.player.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);
         } catch (OutOfMemoryError oom) {
             this.player = null;
             try {
@@ -1297,12 +1300,28 @@ public class PlayerActivity extends AppCompatActivity {
     private void hideSystemBars() {
         try {
             getWindow().addFlags(1024);
+            // Edge-to-edge so video can use the full panel on phones (notches / gesture bars).
+            try {
+                getWindow().setStatusBarColor(Color.TRANSPARENT);
+                getWindow().setNavigationBarColor(Color.TRANSPARENT);
+            } catch (Throwable ignored) {
+            }
+            if (Build.VERSION.SDK_INT >= 28) {
+                try {
+                    WindowManager.LayoutParams attrs = getWindow().getAttributes();
+                    attrs.layoutInDisplayCutoutMode =
+                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                    getWindow().setAttributes(attrs);
+                } catch (Throwable ignored) {
+                }
+            }
             if (Build.VERSION.SDK_INT >= 30) {
                 getWindow().setDecorFitsSystemWindows(false);
                 WindowInsetsController insetsController = getWindow().getInsetsController();
                 if (insetsController != null) {
                     insetsController.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-                    insetsController.setSystemBarsBehavior(2);
+                    insetsController.setSystemBarsBehavior(
+                            WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
                 }
             } else {
                 getWindow().getDecorView().setSystemUiVisibility(5894);
@@ -1822,19 +1841,30 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void applyResize() {
-        boolean z;
-        if (Tv.isTv(this)) {
-            z = "zoom".equals(new Prefs(this).resize());
-        } else {
-            z = !"fit".equals(new Prefs(this).resize());
-        }
+        // Phone + TV: default/pref "zoom" = fill screen (crop); only explicit "fit" letterboxes.
+        boolean zoom = !"fit".equals(new Prefs(this).resize());
         PlayerView playerView = this.playerView;
         if (playerView != null) {
-            playerView.setResizeMode(z ? 4 : 0);
+            playerView.setResizeMode(zoom
+                    ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    : AspectRatioFrameLayout.RESIZE_MODE_FIT);
+        }
+        ExoPlayer exoPlayer = this.player;
+        if (exoPlayer != null) {
+            try {
+                exoPlayer.setVideoScalingMode(zoom
+                        ? C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+                        : C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
+            } catch (Throwable ignored) {
+            }
+        }
+        LiveEngine liveEngine = this.vlc;
+        if (liveEngine instanceof VlcEngine) {
+            ((VlcEngine) liveEngine).setZoom(zoom);
         }
         TextView textView = this.btnResize;
         if (textView != null) {
-            textView.setText(z ? "Füllen" : "Fit");
+            textView.setText(zoom ? "Füllen" : "Fit");
         }
     }
 
@@ -2457,6 +2487,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
         this.vlc = liveEngine;
         bindVlcPlaybackListener(liveEngine);
+        applyResize();
         liveEngine.play(str, !this.vlcSoft);
         TextView textView2 = this.errorView;
         if (textView2 != null) {

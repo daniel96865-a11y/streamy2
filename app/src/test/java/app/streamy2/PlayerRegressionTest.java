@@ -95,6 +95,21 @@ public class PlayerRegressionTest {
         assertEquals(true,call("acceptPlayback",new Class[]{long.class},(Long)field("playbackGeneration")));
     }
 
+
+    @Test public void applyResizeDefaultsToZoomOnPhone() throws Exception {
+        startActivity();
+        new Prefs(RuntimeEnvironment.getApplication()).setResize("zoom");
+        call("applyResize", new Class[]{});
+        androidx.media3.ui.PlayerView view = (androidx.media3.ui.PlayerView) field("playerView");
+        assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM, view.getResizeMode());
+        TextView btn = (TextView) field("btnResize");
+        assertEquals("Füllen", btn.getText().toString());
+        new Prefs(RuntimeEnvironment.getApplication()).setResize("fit");
+        call("applyResize", new Class[]{});
+        assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT, view.getResizeMode());
+        assertEquals("Fit", btn.getText().toString());
+    }
+
     private static class FakeEngine implements LiveEngine {
         int plays,stops,pauses,resumes;
         public boolean isPlaying(){return false;} public void pause(){pauses++;} public void play(String url,boolean hw){plays++;}

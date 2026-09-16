@@ -1,6 +1,6 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.35** (versionCode **155**).
+Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.36** (versionCode **156**).
 
 Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
 

@@ -38,6 +38,8 @@ final class VlcEngine implements LiveEngine {
     }
 
     private boolean attached;
+    /** true = fill/zoom (crop), false = fit (letterbox). Default fill for phones/TV live. */
+    private boolean zoomWanted = true;
     private final Context ctx;
     private final ViewGroup host;
     private VLCVideoLayout layout;
@@ -144,6 +146,7 @@ final class VlcEngine implements LiveEngine {
                     mediaPlayer.attachViews(vLCVideoLayout, null, false, false);
                     this.attached = true;
                 }
+                applyVideoScale();
                 Media media = new Media(this.lib, Uri.parse(str));
                 media.setHWDecoderEnabled(z, false);
                 int i = Tv.isTv(this.ctx) ? 2800 : 2200;
@@ -168,6 +171,30 @@ final class VlcEngine implements LiveEngine {
             }
         } catch (Throwable unused) {
             toastError("VLC Wiedergabe fehlgeschlagen: " + (unused.getMessage() == null ? unused.getClass().getSimpleName() : unused.getMessage()));
+        }
+    }
+
+
+    /** Apply Fit vs Füllen to the VLC surface (Exo uses PlayerView resizeMode). */
+    void setZoom(boolean zoom) {
+        this.zoomWanted = zoom;
+        applyVideoScale();
+    }
+
+    private void applyVideoScale() {
+        try {
+            MediaPlayer mediaPlayer = this.player;
+            if (mediaPlayer == null) {
+                return;
+            }
+            mediaPlayer.setVideoScale(this.zoomWanted
+                    ? MediaPlayer.ScaleType.SURFACE_FIT_SCREEN
+                    : MediaPlayer.ScaleType.SURFACE_BEST_FIT);
+            try {
+                mediaPlayer.updateVideoSurfaces();
+            } catch (Throwable ignored) {
+            }
+        } catch (Throwable ignored) {
         }
     }
 
