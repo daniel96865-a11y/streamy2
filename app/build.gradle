@@ -20,11 +20,27 @@ android {
         applicationId "app.streamy2"
         minSdk providers.gradleProperty('streamyMinSdk').map { it.toInteger() }.getOrElse(24)
         targetSdk 34
-        versionCode 157
-        versionName "3.37"
+        versionCode 158
+        versionName "3.38"
         vectorDrawables.useSupportLibrary = true
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
+    }
+
+    flavorDimensions += "device"
+    productFlavors {
+        tv {
+            dimension "device"
+            applicationId "app.streamy2"
+            resValue "string", "app_name_variant", "Streamy 2 TV"
+            buildConfigField "String", "UPDATE_CHANNEL", '"tv"'
+        }
+        mobile {
+            dimension "device"
+            applicationId "app.streamy2.mobile"
+            resValue "string", "app_name_variant", "Streamy 2 Mobile"
+            buildConfigField "String", "UPDATE_CHANNEL", '"mobile"'
         }
     }
 
@@ -72,7 +88,6 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            // Prefer our extracted ARM libs from original APK when both present
             pickFirsts += ['lib/**/libvlc.so', 'lib/**/libvlcjni.so', 'lib/**/libc++_shared.so']
         }
         resources {
