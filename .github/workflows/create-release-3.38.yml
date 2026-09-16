@@ -1,0 +1,49 @@
+name: Create Streamy 2 3.38 Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/create-release-3.38.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create release page
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view v3.38 >/dev/null 2>&1; then
+            echo 'Release v3.38 already exists.'
+            exit 0
+          fi
+          cat > /tmp/release-notes.md <<'EOF'
+          # Streamy 2 3.38 — TV & Mobile
+
+          Ab Version 3.38 gibt es zwei getrennte App-Linien:
+
+          - **Streamy 2 TV** — Android TV / Fire TV — Paket `app.streamy2`
+          - **Streamy 2 Mobile** — Android Smartphone / Tablet — Paket `app.streamy2.mobile`
+
+          ## Downloads
+
+          Nach dem Hochladen stehen hier diese beiden APKs bereit:
+
+          - `Streamy2-TV-3.38.apk`
+          - `Streamy2-Mobile-3.38.apk`
+
+          ## Wichtig bei der ersten Installation
+
+          Die 3.38-Apps verwenden die neue Streamy-2-Release-Signatur. Eine alte TV-Installation mit einer anderen Signatur muss vor der ersten Installation dieser neuen TV-Linie deinstalliert werden. Mobile ist ab 3.38 eine eigenständige App mit eigener Paket-ID.
+
+          Beide APKs werden mit APK Signature Scheme v2/v3 geprüft. Zukünftige Updates der neuen TV- und Mobile-Linie müssen mit demselben privaten Release-Key signiert werden.
+          EOF
+          gh release create v3.38 --target main --title 'Streamy 2 3.38 — TV & Mobile' --notes-file /tmp/release-notes.md
