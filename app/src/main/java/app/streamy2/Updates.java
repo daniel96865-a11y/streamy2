@@ -14,7 +14,15 @@ public final class Updates {
     private static final String BASE = "https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/";
 
     public static String[] feeds() {
-        String stem = "mobile".equals(BuildConfig.UPDATE_CHANNEL) ? "streamy2-mobile" : "streamy2";
+        String channel = BuildConfig.UPDATE_CHANNEL;
+        String stem;
+        if ("mobile".equals(channel)) {
+            stem = "streamy2-mobile";
+        } else if ("tv-new".equals(channel)) {
+            stem = "streamy2-tv";
+        } else {
+            stem = "streamy2";
+        }
         return new String[]{BASE + stem + ".json", BASE + stem + ".txt"};
     }
 
