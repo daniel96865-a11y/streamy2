@@ -34,7 +34,7 @@ android {
             dimension "device"
             applicationId "app.streamy2"
             resValue "string", "app_name_variant", "Streamy 2 TV"
-            buildConfigField "String", "UPDATE_CHANNEL", '"tv"'
+            buildConfigField "String", "UPDATE_CHANNEL", '"tv-new"'
         }
         mobile {
             dimension "device"
