@@ -6,6 +6,9 @@ import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -23,6 +26,9 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -79,7 +85,20 @@ public final class UpdateActivity extends Activity {
     }
 
     @Override protected void onResume() {
-        super.onResume(); resumed = true; advance();
+        super.onResume();
+        resumed = true;
+        // After returning from the system installer: success = versionCode >= target.
+        // RESULT_OK alone is unreliable. Same versionCode+URL ready cache is cleared.
+        if (installerOpened) {
+            Updates.Info info = transfer.info();
+            if (info.versionCode > 0 && installedVersionCode() >= info.versionCode) {
+                removeSystemDownload(); transfer.resetDownload(); finish();
+                return;
+            }
+            forceFreshDownload("Lade Update erneut …");
+            return;
+        }
+        advance();
     }
 
     @Override protected void onPause() {
@@ -103,14 +122,52 @@ public final class UpdateActivity extends Activity {
         action.requestFocus();
     }
 
+    private int installedVersionCode() {
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return info.versionCode;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /** Drop ready+download state and force a fresh DownloadManager fetch (cache-bust URL). */
+    private void forceFreshDownload(String message) {
+        removeSystemDownload();
+        transfer.resetDownload();
+        installerOpened = false;
+        status.setText(message);
+        action.setVisibility(View.GONE);
+        beginDownload();
+    }
+
     private void advance() {
         handler.removeCallbacks(poll);
         if (!resumed || isFinishing()) return;
         Updates.Info info = transfer.info();
         if (info.apkUrl.isEmpty()) { showError("Kein Download-Link vorhanden."); return; }
+        int installed = installedVersionCode();
+        if (installed >= info.versionCode && info.versionCode > 0) {
+            removeSystemDownload(); transfer.resetDownload(); finish();
+            return;
+        }
         if (installerOpened) {
             status.setText("Die Installation wurde geöffnet. Falls du sie abgebrochen hast, kannst du sie erneut starten.");
-            showAction("Installation erneut öffnen", v -> { installerOpened = false; advance(); });
+            showAction("Installation erneut öffnen", v -> {
+                installerOpened = false;
+                String ready = transfer.readyPath();
+                File file = ready.isEmpty() ? null : new File(ready);
+                if (file == null || !file.isFile()) {
+                    forceFreshDownload("Lade Update erneut …");
+                    return;
+                }
+                try {
+                    validateArchive(this, file, info.versionCode);
+                    advance();
+                } catch (Exception invalid) {
+                    forceFreshDownload("Lade Update erneut …");
+                }
+            });
             return;
         }
         if (!allowed()) {
@@ -125,7 +182,22 @@ public final class UpdateActivity extends Activity {
             handler.postDelayed(poll, 500); return;
         }
         String ready = transfer.readyPath();
-        if (!ready.isEmpty() && new File(ready).isFile()) { openInstaller(new File(ready)); return; }
+        if (!ready.isEmpty()) {
+            File readyFile = new File(ready);
+            if (!readyFile.isFile()) {
+                transfer.clearReady();
+            } else {
+                try {
+                    validateArchive(this, readyFile, info.versionCode);
+                    openInstaller(readyFile);
+                    return;
+                } catch (Exception invalid) {
+                    transfer.resetDownload();
+                    showError(detail(invalid));
+                    return;
+                }
+            }
+        }
         long id = transfer.downloadId();
         if (id < 0) { beginDownload(); return; }
         try (Cursor cursor = downloads().query(new DownloadManager.Query().setFilterById(id))) {
@@ -159,6 +231,13 @@ public final class UpdateActivity extends Activity {
         }
     }
 
+    /** Cache-bust so DownloadManager does not reuse a prior response for the same URL. */
+    static String downloadUrl(String apkUrl, int versionCode) {
+        if (apkUrl == null || apkUrl.isEmpty()) return apkUrl;
+        String sep = apkUrl.contains("?") ? "&" : "?";
+        return apkUrl + sep + "v=" + versionCode + "&t=" + System.currentTimeMillis();
+    }
+
     private void beginDownload() {
         status.setText("Update-Download startet …");
         try {
@@ -167,7 +246,8 @@ public final class UpdateActivity extends Activity {
             if (!dir.isDirectory() && !dir.mkdirs()) throw new IllegalStateException("Download-Ordner fehlt");
             File target = File.createTempFile("streamy-update-", ".apk", dir);
             if (!target.delete()) throw new IllegalStateException("Download-Ziel konnte nicht vorbereitet werden");
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(transfer.info().apkUrl))
+            String url = downloadUrl(transfer.info().apkUrl, transfer.info().versionCode);
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url))
                     .setTitle("Streamy 2 " + transfer.info().versionName)
                     .setDescription("Update wird geladen")
                     .setMimeType(MIME).setAllowedOverMetered(true)
@@ -192,7 +272,7 @@ public final class UpdateActivity extends Activity {
             File part = new File(ready.getPath() + ".part");
             try {
                 if (id < 0) {
-                    Updates.download(info.apkUrl, part);
+                    Updates.download(downloadUrl(info.apkUrl, info.versionCode), part);
                 } else {
                     DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
                     Uri uri = manager.getUriForDownloadedFile(id);
@@ -209,10 +289,18 @@ public final class UpdateActivity extends Activity {
                     }
                 }
                 validateArchive(context, part, info.versionCode);
+                ready.delete();
                 if (!part.renameTo(ready)) throw new IllegalStateException("APK konnte nicht gespeichert werden");
                 if (state.matches(info)) state.ready(ready.getAbsolutePath());
             } catch (Exception e) {
-                if (state.matches(info)) state.failed("Update konnte nicht vorbereitet werden: " + detail(e));
+                part.delete();
+                ready.delete();
+                if (state.matches(info)) {
+                    state.clearReady();
+                    state.failed(detail(e).contains("Signatur")
+                            ? detail(e)
+                            : "Update konnte nicht vorbereitet werden: " + detail(e));
+                }
             } finally {
                 part.delete(); COPYING.set(false);
                 handler.post(() -> { if (resumed && !isDestroyed()) advance(); });
@@ -226,10 +314,60 @@ public final class UpdateActivity extends Activity {
             if (zip.getEntry("AndroidManifest.xml") == null || zip.getEntry("classes.dex") == null)
                 throw new IllegalStateException("Keine vollständige APK");
         }
-        PackageInfo archive = context.getPackageManager().getPackageArchiveInfo(file.getPath(), 0);
+        PackageManager pm = context.getPackageManager();
+        // Metadata without signing flags — some PackageManager stubs only match flag 0.
+        PackageInfo archive = pm.getPackageArchiveInfo(file.getPath(), 0);
         if (archive == null || !context.getPackageName().equals(archive.packageName)
                 || archive.versionCode != expectedVersion)
             throw new IllegalStateException("Die APK passt nicht zum angeforderten Streamy-Update");
+        int flags = signatureFlags();
+        PackageInfo archiveSigned = pm.getPackageArchiveInfo(file.getPath(), flags);
+        if (archiveSigned == null) archiveSigned = archive;
+        PackageInfo installed = pm.getPackageInfo(context.getPackageName(), flags);
+        if (!signingCertsMatch(installed, archiveSigned)) {
+            file.delete();
+            throw new IllegalStateException(
+                    "Die Signatur der Update-APK passt nicht zur installierten App (Cache/Signatur). "
+                            + "Alte Datei wurde verworfen. Bitte erneut laden.");
+        }
+    }
+
+    static int signatureFlags() {
+        return Build.VERSION.SDK_INT >= 28
+                ? PackageManager.GET_SIGNING_CERTIFICATES
+                : PackageManager.GET_SIGNATURES;
+    }
+
+    static boolean signingCertsMatch(PackageInfo installed, PackageInfo archive) {
+        Set<String> installedCerts = certKeys(installed);
+        Set<String> archiveCerts = certKeys(archive);
+        // Robolectric / unsigned edge: nothing to compare.
+        if (installedCerts.isEmpty() && archiveCerts.isEmpty()) return true;
+        if (installedCerts.isEmpty() || archiveCerts.isEmpty()) return false;
+        for (String key : archiveCerts) {
+            if (installedCerts.contains(key)) return true;
+        }
+        return false;
+    }
+
+    private static Set<String> certKeys(PackageInfo info) {
+        Set<String> keys = new HashSet<>();
+        if (info == null) return keys;
+        Signature[] signatures = null;
+        if (Build.VERSION.SDK_INT >= 28 && info.signingInfo != null) {
+            SigningInfo signing = info.signingInfo;
+            signatures = signing.hasMultipleSigners()
+                    ? signing.getApkContentsSigners()
+                    : signing.getSigningCertificateHistory();
+        }
+        if ((signatures == null || signatures.length == 0) && info.signatures != null) {
+            signatures = info.signatures;
+        }
+        if (signatures == null) return keys;
+        for (Signature signature : signatures) {
+            if (signature != null) keys.add(Arrays.toString(signature.toByteArray()));
+        }
+        return keys;
     }
 
     static Intent installerIntent(Context context, File file, String action) {
@@ -257,12 +395,8 @@ public final class UpdateActivity extends Activity {
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (request != INSTALL_REQUEST) return;
-        if (result == RESULT_OK) {
-            removeSystemDownload(); transfer.resetDownload(); finish();
-        } else {
-            installerOpened = true;
-            status.setText("Installation wurde beendet. Du kannst sie erneut öffnen.");
-        }
+        // RESULT_OK is unreliable — success = installed versionCode >= target (checked in onResume).
+        installerOpened = true;
     }
 
     private void showError(String message) {

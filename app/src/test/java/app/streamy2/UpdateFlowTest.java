@@ -5,6 +5,8 @@ import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
+import app.streamy2.BuildConfig;
+import android.content.pm.Signature;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
@@ -40,8 +42,10 @@ public class UpdateFlowTest {
                 context.getPackageName() + ".file", android.content.pm.PackageManager.GET_META_DATA);
         new androidx.core.content.FileProvider().attachInfo(context, providerInfo);
         context.getSharedPreferences("update_transfer", 0).edit().clear().commit();
-        info = new Updates.Info(); info.versionCode = 150; info.versionName = "3.30";
-        info.apkUrl = "https://example.org/streamy-3.30.apk";
+        info = new Updates.Info();
+        info.versionCode = BuildConfig.VERSION_CODE + 1;
+        info.versionName = "99.0";
+        info.apkUrl = "https://example.org/streamy-update.apk";
         shadowOf(context.getPackageManager()).setCanRequestPackageInstalls(false);
     }
 
@@ -81,7 +85,7 @@ public class UpdateFlowTest {
         UpdateTransfer first = new UpdateTransfer(context); first.select(info);
         first.downloading(17); first.ready("/old/update.apk");
         Updates.Info later = new Updates.Info(); later.apkUrl = "https://example.org/new.apk";
-        later.versionCode = 151; later.versionName = "3.31";
+        later.versionCode = BuildConfig.VERSION_CODE + 2; later.versionName = "99.1";
         new UpdateTransfer(context).select(later);
         UpdateTransfer restored = new UpdateTransfer(context);
         assertEquals(-1, restored.downloadId()); assertEquals("", restored.readyPath());
@@ -103,8 +107,11 @@ public class UpdateFlowTest {
         assertNotNull(downloadUri);
         shadowOf(context.getContentResolver()).registerInputStream(downloadUri, new java.io.ByteArrayInputStream(bytes.toByteArray()));
         File part = new File(context.getFilesDir(), "streamy-install.apk.part");
+        File ready = new File(context.getFilesDir(), "streamy-install.apk");
         PackageInfo archive = new PackageInfo(); archive.packageName = context.getPackageName(); archive.versionCode = info.versionCode;
         shadowOf(context.getPackageManager()).setPackageArchiveInfo(part.getPath(), archive);
+        // advance() re-validates the ready file after rename
+        shadowOf(context.getPackageManager()).setPackageArchiveInfo(ready.getPath(), archive);
         UpdateTransfer state = new UpdateTransfer(context); state.select(info); state.downloading(id);
         ActivityController<UpdateActivity> restored = Robolectric.buildActivity(UpdateActivity.class,
                 new Intent(context, UpdateActivity.class)).setup();
@@ -157,13 +164,75 @@ public class UpdateFlowTest {
                 zip.putNextEntry(new ZipEntry(name)); zip.write(1); zip.closeEntry();
             }
         }
-        PackageInfo archive = new PackageInfo(); archive.packageName = context.getPackageName(); archive.versionCode = 149;
+        int target = BuildConfig.VERSION_CODE + 1;
+        PackageInfo archive = new PackageInfo(); archive.packageName = context.getPackageName(); archive.versionCode = target - 1;
         shadowOf(context.getPackageManager()).setPackageArchiveInfo(file.getPath(), archive);
-        assertThrows(IllegalStateException.class, () -> UpdateActivity.validateArchive(context, file, 150));
-        archive.versionCode = 150; archive.packageName = "other.app";
-        assertThrows(IllegalStateException.class, () -> UpdateActivity.validateArchive(context, file, 150));
+        assertThrows(IllegalStateException.class, () -> UpdateActivity.validateArchive(context, file, target));
+        archive.versionCode = target; archive.packageName = "other.app";
+        assertThrows(IllegalStateException.class, () -> UpdateActivity.validateArchive(context, file, target));
         archive.packageName = context.getPackageName();
-        UpdateActivity.validateArchive(context, file, 150);
+        UpdateActivity.validateArchive(context, file, target);
+    }
+
+
+    @Test public void selectClearsReadyWhenCachedFileMissing() {
+        UpdateTransfer first = new UpdateTransfer(context); first.select(info);
+        first.ready("/missing/streamy-install.apk");
+        new UpdateTransfer(context).select(info);
+        UpdateTransfer restored = new UpdateTransfer(context);
+        assertEquals("", restored.readyPath());
+        assertEquals(info.apkUrl, restored.info().apkUrl);
+    }
+
+    @Test public void downloadUrlAddsCacheBustQuery() {
+        String first = UpdateActivity.downloadUrl("https://example.org/a.apk", 157);
+        assertTrue(first.contains("?v=157&t="));
+        String second = UpdateActivity.downloadUrl("https://example.org/a.apk?x=1", 157);
+        assertTrue(second.contains("&v=157&t="));
+    }
+
+    @Test public void signatureMismatchRejectsArchiveAndMentionsCache() throws Exception {
+        File file = new File(context.getFilesDir(), "sig-mismatch.apk");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(file.toPath()))) {
+            for (String name : new String[]{"AndroidManifest.xml", "classes.dex"}) {
+                zip.putNextEntry(new ZipEntry(name)); zip.write(1); zip.closeEntry();
+            }
+        }
+        PackageInfo archive = new PackageInfo();
+        int target = BuildConfig.VERSION_CODE + 1;
+        archive.packageName = context.getPackageName();
+        archive.versionCode = target;
+        archive.signatures = new Signature[]{new Signature("001122")};
+        shadowOf(context.getPackageManager()).setPackageArchiveInfo(file.getPath(), archive);
+        PackageInfo installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        installed.signatures = new Signature[]{new Signature("aabbcc")};
+        shadowOf(context.getPackageManager()).installPackage(installed);
+        Exception thrown = assertThrows(IllegalStateException.class,
+                () -> UpdateActivity.validateArchive(context, file, target));
+        assertTrue(thrown.getMessage().contains("Signatur"));
+        assertTrue(thrown.getMessage().contains("Cache"));
+        assertFalse(file.exists());
+    }
+
+    @Test public void matchingSignaturesPassValidation() throws Exception {
+        File file = new File(context.getFilesDir(), "sig-ok.apk");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(file.toPath()))) {
+            for (String name : new String[]{"AndroidManifest.xml", "classes.dex"}) {
+                zip.putNextEntry(new ZipEntry(name)); zip.write(1); zip.closeEntry();
+            }
+        }
+        Signature shared = new Signature("deadbeef");
+        PackageInfo archive = new PackageInfo();
+        int target = BuildConfig.VERSION_CODE + 1;
+        archive.packageName = context.getPackageName();
+        archive.versionCode = target;
+        archive.signatures = new Signature[]{shared};
+        shadowOf(context.getPackageManager()).setPackageArchiveInfo(file.getPath(), archive);
+        PackageInfo installed = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+        installed.signatures = new Signature[]{shared};
+        shadowOf(context.getPackageManager()).installPackage(installed);
+        UpdateActivity.validateArchive(context, file, target);
+        assertTrue(file.exists());
     }
 
     @Test public void installFailureDoesNotRecommendDeletingAppDataOrMislabelCompatibility() {
