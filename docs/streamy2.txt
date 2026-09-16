@@ -1,7 +1,7 @@
 {
-  "versionCode": 157,
-  "versionName": "3.37",
+  "versionCode": 155,
+  "versionName": "3.35",
   "title": "Streamy 2 Update",
-  "changelog": "Update-Cache: Signaturprüfung vor Installation; veraltete/debug-APK aus Cache wird verworfen; erneuter Download mit Cache-Bust wenn Version nach Installer unverändert.",
-  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.37/Streamy2-latest.apk"
+  "changelog": "Stabile, mit Streamy-2-Signatur veröffentlichte Version. Update 3.37 vorübergehend zurückgezogen, da die veröffentlichte APK nicht zur bestehenden Signaturkette passt.",
+  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.35/Streamy2-latest.apk"
 }
