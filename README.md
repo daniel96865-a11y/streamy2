@@ -1,71 +1,50 @@
 # Streamy 2
 
-Android / Android-TV Media-Client (Xtream, Vavoo, Megakino) — Version **3.37** (versionCode **157**).
+Native Android IPTV client with Xtream support, EPG, Live TV, movies, series, Vavoo, Megakino and TV/remote-control support.
 
-Release APK is **ARM-only** (`armeabi-v7a` + `arm64-v8a`) for Fire TV Stick / phones / Android TV install reliability (no x86).
+## App lines from 3.38
 
-## Download
+Streamy 2 is split into two independent APK lines while sharing the same source code:
 
-- Latest APK: [Streamy2-latest.apk](https://github.com/daniel96865-a11y/streamy2/releases/latest/download/Streamy2-latest.apk)
-- Update feed: [docs/streamy2.json](docs/streamy2.json)
+- **Streamy 2 TV** — package `app.streamy2` — Android TV / Fire TV. This keeps the existing package ID so installed TV versions can continue to receive in-place updates.
+- **Streamy 2 Mobile** — package `app.streamy2.mobile` — Android phones/tablets. This is a separate installation and has its own update channel.
+
+Both variants are ARM-only (`armeabi-v7a` + `arm64-v8a`).
 
 ## Build
 
 ```bash
 export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
-./gradlew :app:assembleRelease
+./gradlew :app:assembleTvRelease
+./gradlew :app:assembleMobileRelease
 ```
 
-APK: `app/build/outputs/apk/release/app-release.apk`
+Expected outputs:
 
-## 3.37 notes
+- TV: `app/build/outputs/apk/tv/release/`
+- Mobile: `app/build/outputs/apk/mobile/release/`
 
-In-App-Update: Signatur der APK muss zur installierten App passen (verhindert stale Debug-Cache). Wenn der Installer öffnet, die Version aber unverändert bleibt, wird Cache geleert und mit Cache-Bust (`?v=`/`&t=`) neu geladen. Erfolg = `versionCode` ≥ Ziel, nicht `RESULT_OK`.
+## Update channels
 
-## 3.28 notes
+- TV: `docs/streamy2.json` / `docs/streamy2.txt`
+- Mobile: `docs/streamy2-mobile.json` / `docs/streamy2-mobile.txt`
 
-Fire-TV-Hang nach 3.26/3.27: der EPG-Fortschrittsbalken nutzt kein Android-`ProgressBar` mehr (animierter Refresh + Clip-Drawable hat die UI auf dem Stick eingefroren). Stattdessen eine leichte Zeichen-View; EPG-Updates nur für sichtbare Zeilen. Megakino hält beim Host-Lookup nicht mehr den UI-Lock.
+A release must not be advertised in either production feed until the exact APK has been published and its signing certificate has been checked against the installed app line.
 
-## 3.27 notes
+## Signing
 
-EPG „Jetzt“ nur für wirklich laufende Sendung (`start ≤ jetzt < ende`); Fortschrittsbalken nur im Slot. Bare XMLTV-Zeiten als Europe/Berlin; VIP-Playlist-Prefix wird beim Namensmatch entfernt.
+The production TV line must use the private **Streamy 2** signing key and the existing Android 9+ signing lineage. A CI/debug-signed APK must never replace `Streamy2-latest.apk` in the production TV feed.
 
-## 3.26 notes
+The private keystore and lineage are intentionally not stored in Git. See `SIGNING.md` and `tools/sign-rotated-release.py`.
 
-Live-TV / Vavoo: dünner Fortschrittsbalken unter der „Jetzt:“-Zeile zeigt den Anteil der laufenden EPG-Sendung (Start→Ende vs. jetzt). Versteckt ohne gültige Zeiten; Filme/Serien-Poster unverändert.
+## 3.38
 
-## 3.25 notes
+- separates TV and Mobile into independent application IDs
+- gives each app its own update channel
+- keeps `app.streamy2` for TV upgrade compatibility
+- prevents a Mobile release from being offered to TV devices and vice versa
+- production TV feed remains on the last compatible signed release until a correctly signed 3.38 TV APK is published
 
-Megakino-Folgenliste: keine doppelte Beschriftung mehr (`Folge 1 · Episode 1` → `Folge 1`). Detailtitel ohne Staffel-Suffix, Staffel in der Meta-Zeile, Player-Untertitel `Staffel 6 · Folge 1`.
+## Current update safety status
 
-## 3.24 notes
-
-Megakino-Serien: Wiedergabe über aktuelle VOE-Spiegel (voe.sx ist DDoS-Guard). Serien in der Liste nach Titel A–Z gruppiert (eine Karte je Serie, Staffeln im Detail). Folgen numerisch sortiert.
-
-## 3.23 notes
-
-ANR-Fix: Nach dem 3.22 Cache-Fix liefen EPG-Lookups + Sibling-Unify (tausende `normName`-Regexes) auf dem UI-Thread — „App reagiert nicht“ auf Fire TV. Bulk/askEpg nutzen nur Exact-Match; Fuzzy nur im Player off-UI; Unify im IO-Thread.
-
-## 3.22 notes
-
-Bugfix: Live-TV from disk cache no longer marks every channel as a non-clickable header (and no longer duplicates rows). EPG name matching no longer steals parent guides (e.g. RTL Crime → RTL). XMLTV `</channel>` now clears the current id; extra EPG feeds merge programmes instead of replacing them. Vavoo/Gx/logo HTTP connections always disconnect.
-
-## 3.21 notes
-
-ARM-only release: native libs restricted to `armeabi-v7a` and `arm64-v8a` (excludes x86/x86_64). Smaller APK for Fire TV Stick; same app behavior on Fire TV, phones, and Android TV. No feature changes vs 3.20.
-
-## 3.20 notes
-
-Einstellungen → Darstellung: „Filme/Serien Spalten“ mit **1 / 2 / 4** Poster nebeneinander. Persistiert in Prefs; gilt für Filme, Serien und Megakino (inkl. Kategorien). Live-TV/Vavoo bleiben Liste. Raster bleibt per DPAD fokussierbar. Default: 2 Spalten.
-
-## 3.19 notes
-
-Cold start: main UI opens immediately. Large Xtream `CatalogCache` JSON is parsed off the main thread (show „Katalog lädt…“); WebView + AdBlock are created only when Browser is opened; libVLC is never probed in `Application.onCreate`. Vavoo/Kino/EPG hydrate after first paint. Keeps 3.18 EPG cache-first + 45min TTL.
-
-## 3.18 notes
-
-EPG UX: open Live-TV/Vavoo immediately (never freeze on download). Disk/memory cache shows „Jetzt: …“ instantly; full net refresh at most every 45 minutes (session/TTL) or cold start without valid cache. Subtle „EPG lädt…“ status while background refresh runs; fail soft keeps cache. Force refresh via settings still available. 3.16/3.17 unify + off-UI apply kept.
-
-## 3.17 notes
-
-Fixes crash/force-close when opening Vavoo after 3.16. Heavy EPG apply/unify runs off the UI thread; fuzzy name scan is last-resort only; askEpg uses cheap sibling unify. Live-TV name-unify + internet XMLTV kept.
+The previously published 3.37 APK used a different signing certificate from the established production line. The production feeds were therefore rolled back to the last compatible signed release rather than continuing to offer an APK that Android cannot install as an in-place update.
