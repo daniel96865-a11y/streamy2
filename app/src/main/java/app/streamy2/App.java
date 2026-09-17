@@ -1,9 +1,11 @@
 package app.streamy2;
 
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.Application;
 import android.content.ComponentCallbacks2;
 import android.content.Context;
+import android.os.Bundle;
 import app.streamy2.Models;
 import java.net.CookieHandler;
 import java.net.CookieManager;
@@ -38,7 +40,7 @@ public class App extends Application {
                 } else {
                     ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
                     am.getMemoryInfo(mi);
-                    // Treat &lt; 1.5 GiB total as weak TV-stick class
+                    // Treat < 1.5 GiB total as weak TV-stick class
                     if (mi.totalMem > 0 && mi.totalMem < 1536L * 1024L * 1024L) {
                         low = true;
                     }
@@ -63,6 +65,20 @@ public class App extends Application {
     @Override // android.app.Application
     public void onCreate() {
         super.onCreate();
+        // Migrate the former single Xtream account into the first playlist profile
+        // and initialise the profile-aware cache before MainActivity reads it.
+        new Prefs(this);
+        registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
+            @Override public void onActivityCreated(Activity activity, Bundle state) { }
+            @Override public void onActivityStarted(Activity activity) { }
+            @Override public void onActivityResumed(Activity activity) {
+                PlaylistUiBinder.bind(activity);
+            }
+            @Override public void onActivityPaused(Activity activity) { }
+            @Override public void onActivityStopped(Activity activity) { }
+            @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) { }
+            @Override public void onActivityDestroyed(Activity activity) { }
+        });
         if (guide == null) {
             guide = new EpgGuide();
         }
