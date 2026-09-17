@@ -16,11 +16,13 @@ public class Prefs {
     private static final String KEY_PROFILES = "profilesV2";
     private static final String KEY_ACTIVE_PROFILE = "activeProfileV2";
     private static final String DEFAULT_PROFILE = "p1";
+    private static volatile String cacheProfileId = DEFAULT_PROFILE;
     private final SharedPreferences p;
 
     public Prefs(Context context) {
         this.p = context.getSharedPreferences(PREFS, 0);
         ensureProfiles();
+        cacheProfileId = activeProfileId();
     }
 
     private static String pk(String id, String key) {
@@ -136,6 +138,7 @@ public class Prefs {
     public boolean setActiveProfile(String id) {
         if (id == null || !readProfileIds().contains(id)) return false;
         this.p.edit().putString(KEY_ACTIVE_PROFILE, id).apply();
+        cacheProfileId = id;
         return true;
     }
 
@@ -156,6 +159,7 @@ public class Prefs {
                 .putInt(pk(id, "epgInterval"), 12)
                 .putString(KEY_ACTIVE_PROFILE, id)
                 .apply();
+        cacheProfileId = id;
         return id;
     }
 
@@ -165,6 +169,7 @@ public class Prefs {
         if (ids.size() <= 1) {
             clearAccount();
             this.p.edit().putString(pk(active, "label"), "Playlist 1").apply();
+            cacheProfileId = active;
             return;
         }
         ids.remove(active);
@@ -178,16 +183,24 @@ public class Prefs {
         e.putString(KEY_PROFILES, a.toString());
         e.putString(KEY_ACTIVE_PROFILE, ids.get(0));
         e.apply();
+        cacheProfileId = ids.get(0);
     }
 
     public File catalogCacheFile(File cacheDir) {
-        String id = activeProfileId().replaceAll("[^A-Za-z0-9_-]", "_");
+        return profileCacheFile(cacheDir, activeProfileId());
+    }
+
+    static File catalogCacheFileForActive(File cacheDir) {
+        return profileCacheFile(cacheDir, cacheProfileId);
+    }
+
+    private static File profileCacheFile(File cacheDir, String rawId) {
+        String id = rawId == null ? DEFAULT_PROFILE : rawId.replaceAll("[^A-Za-z0-9_-]", "_");
+        if (id.isEmpty()) id = DEFAULT_PROFILE;
         File target = new File(cacheDir, "streamy2-live-cache-" + id + ".json");
         if (DEFAULT_PROFILE.equals(id) && !target.exists()) {
             File old = new File(cacheDir, "streamy2-live-cache.json");
-            if (old.isFile()) {
-                if (!old.renameTo(target)) copyFile(old, target);
-            }
+            if (old.isFile() && !old.renameTo(target)) copyFile(old, target);
         }
         return target;
     }
