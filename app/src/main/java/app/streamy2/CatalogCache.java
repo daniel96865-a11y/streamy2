@@ -11,7 +11,7 @@ import org.json.JSONObject;
 /* loaded from: classes.dex */
 public final class CatalogCache {
     public static File file(File file) {
-        return new File(file, "streamy2-live-cache.json");
+        return Prefs.catalogCacheFileForActive(file);
     }
 
     static boolean isHeaderName(String name) {
@@ -67,7 +67,6 @@ public final class CatalogCache {
                         }
                         channel.archive = optJSONObject2.optBoolean("archive");
                         channel.archiveDays = optJSONObject2.optInt("days");
-                        // Prefer persisted flag; otherwise detect group headers like XtreamApi.
                         if (optJSONObject2.has("header")) {
                             channel.header = optJSONObject2.optBoolean("header");
                         } else {
