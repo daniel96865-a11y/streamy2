@@ -1,7 +1,1 @@
-{
-  "versionCode": 158,
-  "versionName": "3.38",
-  "title": "Streamy 2 TV Update",
-  "changelog": "Streamy 2 TV ist ab 3.38 eine eigenständige, neu signierte TV-Linie. Für diese Linie sind zukünftige TV-Updates getrennt von Mobile und der alten 3.35-Signaturkette.",
-  "apkUrl": "https://github.com/daniel96865-a11y/streamy2/releases/download/v3.38/Streamy2-TV-3.38.apk"
-}
+{"versionCode":159,"versionName":"3.39","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.39/Streamy2-TV-3.39.apk","changelog":"Neu in 3.39: mehrere getrennte Wiedergabelisten mit eigenem Profil und eigenem Cache."}
