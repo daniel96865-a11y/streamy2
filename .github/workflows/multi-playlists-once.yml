@@ -2,15 +2,16 @@ name: Integrate multi-playlist UI once
 
 on:
   push:
-    branches: [ feature/multi-playlists ]
-    paths: [ '.github/workflows/multi-playlists-once.yml' ]
+    branches:
+      - feature/multi-playlists
+    paths:
+      - .github/workflows/multi-playlists-once.yml
 
 permissions:
   contents: write
 
 jobs:
   patch-build-commit:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout feature branch
@@ -29,141 +30,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Patch playlist switcher and TV focus UI
-        shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          java = Path('app/src/main/java/app/streamy2/MainActivity.java')
-          s = java.read_text(encoding='utf-8')
-
-          anchor = '        this.activeLabel = (TextView) findViewById(R.id.activeLabel);\n'
-          insert = anchor + '''        if (this.activeLabel != null) {\n            this.activeLabel.setOnClickListener(v -> showPlaylistManager());\n        }\n'''
-          if anchor not in s:
-              raise SystemExit('activeLabel anchor not found')
-          s = s.replace(anchor, insert, 1)
-
-          cache_old = 'CatalogCache.file(getCacheDir())'
-          count = s.count(cache_old)
-          if count != 2:
-              raise SystemExit(f'expected 2 CatalogCache anchors, found {count}')
-          s = s.replace(cache_old, 'this.prefs.catalogCacheFile(getCacheDir())')
-
-          methods_anchor = '    private void refreshActive() {\n'
-          methods = r'''    private void showPlaylistManager() {
-        final List<String> ids = this.prefs.profileIds();
-        final List<String> names = this.prefs.profileNames();
-        final String active = this.prefs.activeProfileId();
-        ArrayList<String> entries = new ArrayList<>();
-        for (int i = 0; i < ids.size(); i++) {
-            String prefix = ids.get(i).equals(active) ? "✓ " : "";
-            entries.add(prefix + names.get(i));
-        }
-        entries.add("＋ Neue Playlist hinzufügen");
-        entries.add("🗑 Aktive Playlist löschen");
-
-        new AlertDialog.Builder(this)
-                .setTitle("Wiedergabelisten")
-                .setItems(entries.toArray(new String[0]), (dialog, which) -> {
-                    if (which < ids.size()) {
-                        String id = ids.get(which);
-                        if (!id.equals(this.prefs.activeProfileId()) && this.prefs.setActiveProfile(id)) {
-                            App.api = null;
-                            App.live = null;
-                            App.playing = null;
-                            App.guide = new EpgGuide();
-                            recreate();
-                        }
-                        return;
-                    }
-                    if (which == ids.size()) {
-                        createPlaylistProfile();
-                        return;
-                    }
-                    confirmDeletePlaylistProfile();
-                })
-                .setNegativeButton("Abbrechen", null)
-                .show();
-    }
-
-    private void createPlaylistProfile() {
-        this.prefs.createProfile(null);
-        this.api = null;
-        App.api = null;
-        App.live = null;
-        App.playing = null;
-        App.guide = new EpgGuide();
-        this.guide = App.guide;
-        this.catalog = new Models.Catalog();
-        synchronized (this.epgAsked) {
-            this.epgAsked.clear();
-        }
-        this.inName.setText("");
-        this.inUrl.setText("");
-        this.inUser.setText("");
-        this.inPass.setText("");
-        this.inEpgUrl.setText("");
-        this.prefs.setFormat("hls");
-        refreshActive();
-        setFold(R.id.bodyAccount, R.id.chevAccount, true);
-        if (this.status != null) {
-            this.status.setText("Neue Playlist angelegt. Zugangsdaten eingeben und verbinden.");
-        }
-        renderList();
-        if (this.inName != null) {
-            this.inName.requestFocus();
-        }
-    }
-
-    private void confirmDeletePlaylistProfile() {
-        final String name = this.prefs.activeProfileName();
-        new AlertDialog.Builder(this)
-                .setTitle("Playlist löschen")
-                .setMessage("„" + name + "“ wirklich von diesem Gerät löschen?")
-                .setPositiveButton("Löschen", (dialog, which) -> {
-                    File cache = this.prefs.catalogCacheFile(getCacheDir());
-                    if (cache != null && cache.isFile()) {
-                        cache.delete();
-                    }
-                    this.prefs.deleteActiveProfile();
-                    App.api = null;
-                    App.live = null;
-                    App.playing = null;
-                    App.guide = new EpgGuide();
-                    recreate();
-                })
-                .setNegativeButton("Abbrechen", null)
-                .show();
-    }
-
-'''
-          if methods_anchor not in s:
-              raise SystemExit('refreshActive anchor not found')
-          s = s.replace(methods_anchor, methods + methods_anchor, 1)
-
-          old_connected = '            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden");'
-          new_connected = '            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden  ·  " + this.prefs.profileCount() + (this.prefs.profileCount() == 1 ? " Liste  ›" : " Listen  ›"));'
-          if old_connected not in s:
-              raise SystemExit('connected label anchor not found')
-          s = s.replace(old_connected, new_connected, 1)
-
-          old_demo = '        this.activeLabel.setText("Aktive Playlist: Streamy Demo");'
-          new_demo = '        this.activeLabel.setText("Aktive Playlist: " + this.prefs.activeProfileName() + "  ·  Nicht verbunden  ·  " + this.prefs.profileCount() + (this.prefs.profileCount() == 1 ? " Liste  ›" : " Listen  ›"));'
-          if old_demo not in s:
-              raise SystemExit('demo label anchor not found')
-          s = s.replace(old_demo, new_demo, 1)
-
-          java.write_text(s, encoding='utf-8')
-
-          xml = Path('app/src/main/res/layout/activity_main.xml')
-          x = xml.read_text(encoding='utf-8')
-          old = '''                        <TextView\n                            android:textSize="13sp"\n                            android:textColor="@color/muted"\n                            android:id="@+id/activeLabel"\n                            android:layout_width="match_parent"\n                            android:layout_height="wrap_content"\n                            android:layout_marginTop="4dp"/>'''
-          new = '''                        <TextView\n                            android:textSize="13sp"\n                            android:textColor="@color/muted"\n                            android:id="@+id/activeLabel"\n                            android:background="@drawable/bg_chip"\n                            android:focusable="true"\n                            android:clickable="true"\n                            android:gravity="center_vertical"\n                            android:minHeight="44dp"\n                            android:paddingStart="12dp"\n                            android:paddingEnd="12dp"\n                            android:layout_width="match_parent"\n                            android:layout_height="wrap_content"\n                            android:layout_marginTop="8dp"/>'''
-          if old not in x:
-              raise SystemExit('activeLabel XML anchor not found')
-          x = x.replace(old, new, 1)
-          xml.write_text(x, encoding='utf-8')
-          PY
+          echo 'CmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKamF2YSA9IFBhdGgoJ2FwcC9zcmMvbWFpbi9qYXZhL2FwcC9zdHJlYW15Mi9NYWluQWN0aXZpdHkuamF2YScpCnMgPSBqYXZhLnJlYWRfdGV4dChlbmNvZGluZz0ndXRmLTgnKQoKYW5jaG9yID0gJyAgICAgICAgdGhpcy5hY3RpdmVMYWJlbCA9IChUZXh0VmlldykgZmluZFZpZXdCeUlkKFIuaWQuYWN0aXZlTGFiZWwpO1xuJwppbnNlcnQgPSBhbmNob3IgKyAnJycgICAgICAgIGlmICh0aGlzLmFjdGl2ZUxhYmVsICE9IG51bGwpIHsKICAgICAgICAgICAgdGhpcy5hY3RpdmVMYWJlbC5zZXRPbkNsaWNrTGlzdGVuZXIodiAtPiBzaG93UGxheWxpc3RNYW5hZ2VyKCkpOwogICAgICAgIH0KJycnCmlmIGFuY2hvciBub3QgaW4gczoKICAgIHJhaXNlIFN5c3RlbUV4aXQoJ2FjdGl2ZUxhYmVsIGFuY2hvciBub3QgZm91bmQnKQpzID0gcy5yZXBsYWNlKGFuY2hvciwgaW5zZXJ0LCAxKQoKY2FjaGVfb2xkID0gJ0NhdGFsb2dDYWNoZS5maWxlKGdldENhY2hlRGlyKCkpJwpjb3VudCA9IHMuY291bnQoY2FjaGVfb2xkKQppZiBjb3VudCAhPSAyOgogICAgcmFpc2UgU3lzdGVtRXhpdChmJ2V4cGVjdGVkIDIgQ2F0YWxvZ0NhY2hlIGFuY2hvcnMsIGZvdW5kIHtjb3VudH0nKQpzID0gcy5yZXBsYWNlKGNhY2hlX29sZCwgJ3RoaXMucHJlZnMuY2F0YWxvZ0NhY2hlRmlsZShnZXRDYWNoZURpcigpKScpCgptZXRob2RzX2FuY2hvciA9ICcgICAgcHJpdmF0ZSB2b2lkIHJlZnJlc2hBY3RpdmUoKSB7XG4nCm1ldGhvZHMgPSByJycnICAgIHByaXZhdGUgdm9pZCBzaG93UGxheWxpc3RNYW5hZ2VyKCkgewogICAgICAgIGZpbmFsIExpc3Q8U3RyaW5nPiBpZHMgPSB0aGlzLnByZWZzLnByb2ZpbGVJZHMoKTsKICAgICAgICBmaW5hbCBMaXN0PFN0cmluZz4gbmFtZXMgPSB0aGlzLnByZWZzLnByb2ZpbGVOYW1lcygpOwogICAgICAgIGZpbmFsIFN0cmluZyBhY3RpdmUgPSB0aGlzLnByZWZzLmFjdGl2ZVByb2ZpbGVJZCgpOwogICAgICAgIEFycmF5TGlzdDxTdHJpbmc+IGVudHJpZXMgPSBuZXcgQXJyYXlMaXN0PD4oKTsKICAgICAgICBmb3IgKGludCBpID0gMDsgaSA8IGlkcy5zaXplKCk7IGkrKykgewogICAgICAgICAgICBTdHJpbmcgcHJlZml4ID0gaWRzLmdldChpKS5lcXVhbHMoYWN0aXZlKSA/ICLinJMgIiA6ICIiOwogICAgICAgICAgICBlbnRyaWVzLmFkZChwcmVmaXggKyBuYW1lcy5nZXQoaSkpOwogICAgICAgIH0KICAgICAgICBlbnRyaWVzLmFkZCgi77yLIE5ldWUgUGxheWxpc3QgaGluenVmw7xnZW4iKTsKICAgICAgICBlbnRyaWVzLmFkZCgi8J+XkSBBa3RpdmUgUGxheWxpc3QgbMO2c2NoZW4iKTsKCiAgICAgICAgbmV3IEFsZXJ0RGlhbG9nLkJ1aWxkZXIodGhpcykKICAgICAgICAgICAgICAgIC5zZXRUaXRsZSgiV2llZGVyZ2FiZWxpc3RlbiIpCiAgICAgICAgICAgICAgICAuc2V0SXRlbXMoZW50cmllcy50b0FycmF5KG5ldyBTdHJpbmdbMF0pLCAoZGlhbG9nLCB3aGljaCkgLT4gewogICAgICAgICAgICAgICAgICAgIGlmICh3aGljaCA8IGlkcy5zaXplKCkpIHsKICAgICAgICAgICAgICAgICAgICAgICAgU3RyaW5nIGlkID0gaWRzLmdldCh3aGljaCk7CiAgICAgICAgICAgICAgICAgICAgICAgIGlmICghaWQuZXF1YWxzKHRoaXMucHJlZnMuYWN0aXZlUHJvZmlsZUlkKCkpICYmIHRoaXMucHJlZnMuc2V0QWN0aXZlUHJvZmlsZShpZCkpIHsKICAgICAgICAgICAgICAgICAgICAgICAgICAgIEFwcC5hcGkgPSBudWxsOwogICAgICAgICAgICAgICAgICAgICAgICAgICAgQXBwLmxpdmUgPSBudWxsOwogICAgICAgICAgICAgICAgICAgICAgICAgICAgQXBwLnBsYXlpbmcgPSBudWxsOwogICAgICAgICAgICAgICAgICAgICAgICAgICAgQXBwLmd1aWRlID0gbmV3IEVwZ0d1aWRlKCk7CiAgICAgICAgICAgICAgICAgICAgICAgICAgICByZWNyZWF0ZSgpOwogICAgICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgICAgIHJldHVybjsKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgaWYgKHdoaWNoID09IGlkcy5zaXplKCkpIHsKICAgICAgICAgICAgICAgICAgICAgICAgY3JlYXRlUGxheWxpc3RQcm9maWxlKCk7CiAgICAgICAgICAgICAgICAgICAgICAgIHJldHVybjsKICAgICAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICAgICAgY29uZmlybURlbGV0ZVBsYXlsaXN0UHJvZmlsZSgpOwogICAgICAgICAgICAgICAgfSkKICAgICAgICAgICAgICAgIC5zZXROZWdhdGl2ZUJ1dHRvbigiQWJicmVjaGVuIiwgbnVsbCkKICAgICAgICAgICAgICAgIC5zaG93KCk7CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGNyZWF0ZVBsYXlsaXN0UHJvZmlsZSgpIHsKICAgICAgICB0aGlzLnByZWZzLmNyZWF0ZVByb2ZpbGUobnVsbCk7CiAgICAgICAgdGhpcy5hcGkgPSBudWxsOwogICAgICAgIEFwcC5hcGkgPSBudWxsOwogICAgICAgIEFwcC5saXZlID0gbnVsbDsKICAgICAgICBBcHAucGxheWluZyA9IG51bGw7CiAgICAgICAgQXBwLmd1aWRlID0gbmV3IEVwZ0d1aWRlKCk7CiAgICAgICAgdGhpcy5ndWlkZSA9IEFwcC5ndWlkZTsKICAgICAgICB0aGlzLmNhdGFsb2cgPSBuZXcgTW9kZWxzLkNhdGFsb2coKTsKICAgICAgICBzeW5jaHJvbml6ZWQgKHRoaXMuZXBnQXNrZWQpIHsKICAgICAgICAgICAgdGhpcy5lcGdBc2tlZC5jbGVhcigpOwogICAgICAgIH0KICAgICAgICB0aGlzLmluTmFtZS5zZXRUZXh0KCIiKTsKICAgICAgICB0aGlzLmluVXJsLnNldFRleHQoIiIpOwogICAgICAgIHRoaXMuaW5Vc2VyLnNldFRleHQoIiIpOwogICAgICAgIHRoaXMuaW5QYXNzLnNldFRleHQoIiIpOwogICAgICAgIHRoaXMuaW5FcGdVcmwuc2V0VGV4dCgiIik7CiAgICAgICAgdGhpcy5wcmVmcy5zZXRGb3JtYXQoImhscyIpOwogICAgICAgIHJlZnJlc2hBY3RpdmUoKTsKICAgICAgICBzZXRGb2xkKFIuaWQuYm9keUFjY291bnQsIFIuaWQuY2hldkFjY291bnQsIHRydWUpOwogICAgICAgIGlmICh0aGlzLnN0YXR1cyAhPSBudWxsKSB7CiAgICAgICAgICAgIHRoaXMuc3RhdHVzLnNldFRleHQoIk5ldWUgUGxheWxpc3QgYW5nZWxlZ3QuIFp1Z2FuZ3NkYXRlbiBlaW5nZWJlbiB1bmQgdmVyYmluZGVuLiIpOwogICAgICAgIH0KICAgICAgICByZW5kZXJMaXN0KCk7CiAgICAgICAgaWYgKHRoaXMuaW5OYW1lICE9IG51bGwpIHsKICAgICAgICAgICAgdGhpcy5pbk5hbWUucmVxdWVzdEZvY3VzKCk7CiAgICAgICAgfQogICAgfQoKICAgIHByaXZhdGUgdm9pZCBjb25maXJtRGVsZXRlUGxheWxpc3RQcm9maWxlKCkgewogICAgICAgIGZpbmFsIFN0cmluZyBuYW1lID0gdGhpcy5wcmVmcy5hY3RpdmVQcm9maWxlTmFtZSgpOwogICAgICAgIG5ldyBBbGVydERpYWxvZy5CdWlsZGVyKHRoaXMpCiAgICAgICAgICAgICAgICAuc2V0VGl0bGUoIlBsYXlsaXN0IGzDtnNjaGVuIikKICAgICAgICAgICAgICAgIC5zZXRNZXNzYWdlKCLigJ4iICsgbmFtZSArICLigJwgd2lya2xpY2ggdm9uIGRpZXNlbSBHZXLDpHQgbMO2c2NoZW4/IikKICAgICAgICAgICAgICAgIC5zZXRQb3NpdGl2ZUJ1dHRvbigiTMO2c2NoZW4iLCAoZGlhbG9nLCB3aGljaCkgLT4gewogICAgICAgICAgICAgICAgICAgIEZpbGUgY2FjaGUgPSB0aGlzLnByZWZzLmNhdGFsb2dDYWNoZUZpbGUoZ2V0Q2FjaGVEaXIoKSk7CiAgICAgICAgICAgICAgICAgICAgaWYgKGNhY2hlICE9IG51bGwgJiYgY2FjaGUuaXNGaWxlKCkpIHsKICAgICAgICAgICAgICAgICAgICAgICAgY2FjaGUuZGVsZXRlKCk7CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgICAgIHRoaXMucHJlZnMuZGVsZXRlQWN0aXZlUHJvZmlsZSgpOwogICAgICAgICAgICAgICAgICAgIEFwcC5hcGkgPSBudWxsOwogICAgICAgICAgICAgICAgICAgIEFwcC5saXZlID0gbnVsbDsKICAgICAgICAgICAgICAgICAgICBBcHAucGxheWluZyA9IG51bGw7CiAgICAgICAgICAgICAgICAgICAgQXBwLmd1aWRlID0gbmV3IEVwZ0d1aWRlKCk7CiAgICAgICAgICAgICAgICAgICAgcmVjcmVhdGUoKTsKICAgICAgICAgICAgICAgIH0pCiAgICAgICAgICAgICAgICAuc2V0TmVnYXRpdmVCdXR0b24oIkFiYnJlY2hlbiIsIG51bGwpCiAgICAgICAgICAgICAgICAuc2hvdygpOwogICAgfQoKJycnCmlmIG1ldGhvZHNfYW5jaG9yIG5vdCBpbiBzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgncmVmcmVzaEFjdGl2ZSBhbmNob3Igbm90IGZvdW5kJykKcyA9IHMucmVwbGFjZShtZXRob2RzX2FuY2hvciwgbWV0aG9kcyArIG1ldGhvZHNfYW5jaG9yLCAxKQoKb2xkX2Nvbm5lY3RlZCA9ICcgICAgICAgICAgICB0aGlzLmFjdGl2ZUxhYmVsLnNldFRleHQoIkFrdGl2ZSBQbGF5bGlzdDogIiArIG5hbWUgKyAiICDCtyAgVmVyYnVuZGVuIik7JwpuZXdfY29ubmVjdGVkID0gJyAgICAgICAgICAgIHRoaXMuYWN0aXZlTGFiZWwuc2V0VGV4dCgiQWt0aXZlIFBsYXlsaXN0OiAiICsgbmFtZSArICIgIMK3ICBWZXJidW5kZW4gIMK3ICAiICsgdGhpcy5wcmVmcy5wcm9maWxlQ291bnQoKSArICh0aGlzLnByZWZzLnByb2ZpbGVDb3VudCgpID09IDEgPyAiIExpc3RlICDigLoiIDogIiBMaXN0ZW4gIOKAuiIpKTsnCmlmIG9sZF9jb25uZWN0ZWQgbm90IGluIHM6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdjb25uZWN0ZWQgbGFiZWwgYW5jaG9yIG5vdCBmb3VuZCcpCnMgPSBzLnJlcGxhY2Uob2xkX2Nvbm5lY3RlZCwgbmV3X2Nvbm5lY3RlZCwgMSkKCm9sZF9kZW1vID0gJyAgICAgICAgdGhpcy5hY3RpdmVMYWJlbC5zZXRUZXh0KCJBa3RpdmUgUGxheWxpc3Q6IFN0cmVhbXkgRGVtbyIpOycKbmV3X2RlbW8gPSAnICAgICAgICB0aGlzLmFjdGl2ZUxhYmVsLnNldFRleHQoIkFrdGl2ZSBQbGF5bGlzdDogIiArIHRoaXMucHJlZnMuYWN0aXZlUHJvZmlsZU5hbWUoKSArICIgIMK3ICBOaWNodCB2ZXJidW5kZW4gIMK3ICAiICsgdGhpcy5wcmVmcy5wcm9maWxlQ291bnQoKSArICh0aGlzLnByZWZzLnByb2ZpbGVDb3VudCgpID09IDEgPyAiIExpc3RlICDigLoiIDogIiBMaXN0ZW4gIOKAuiIpKTsnCmlmIG9sZF9kZW1vIG5vdCBpbiBzOgogICAgcmFpc2UgU3lzdGVtRXhpdCgnZGVtbyBsYWJlbCBhbmNob3Igbm90IGZvdW5kJykKcyA9IHMucmVwbGFjZShvbGRfZGVtbywgbmV3X2RlbW8sIDEpCgpqYXZhLndyaXRlX3RleHQocywgZW5jb2Rpbmc9J3V0Zi04JykKCnhtbCA9IFBhdGgoJ2FwcC9zcmMvbWFpbi9yZXMvbGF5b3V0L2FjdGl2aXR5X21haW4ueG1sJykKeCA9IHhtbC5yZWFkX3RleHQoZW5jb2Rpbmc9J3V0Zi04JykKb2xkID0gJycnICAgICAgICAgICAgICAgICAgICAgICAgPFRleHRWaWV3CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOnRleHRTaXplPSIxM3NwIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDp0ZXh0Q29sb3I9IkBjb2xvci9tdXRlZCIKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6aWQ9IkAraWQvYWN0aXZlTGFiZWwiCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOmxheW91dF93aWR0aD0ibWF0Y2hfcGFyZW50IgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDpsYXlvdXRfaGVpZ2h0PSJ3cmFwX2NvbnRlbnQiCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOmxheW91dF9tYXJnaW5Ub3A9IjRkcCIvPicnJwpuZXcgPSAnJycgICAgICAgICAgICAgICAgICAgICAgICA8VGV4dFZpZXcKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6dGV4dFNpemU9IjEzc3AiCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOnRleHRDb2xvcj0iQGNvbG9yL211dGVkIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDppZD0iQCtpZC9hY3RpdmVMYWJlbCIKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6YmFja2dyb3VuZD0iQGRyYXdhYmxlL2JnX2NoaXAiCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOmZvY3VzYWJsZT0idHJ1ZSIKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6Y2xpY2thYmxlPSJ0cnVlIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDpncmF2aXR5PSJjZW50ZXJfdmVydGljYWwiCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBhbmRyb2lkOm1pbkhlaWdodD0iNDRkcCIKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6cGFkZGluZ1N0YXJ0PSIxMmRwIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDpwYWRkaW5nRW5kPSIxMmRwIgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDpsYXlvdXRfd2lkdGg9Im1hdGNoX3BhcmVudCIKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGFuZHJvaWQ6bGF5b3V0X2hlaWdodD0id3JhcF9jb250ZW50IgogICAgICAgICAgICAgICAgICAgICAgICAgICAgYW5kcm9pZDpsYXlvdXRfbWFyZ2luVG9wPSI4ZHAiLz4nJycKaWYgb2xkIG5vdCBpbiB4OgogICAgcmFpc2UgU3lzdGVtRXhpdCgnYWN0aXZlTGFiZWwgWE1MIGFuY2hvciBub3QgZm91bmQnKQp4ID0geC5yZXBsYWNlKG9sZCwgbmV3LCAxKQp4bWwud3JpdGVfdGV4dCh4LCBlbmNvZGluZz0ndXRmLTgnKQo=' | base64 -d > /tmp/patch.py
+          python3 /tmp/patch.py
 
       - name: Run tests and build both device variants
         run: |
@@ -172,9 +41,8 @@ jobs:
 
       - name: Commit tested integration
         run: |
-          rm -f .github/workflows/multi-playlists-once.yml
           git config user.name "daniel96865-a11y"
           git config user.email "daniel96865@googlemail.com"
-          git add app/src/main/java/app/streamy2/MainActivity.java app/src/main/res/layout/activity_main.xml .github/workflows/multi-playlists-once.yml
+          git add app/src/main/java/app/streamy2/MainActivity.java app/src/main/res/layout/activity_main.xml
           git commit -m "Add multi-playlist switcher for TV and mobile [skip ci]"
           git push origin HEAD:feature/multi-playlists
