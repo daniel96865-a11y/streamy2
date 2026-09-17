@@ -1,45 +1,68 @@
-# Streamy 2
+<p align="center">
+  <img src="assets/streamy2-logo.webp" alt="Streamy 2 Logo" width="220">
+</p>
 
-Moderner Android-IPTV-Client mit Xtream, EPG, Live-TV, Filmen und Serien.
+<h1 align="center">Streamy 2</h1>
+
+<p align="center">
+  Moderner IPTV-Client für Android TV, Fire TV, Smartphone und Tablet.
+</p>
+
+<p align="center">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.38"><img alt="Version" src="https://img.shields.io/badge/Version-3.38-2684ff?style=for-the-badge"></a>
+  <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
+  <img alt="TV und Mobile" src="https://img.shields.io/badge/TV%20%2B%20Mobile-getrennt-111827?style=for-the-badge">
+</p>
+
+<p align="center">
+  <img src="assets/streamy2-banner.webp" alt="Streamy 2 – TV und Mobile" width="100%">
+</p>
 
 ## 📥 Downloads
 
-### 📺 Streamy 2 TV — Android TV / Fire TV
+| Gerät | Version | Download |
+|---|---:|---|
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.38 | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.38/Streamy2-TV-3.38.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.38 | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.38/Streamy2-Mobile-3.38.apk)** |
 
-**[Streamy2-TV-3.38.apk herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.38/Streamy2-TV-3.38.apk)**
+<p align="center">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.38"><b>➡️ Release-Seite öffnen</b></a>
+</p>
 
-Paket-ID: `app.streamy2`
+> **Hinweis zur ersten Installation von 3.38:** Die neue TV-Linie verwendet eine neue Release-Signatur. Eine ältere TV-Installation mit anderer Signatur muss vor der ersten Installation der neuen TV-Linie deinstalliert werden. Streamy 2 Mobile ist ab 3.38 eine eigenständige App.
 
-### 📱 Streamy 2 Mobile — Smartphone / Tablet
+## ✨ Funktionen
 
-**[Streamy2-Mobile-3.38.apk herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.38/Streamy2-Mobile-3.38.apk)**
+- 📡 **Xtream** — Zugangsdaten hinterlegen und Inhalte laden
+- 📺 **Live-TV** — Senderlisten mit Kategorien und Suche
+- 🗓️ **EPG** — aktuelle und kommende Sendungen im Überblick
+- 🎬 **Filme** — übersichtliche Mediathek mit Suche und Kategorien
+- 📚 **Serien** — Serien und Staffeln getrennt verwalten
+- 🎮 **TV-Bedienung** — für Fernbedienung und D-Pad optimiert
+- 📱 **Mobile-App** — eigene App-Linie für Smartphone und Tablet
+- 🔄 **Getrennte Updates** — TV und Mobile erhalten unabhängige Update-Kanäle
 
-Paket-ID: `app.streamy2.mobile`
+## 📱 Zwei eigenständige App-Linien
 
-**[➡️ GitHub-Release Streamy 2 3.38 öffnen](https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.38)**
+| Variante | Paket-ID | Geräte |
+|---|---|---|
+| **Streamy 2 TV** | `app.streamy2` | Android TV / Fire TV |
+| **Streamy 2 Mobile** | `app.streamy2.mobile` | Smartphone / Tablet |
 
-> Wichtig: Die neue 3.38-Linie verwendet eine neue Streamy-2-Release-Signatur. Eine ältere TV-Installation mit einer anderen Signatur muss vor der ersten Installation der neuen TV-Linie deinstalliert werden. Streamy 2 Mobile ist ab 3.38 eine eigenständige App und kann separat installiert werden.
+Beide Varianten werden aus demselben Quellcode gebaut und sind ARM-only (`armeabi-v7a` + `arm64-v8a`).
 
-## App-Linien ab 3.38
+## 🔄 Update-Kanäle
 
-Streamy 2 wird aus demselben Quellcode als zwei unabhängige APKs gebaut:
+- TV ab 3.38: `docs/streamy2-tv.json` / `docs/streamy2-tv.txt`
+- Mobile ab 3.38: `docs/streamy2-mobile.json` / `docs/streamy2-mobile.txt`
+- Alte TV-Signaturlinie: `docs/streamy2.json` / `docs/streamy2.txt`
 
-- **Streamy 2 TV** — `app.streamy2` — für Android TV und Fire TV
-- **Streamy 2 Mobile** — `app.streamy2.mobile` — für Android-Smartphones und Tablets
+Damit kann ein Mobile-Update nicht an TV-Geräte verteilt werden und umgekehrt.
 
-Beide Varianten sind ARM-only (`armeabi-v7a` + `arm64-v8a`).
+<details>
+<summary><b>🛠️ Build & Signierung</b></summary>
 
-## Update-Kanäle
-
-Die neue Signatur-Linie ist vollständig getrennt:
-
-- Neue TV-Linie ab 3.38: `docs/streamy2-tv.json` / `docs/streamy2-tv.txt`
-- Mobile-Linie ab 3.38: `docs/streamy2-mobile.json` / `docs/streamy2-mobile.txt`
-- Alte TV-Linie: `docs/streamy2.json` / `docs/streamy2.txt` bleibt auf der letzten kompatiblen alten Signatur-Version und wird nicht mit der neuen Linie vermischt.
-
-Damit kann ein Mobile-Update nicht versehentlich an TV-Geräte verteilt werden und eine alte TV-Installation bekommt kein inkompatibel signiertes Update angeboten.
-
-## Build
+### Build
 
 ```bash
 export JAVA_HOME=/workspace/jdk ANDROID_SDK_ROOT=/workspace/android-sdk
@@ -52,16 +75,18 @@ Ausgaben:
 - TV: `app/build/outputs/apk/tv/release/`
 - Mobile: `app/build/outputs/apk/mobile/release/`
 
-## Signierung
+### Signierung
 
-TV und Mobile der neuen Linie müssen ab 3.38 mit demselben privaten **Streamy 2 Release**-Schlüssel signiert werden. Der private Keystore wird absichtlich nicht im öffentlichen Repository gespeichert.
+TV und Mobile der neuen Linie müssen ab 3.38 mit demselben privaten **Streamy 2 Release**-Schlüssel signiert werden. Der private Keystore wird nicht im öffentlichen Repository gespeichert.
 
-Die veröffentlichten APKs müssen vor dem Release mit Android `apksigner` geprüft werden. Für Android 7+ wird mindestens APK Signature Scheme v2 verwendet; die aktuelle 3.38-Release-Linie ist mit v2/v3 signiert.
+Veröffentlichte APKs werden vor dem Release mit Android `apksigner` geprüft. Die 3.38-Release-Linie verwendet APK Signature Scheme v2/v3.
 
-## Version 3.38
+</details>
+
+## 🆕 Version 3.38
 
 - TV und Mobile als getrennte App-Pakete
 - eigener Update-Kanal je Geräteklasse
-- neuer, einheitlicher Release-Signierschlüssel für die neue Linie
+- neuer gemeinsamer Release-Signierschlüssel für die neue Linie
 - Android-Signatur v2/v3
-- klar getrennte GitHub-Downloads für TV und Mobile
+- getrennte GitHub-Downloads für TV und Mobile
