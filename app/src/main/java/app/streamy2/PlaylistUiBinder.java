@@ -3,8 +3,11 @@ package app.streamy2;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.io.File;
 import java.util.ArrayList;
@@ -14,6 +17,7 @@ import java.util.List;
 final class PlaylistUiBinder {
     private static final String PREFS = "streamy2";
     private static final String OPEN_SETTINGS = "profileOpenSettings";
+    private static final String ADD_TAG = "streamyPlaylistAddButton";
 
     private PlaylistUiBinder() {
     }
@@ -51,6 +55,40 @@ final class PlaylistUiBinder {
         label.setMinimumHeight(dp(main, 44));
         label.setContentDescription("Wiedergabelisten verwalten");
         label.setOnClickListener(v -> showManager(main, new Prefs(main)));
+        bindVisibleAddButton(main, label);
+    }
+
+    private static void bindVisibleAddButton(MainActivity main, TextView label) {
+        if (!(label.getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) label.getParent();
+        View existing = parent.findViewWithTag(ADD_TAG);
+        if (existing instanceof TextView) return;
+
+        TextView addButton = new TextView(main);
+        addButton.setTag(ADD_TAG);
+        addButton.setId(View.generateViewId());
+        addButton.setText("＋ Wiedergabeliste hinzufügen");
+        addButton.setTextSize(14f);
+        addButton.setTextColor(main.getColor(R.color.accent));
+        addButton.setGravity(Gravity.CENTER_VERTICAL);
+        addButton.setBackgroundResource(R.drawable.bg_btn_sec);
+        addButton.setFocusable(true);
+        addButton.setFocusableInTouchMode(false);
+        addButton.setClickable(true);
+        addButton.setContentDescription("Neue Wiedergabeliste hinzufügen");
+        int horizontal = dp(main, 14);
+        addButton.setPadding(horizontal, 0, horizontal, 0);
+        addButton.setOnClickListener(v -> add(main, new Prefs(main)));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(main, 48));
+        params.topMargin = dp(main, 8);
+        int index = parent.indexOfChild(label);
+        parent.addView(addButton, Math.max(0, index + 1), params);
+
+        label.setNextFocusDownId(addButton.getId());
+        EditText name = main.findViewById(R.id.inName);
+        if (name != null) addButton.setNextFocusDownId(name.getId());
     }
 
     private static void showManager(MainActivity main, Prefs prefs) {
