@@ -1,1 +1,1 @@
-{"versionCode":159,"versionName":"3.39","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.39/Streamy2-Mobile-3.39.apk","changelog":"Mehrere getrennte Wiedergabelisten."}
+{"versionCode":160,"versionName":"3.40","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.40/Streamy2-Mobile-3.40.apk","changelog":"Neu in 3.40: Wiedergabeliste hinzufügen ist im Konto-Bereich direkt sichtbar und die Playlist-Verwaltung leichter auffindbar."}
