@@ -3,39 +3,228 @@ package app.streamy2;
 import android.content.Context;
 import android.content.SharedPreferences;
 import androidx.media3.exoplayer.DefaultLoadControl;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.json.JSONArray;
 
-/* loaded from: classes.dex */
 public class Prefs {
+    private static final String PREFS = "streamy2";
+    private static final String KEY_PROFILES = "profilesV2";
+    private static final String KEY_ACTIVE_PROFILE = "activeProfileV2";
+    private static final String DEFAULT_PROFILE = "p1";
     private final SharedPreferences p;
 
     public Prefs(Context context) {
-        this.p = context.getSharedPreferences("streamy2", 0);
+        this.p = context.getSharedPreferences(PREFS, 0);
+        ensureProfiles();
+    }
+
+    private static String pk(String id, String key) {
+        return "profile." + id + "." + key;
+    }
+
+    private String activeKey(String key) {
+        return pk(activeProfileId(), key);
+    }
+
+    private synchronized void ensureProfiles() {
+        List<String> ids = readProfileIds();
+        if (!ids.isEmpty()) {
+            String active = this.p.getString(KEY_ACTIVE_PROFILE, "");
+            if (active == null || !ids.contains(active)) {
+                this.p.edit().putString(KEY_ACTIVE_PROFILE, ids.get(0)).apply();
+            }
+            return;
+        }
+
+        String id = DEFAULT_PROFILE;
+        SharedPreferences.Editor e = this.p.edit();
+        JSONArray a = new JSONArray();
+        a.put(id);
+        e.putString(KEY_PROFILES, a.toString());
+        e.putString(KEY_ACTIVE_PROFILE, id);
+
+        String legacyName = this.p.getString("name", "");
+        String legacyUrl = this.p.getString("url", "");
+        String legacyUser = this.p.getString("user", "");
+        String legacyPass = this.p.getString("pass", "");
+        String legacyFormat = this.p.getString("format", "hls");
+        String legacyEpg = this.p.getString("epgUrl", "");
+        int legacyInterval = this.p.getInt("epgInterval", 12);
+        long legacyLast = this.p.getLong("epgLast", 0L);
+
+        e.putString(pk(id, "name"), legacyName == null ? "" : legacyName);
+        e.putString(pk(id, "url"), legacyUrl == null ? "" : legacyUrl);
+        e.putString(pk(id, "user"), legacyUser == null ? "" : legacyUser);
+        e.putString(pk(id, "pass"), legacyPass == null ? "" : legacyPass);
+        e.putString(pk(id, "format"), legacyFormat == null ? "hls" : legacyFormat);
+        e.putString(pk(id, "epgUrl"), legacyEpg == null ? "" : legacyEpg);
+        e.putInt(pk(id, "epgInterval"), legacyInterval);
+        e.putLong(pk(id, "epgLast"), legacyLast);
+
+        String label = legacyName;
+        if (label == null || label.trim().isEmpty()) label = legacyUser;
+        if (label == null || label.trim().isEmpty()) label = "Playlist 1";
+        e.putString(pk(id, "label"), label.trim());
+        e.apply();
+    }
+
+    private List<String> readProfileIds() {
+        ArrayList<String> result = new ArrayList<>();
+        String raw = this.p.getString(KEY_PROFILES, "");
+        if (raw == null || raw.isEmpty()) return result;
+        try {
+            JSONArray a = new JSONArray(raw);
+            for (int i = 0; i < a.length(); i++) {
+                String id = a.optString(i, "").trim();
+                if (!id.isEmpty() && !result.contains(id)) result.add(id);
+            }
+        } catch (Exception ignored) {
+        }
+        return result;
+    }
+
+    private void writeProfileIds(List<String> ids) {
+        JSONArray a = new JSONArray();
+        for (String id : ids) a.put(id);
+        this.p.edit().putString(KEY_PROFILES, a.toString()).apply();
+    }
+
+    public List<String> profileIds() {
+        ensureProfiles();
+        return new ArrayList<>(readProfileIds());
+    }
+
+    public int profileCount() {
+        return profileIds().size();
+    }
+
+    public String activeProfileId() {
+        List<String> ids = readProfileIds();
+        if (ids.isEmpty()) return DEFAULT_PROFILE;
+        String active = this.p.getString(KEY_ACTIVE_PROFILE, ids.get(0));
+        return active != null && ids.contains(active) ? active : ids.get(0);
+    }
+
+    public String profileDisplayName(String id) {
+        if (id == null || id.isEmpty()) return "Playlist";
+        String label = this.p.getString(pk(id, "label"), "");
+        if (label != null && !label.trim().isEmpty()) return label.trim();
+        String n = this.p.getString(pk(id, "name"), "");
+        if (n != null && !n.trim().isEmpty()) return n.trim();
+        String u = this.p.getString(pk(id, "user"), "");
+        if (u != null && !u.trim().isEmpty()) return u.trim();
+        List<String> ids = readProfileIds();
+        int index = ids.indexOf(id);
+        return "Playlist " + (index >= 0 ? index + 1 : 1);
+    }
+
+    public List<String> profileNames() {
+        ArrayList<String> names = new ArrayList<>();
+        for (String id : profileIds()) names.add(profileDisplayName(id));
+        return names;
+    }
+
+    public String activeProfileName() {
+        return profileDisplayName(activeProfileId());
+    }
+
+    public boolean setActiveProfile(String id) {
+        if (id == null || !readProfileIds().contains(id)) return false;
+        this.p.edit().putString(KEY_ACTIVE_PROFILE, id).apply();
+        return true;
+    }
+
+    public String createProfile(String suggestedName) {
+        List<String> ids = profileIds();
+        int n = 1;
+        String id;
+        do {
+            id = "p" + n++;
+        } while (ids.contains(id));
+        ids.add(id);
+        writeProfileIds(ids);
+        String label = suggestedName == null ? "" : suggestedName.trim();
+        if (label.isEmpty()) label = "Playlist " + ids.size();
+        this.p.edit()
+                .putString(pk(id, "label"), label)
+                .putString(pk(id, "format"), "hls")
+                .putInt(pk(id, "epgInterval"), 12)
+                .putString(KEY_ACTIVE_PROFILE, id)
+                .apply();
+        return id;
+    }
+
+    public void deleteActiveProfile() {
+        List<String> ids = profileIds();
+        String active = activeProfileId();
+        if (ids.size() <= 1) {
+            clearAccount();
+            this.p.edit().putString(pk(active, "label"), "Playlist 1").apply();
+            return;
+        }
+        ids.remove(active);
+        SharedPreferences.Editor e = this.p.edit();
+        String prefix = "profile." + active + ".";
+        for (Map.Entry<String, ?> entry : this.p.getAll().entrySet()) {
+            if (entry.getKey().startsWith(prefix)) e.remove(entry.getKey());
+        }
+        JSONArray a = new JSONArray();
+        for (String id : ids) a.put(id);
+        e.putString(KEY_PROFILES, a.toString());
+        e.putString(KEY_ACTIVE_PROFILE, ids.get(0));
+        e.apply();
+    }
+
+    public File catalogCacheFile(File cacheDir) {
+        String id = activeProfileId().replaceAll("[^A-Za-z0-9_-]", "_");
+        File target = new File(cacheDir, "streamy2-live-cache-" + id + ".json");
+        if (DEFAULT_PROFILE.equals(id) && !target.exists()) {
+            File old = new File(cacheDir, "streamy2-live-cache.json");
+            if (old.isFile()) {
+                if (!old.renameTo(target)) copyFile(old, target);
+            }
+        }
+        return target;
+    }
+
+    private static void copyFile(File source, File target) {
+        try (FileInputStream in = new FileInputStream(source); FileOutputStream out = new FileOutputStream(target)) {
+            byte[] buf = new byte[8192];
+            int read;
+            while ((read = in.read(buf)) > 0) out.write(buf, 0, read);
+        } catch (Exception ignored) {
+        }
     }
 
     public boolean hasXtream() {
-        String string = this.p.getString("user", "");
-        String string2 = this.p.getString("url", "");
-        return (string == null || string.isEmpty() || string2 == null || string2.isEmpty()) ? false : true;
+        String string = this.p.getString(activeKey("user"), "");
+        String string2 = this.p.getString(activeKey("url"), "");
+        return string != null && !string.isEmpty() && string2 != null && !string2.isEmpty();
     }
 
     public String name() {
-        return this.p.getString("name", "");
+        return this.p.getString(activeKey("name"), "");
     }
 
     public String url() {
-        return this.p.getString("url", "");
+        return this.p.getString(activeKey("url"), "");
     }
 
     public String user() {
-        return this.p.getString("user", "");
+        return this.p.getString(activeKey("user"), "");
     }
 
     public String pass() {
-        return this.p.getString("pass", "");
+        return this.p.getString(activeKey("pass"), "");
     }
 
     public String format() {
-        return this.p.getString("format", "hls");
+        return this.p.getString(activeKey("format"), "hls");
     }
 
     public String accent() {
@@ -43,63 +232,65 @@ public class Prefs {
     }
 
     public String epgUrl() {
-        return this.p.getString("epgUrl", "");
+        return this.p.getString(activeKey("epgUrl"), "");
     }
 
     public int epgIntervalHours() {
-        return this.p.getInt("epgInterval", 12);
+        return this.p.getInt(activeKey("epgInterval"), 12);
     }
 
     public long epgLast() {
-        return this.p.getLong("epgLast", 0L);
+        return this.p.getLong(activeKey("epgLast"), 0L);
     }
 
     public void saveAccount(String str, String str2, String str3, String str4) {
-        SharedPreferences.Editor edit = this.p.edit();
-        if (str == null) {
-            str = "";
-        }
-        SharedPreferences.Editor putString = edit.putString("name", str);
-        if (str2 == null) {
-            str2 = "";
-        }
-        SharedPreferences.Editor putString2 = putString.putString("url", str2);
-        if (str3 == null) {
-            str3 = "";
-        }
-        SharedPreferences.Editor putString3 = putString2.putString("user", str3);
-        if (str4 == null) {
-            str4 = "";
-        }
-        putString3.putString("pass", str4).apply();
+        String profile = activeProfileId();
+        String name = str == null ? "" : str;
+        String url = str2 == null ? "" : str2;
+        String user = str3 == null ? "" : str3;
+        String pass = str4 == null ? "" : str4;
+        String label = name.trim();
+        if (label.isEmpty()) label = user.trim();
+        if (label.isEmpty()) label = profileDisplayName(profile);
+        this.p.edit()
+                .putString(pk(profile, "name"), name)
+                .putString(pk(profile, "url"), url)
+                .putString(pk(profile, "user"), user)
+                .putString(pk(profile, "pass"), pass)
+                .putString(pk(profile, "label"), label)
+                .apply();
     }
 
     public void clearAccount() {
-        this.p.edit().remove("name").remove("url").remove("user").remove("pass").apply();
+        String profile = activeProfileId();
+        this.p.edit()
+                .remove(pk(profile, "name"))
+                .remove(pk(profile, "url"))
+                .remove(pk(profile, "user"))
+                .remove(pk(profile, "pass"))
+                .remove(pk(profile, "epgUrl"))
+                .remove(pk(profile, "epgLast"))
+                .apply();
     }
 
     public void setFormat(String str) {
-        this.p.edit().putString("format", str).apply();
+        this.p.edit().putString(activeKey("format"), str).apply();
     }
 
     public void setAccent(String str) {
-        SharedPreferences.Editor edit = this.p.edit();
-        if (str == null) {
-            str = "blue";
-        }
-        edit.putString("accent", str).apply();
+        this.p.edit().putString("accent", str == null ? "blue" : str).apply();
     }
 
     public void setEpgUrl(String str) {
-        this.p.edit().putString("epgUrl", str == null ? "" : str.trim()).apply();
+        this.p.edit().putString(activeKey("epgUrl"), str == null ? "" : str.trim()).apply();
     }
 
     public void setEpgIntervalHours(int i) {
-        this.p.edit().putInt("epgInterval", i).apply();
+        this.p.edit().putInt(activeKey("epgInterval"), i).apply();
     }
 
     public void setEpgLast(long j) {
-        this.p.edit().putLong("epgLast", j).apply();
+        this.p.edit().putLong(activeKey("epgLast"), j).apply();
     }
 
     public String resize() {
@@ -122,11 +313,8 @@ public class Prefs {
         this.p.edit().putString("player", normPlayer(str)).apply();
     }
 
-    /** Fixed player for Xtream / Live TV (non-Vavoo). Migrates from legacy player() when unset. */
     public String playerLive() {
-        if (!this.p.contains("playerLive")) {
-            return player();
-        }
+        if (!this.p.contains("playerLive")) return player();
         return normPlayer(this.p.getString("playerLive", "auto"));
     }
 
@@ -134,15 +322,10 @@ public class Prefs {
         this.p.edit().putString("playerLive", normPlayer(str)).apply();
     }
 
-    /** Fixed player for Vavoo. Migrates from legacy player() when unset.
-     * Legacy "vlc" migrates to auto so users are not stuck without Exo fallback. */
     public String playerVavoo() {
         if (!this.p.contains("playerVavoo")) {
             String legacy = player();
-            if ("vlc".equals(legacy)) {
-                return "auto";
-            }
-            return legacy;
+            return "vlc".equals(legacy) ? "auto" : legacy;
         }
         return normPlayer(this.p.getString("playerVavoo", "auto"));
     }
@@ -157,24 +340,17 @@ public class Prefs {
     }
 
     public void setBuffer(String str) {
-        if (!"low".equals(str) && !"high".equals(str) && !"max".equals(str)) {
-            str = "normal";
-        }
+        if (!"low".equals(str) && !"high".equals(str) && !"max".equals(str)) str = "normal";
         this.p.edit().putString("buffer", str).apply();
     }
 
     public int bufferMs() {
         String buffer = buffer();
-        buffer.hashCode();
         switch (buffer) {
-            case "low":
-                return DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
-            case "max":
-                return 15000;
-            case "high":
-                return 8000;
-            default:
-                return 5000;
+            case "low": return DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
+            case "max": return 15000;
+            case "high": return 8000;
+            default: return 5000;
         }
     }
 
@@ -200,9 +376,7 @@ public class Prefs {
     }
 
     public void setPosterColumns(int i) {
-        if (i != 1 && i != 2 && i != 4) {
-            i = 2;
-        }
+        if (i != 1 && i != 2 && i != 4) i = 2;
         this.p.edit().putInt("posterCols", i).apply();
     }
 }
