@@ -20,6 +20,15 @@
         <item name="colorPrimaryVariant">@color/elevated</item>
         <item name="colorSecondary">@color/brand</item>
     </style>
+
+    <style name="Theme.Streamy.Splash" parent="Theme.Streamy">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">@drawable/bg_splash</item>
+        <item name="android:navigationBarColor">#020816</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
     <style name="Theme.Streamy.Dialog" parent="Theme.MaterialComponents.Dialog.Alert">
         <item name="android:textColorPrimary">@color/fg</item>
         <item name="android:textColor">@color/fg</item>
