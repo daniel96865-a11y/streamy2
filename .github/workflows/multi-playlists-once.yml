@@ -1,0 +1,180 @@
+name: Integrate multi-playlist UI once
+
+on:
+  push:
+    branches: [ feature/multi-playlists ]
+    paths: [ '.github/workflows/multi-playlists-once.yml' ]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/multi-playlists
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Patch playlist switcher and TV focus UI
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          java = Path('app/src/main/java/app/streamy2/MainActivity.java')
+          s = java.read_text(encoding='utf-8')
+
+          anchor = '        this.activeLabel = (TextView) findViewById(R.id.activeLabel);\n'
+          insert = anchor + '''        if (this.activeLabel != null) {\n            this.activeLabel.setOnClickListener(v -> showPlaylistManager());\n        }\n'''
+          if anchor not in s:
+              raise SystemExit('activeLabel anchor not found')
+          s = s.replace(anchor, insert, 1)
+
+          cache_old = 'CatalogCache.file(getCacheDir())'
+          count = s.count(cache_old)
+          if count != 2:
+              raise SystemExit(f'expected 2 CatalogCache anchors, found {count}')
+          s = s.replace(cache_old, 'this.prefs.catalogCacheFile(getCacheDir())')
+
+          methods_anchor = '    private void refreshActive() {\n'
+          methods = r'''    private void showPlaylistManager() {
+        final List<String> ids = this.prefs.profileIds();
+        final List<String> names = this.prefs.profileNames();
+        final String active = this.prefs.activeProfileId();
+        ArrayList<String> entries = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i++) {
+            String prefix = ids.get(i).equals(active) ? "✓ " : "";
+            entries.add(prefix + names.get(i));
+        }
+        entries.add("＋ Neue Playlist hinzufügen");
+        entries.add("🗑 Aktive Playlist löschen");
+
+        new AlertDialog.Builder(this)
+                .setTitle("Wiedergabelisten")
+                .setItems(entries.toArray(new String[0]), (dialog, which) -> {
+                    if (which < ids.size()) {
+                        String id = ids.get(which);
+                        if (!id.equals(this.prefs.activeProfileId()) && this.prefs.setActiveProfile(id)) {
+                            App.api = null;
+                            App.live = null;
+                            App.playing = null;
+                            App.guide = new EpgGuide();
+                            recreate();
+                        }
+                        return;
+                    }
+                    if (which == ids.size()) {
+                        createPlaylistProfile();
+                        return;
+                    }
+                    confirmDeletePlaylistProfile();
+                })
+                .setNegativeButton("Abbrechen", null)
+                .show();
+    }
+
+    private void createPlaylistProfile() {
+        this.prefs.createProfile(null);
+        this.api = null;
+        App.api = null;
+        App.live = null;
+        App.playing = null;
+        App.guide = new EpgGuide();
+        this.guide = App.guide;
+        this.catalog = new Models.Catalog();
+        synchronized (this.epgAsked) {
+            this.epgAsked.clear();
+        }
+        this.inName.setText("");
+        this.inUrl.setText("");
+        this.inUser.setText("");
+        this.inPass.setText("");
+        this.inEpgUrl.setText("");
+        this.prefs.setFormat("hls");
+        refreshActive();
+        setFold(R.id.bodyAccount, R.id.chevAccount, true);
+        if (this.status != null) {
+            this.status.setText("Neue Playlist angelegt. Zugangsdaten eingeben und verbinden.");
+        }
+        renderList();
+        if (this.inName != null) {
+            this.inName.requestFocus();
+        }
+    }
+
+    private void confirmDeletePlaylistProfile() {
+        final String name = this.prefs.activeProfileName();
+        new AlertDialog.Builder(this)
+                .setTitle("Playlist löschen")
+                .setMessage("„" + name + "“ wirklich von diesem Gerät löschen?")
+                .setPositiveButton("Löschen", (dialog, which) -> {
+                    File cache = this.prefs.catalogCacheFile(getCacheDir());
+                    if (cache != null && cache.isFile()) {
+                        cache.delete();
+                    }
+                    this.prefs.deleteActiveProfile();
+                    App.api = null;
+                    App.live = null;
+                    App.playing = null;
+                    App.guide = new EpgGuide();
+                    recreate();
+                })
+                .setNegativeButton("Abbrechen", null)
+                .show();
+    }
+
+'''
+          if methods_anchor not in s:
+              raise SystemExit('refreshActive anchor not found')
+          s = s.replace(methods_anchor, methods + methods_anchor, 1)
+
+          old_connected = '            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden");'
+          new_connected = '            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden  ·  " + this.prefs.profileCount() + (this.prefs.profileCount() == 1 ? " Liste  ›" : " Listen  ›"));'
+          if old_connected not in s:
+              raise SystemExit('connected label anchor not found')
+          s = s.replace(old_connected, new_connected, 1)
+
+          old_demo = '        this.activeLabel.setText("Aktive Playlist: Streamy Demo");'
+          new_demo = '        this.activeLabel.setText("Aktive Playlist: " + this.prefs.activeProfileName() + "  ·  Nicht verbunden  ·  " + this.prefs.profileCount() + (this.prefs.profileCount() == 1 ? " Liste  ›" : " Listen  ›"));'
+          if old_demo not in s:
+              raise SystemExit('demo label anchor not found')
+          s = s.replace(old_demo, new_demo, 1)
+
+          java.write_text(s, encoding='utf-8')
+
+          xml = Path('app/src/main/res/layout/activity_main.xml')
+          x = xml.read_text(encoding='utf-8')
+          old = '''                        <TextView\n                            android:textSize="13sp"\n                            android:textColor="@color/muted"\n                            android:id="@+id/activeLabel"\n                            android:layout_width="match_parent"\n                            android:layout_height="wrap_content"\n                            android:layout_marginTop="4dp"/>'''
+          new = '''                        <TextView\n                            android:textSize="13sp"\n                            android:textColor="@color/muted"\n                            android:id="@+id/activeLabel"\n                            android:background="@drawable/bg_chip"\n                            android:focusable="true"\n                            android:clickable="true"\n                            android:gravity="center_vertical"\n                            android:minHeight="44dp"\n                            android:paddingStart="12dp"\n                            android:paddingEnd="12dp"\n                            android:layout_width="match_parent"\n                            android:layout_height="wrap_content"\n                            android:layout_marginTop="8dp"/>'''
+          if old not in x:
+              raise SystemExit('activeLabel XML anchor not found')
+          x = x.replace(old, new, 1)
+          xml.write_text(x, encoding='utf-8')
+          PY
+
+      - name: Run tests and build both device variants
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:testTvDebugUnitTest :app:testMobileDebugUnitTest :app:assembleTvDebug :app:assembleMobileDebug
+
+      - name: Commit tested integration
+        run: |
+          rm -f .github/workflows/multi-playlists-once.yml
+          git config user.name "daniel96865-a11y"
+          git config user.email "daniel96865@googlemail.com"
+          git add app/src/main/java/app/streamy2/MainActivity.java app/src/main/res/layout/activity_main.xml .github/workflows/multi-playlists-once.yml
+          git commit -m "Add multi-playlist switcher for TV and mobile [skip ci]"
+          git push origin HEAD:feature/multi-playlists
