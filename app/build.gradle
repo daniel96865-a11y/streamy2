@@ -39,6 +39,8 @@ android {
         mobile {
             dimension "device"
             applicationId "app.streamy2.mobile"
+            versionCode 162
+            versionName "3.42"
             resValue "string", "app_name_variant", "Streamy 2 Mobile"
             buildConfigField "String", "UPDATE_CHANNEL", '"mobile"'
         }
@@ -71,7 +73,6 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
-            // Robolectric's Android 14 file-descriptor bridge runs on JDK 17.
             all { jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED' }
         }
     }
