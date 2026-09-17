@@ -1,6 +1,6 @@
 # Streamy 2
 
-Moderner Android-IPTV-Client mit Xtream, EPG, Live-TV, Filmen, Serien, Vavoo und Megakino.
+Moderner Android-IPTV-Client mit Xtream, EPG, Live-TV, Filmen und Serien.
 
 ## 📥 Downloads
 
