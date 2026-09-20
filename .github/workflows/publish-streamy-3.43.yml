@@ -1,0 +1,83 @@
+name: Publish Streamy 2 3.43
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.43.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch temporary publication data
+        run: |
+          git fetch origin chore/publish-3.43
+          mkdir -p .release-3.43
+          git show origin/chore/publish-3.43:.release-3.43/tvpatch.b64 > .release-3.43/tvpatch.b64
+          git show origin/chore/publish-3.43:.release-3.43/mobilepatch.b64 > .release-3.43/mobilepatch.b64
+
+      - name: Download verified unsigned 3.43 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p unsigned-artifact
+          gh run download 35528125610 --repo "$GITHUB_REPOSITORY" --name streamy2-3.43-unsigned --dir unsigned-artifact
+
+      - name: Reconstruct signed APKs
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          base64 -d .release-3.43/tvpatch.b64 > /tmp/tv.zst
+          base64 -d .release-3.43/mobilepatch.b64 > /tmp/mobile.zst
+          zstd -d --patch-from=unsigned-artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/tv.zst -o release/Streamy2-TV-3.43.apk
+          zstd -d --patch-from=unsigned-artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/mobile.zst -o release/Streamy2-Mobile-3.43.apk
+
+      - name: Verify hashes and APK signatures
+        run: |
+          set -euo pipefail
+          echo "f22c758894638bfa46d750345989891068a1b7b84422004d8f8a7c2e424e6315  release/Streamy2-TV-3.43.apk" | sha256sum -c -
+          echo "e4f15a587458df677037a2b2cac50e00dc9c018eb90ecf0d5e05567ab4fb8277  release/Streamy2-Mobile-3.43.apk" | sha256sum -c -
+          APKSIGNER_JAR="unsigned-artifact/build-tools-export/apksigner.jar"
+          java -jar "$APKSIGNER_JAR" verify --verbose --print-certs release/Streamy2-TV-3.43.apk | tee /tmp/tv-sig
+          java -jar "$APKSIGNER_JAR" verify --verbose --print-certs release/Streamy2-Mobile-3.43.apk | tee /tmp/mobile-sig
+          grep -q "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/tv-sig
+          grep -q "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/mobile-sig
+
+      - name: Verify package and version
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          BT="$(find "$SDK_ROOT/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BT/aapt" dump badging release/Streamy2-TV-3.43.apk | head -1 | tee /tmp/tv
+          "$BT/aapt" dump badging release/Streamy2-Mobile-3.43.apk | head -1 | tee /tmp/mobile
+          grep -q "name='app.streamy2'" /tmp/tv
+          grep -q "versionCode='163'" /tmp/tv
+          grep -q "versionName='3.43'" /tmp/tv
+          grep -q "name='app.streamy2.mobile'" /tmp/mobile
+          grep -q "versionCode='163'" /tmp/mobile
+          grep -q "versionName='3.43'" /tmp/mobile
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/notes.md <<'EOF'
+          Streamy 2 3.43 — TV & Mobile
+
+          - Live-TV: kürzere Hänger und begrenzte Wiederholungen
+          - Auto-Player: Exo wechselt bei festhängendem Live-TV automatisch auf VLC
+          - VLC wird beim Zappen wiederverwendet
+          - Browser/WebView nach Speicherbereinigung wieder funktionsfähig
+          - Update-Abfrage gegen alte Cache-Antworten abgesichert
+          EOF
+          gh release create v3.43             release/Streamy2-TV-3.43.apk             release/Streamy2-Mobile-3.43.apk             --repo "$GITHUB_REPOSITORY"             --target main             --title "Streamy 2 3.43 — Live-TV & Browser Fix"             --notes-file /tmp/notes.md
