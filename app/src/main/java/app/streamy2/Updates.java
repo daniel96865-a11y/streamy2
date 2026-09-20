@@ -174,13 +174,23 @@ public final class Updates {
     }
 
     private static String get(String str, int timeout) throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL(str).openConnection();
+        String sep = str.contains("?") ? "&" : "?";
+        String fresh = str + sep + "_=" + System.currentTimeMillis();
+        HttpURLConnection connection = (HttpURLConnection) new URL(fresh).openConnection();
         connection.setConnectTimeout(timeout);
         connection.setReadTimeout(timeout);
         connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2");
+        connection.setUseCaches(false);
+        connection.setDefaultUseCaches(false);
+        connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
+        connection.setRequestProperty("Pragma", "no-cache");
+        connection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2/3.43");
         connection.setRequestProperty(HttpHeaders.ACCEPT, "text/plain, application/json, text/html, */*");
-        return readLimited(connection, 192000);
+        try {
+            return readLimited(connection, 192000);
+        } finally {
+            connection.disconnect();
+        }
     }
 
     private static String readLimited(HttpURLConnection connection, int limit) throws Exception {
