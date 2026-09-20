@@ -118,6 +118,13 @@ public class PlayerRegressionTest {
         assertTrue(App.isAggressiveTrim(android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE));
     }
 
+    @Test public void playbackStateLabelsAreReadable() throws Exception {
+        assertEquals("Leerlauf", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_IDLE));
+        assertEquals("Puffert", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_BUFFERING));
+        assertEquals("Bereit", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_READY));
+        assertEquals("Beendet", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_ENDED));
+    }
+
     @Test public void applyResizeDefaultsToZoomOnPhone() throws Exception {
         startActivity();
         new Prefs(RuntimeEnvironment.getApplication()).setResize("zoom");
