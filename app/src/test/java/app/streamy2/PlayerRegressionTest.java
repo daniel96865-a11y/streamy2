@@ -96,6 +96,28 @@ public class PlayerRegressionTest {
     }
 
 
+    @Test public void buildQueueUsesOnlyProviderUrls() throws Exception {
+        call("buildQueue", new Class[]{String.class,String.class},
+                "https://provider.example/live/123.m3u8",
+                "https://provider.example/live/123.ts");
+        List<?> queue=(List<?>)field("queue");
+        assertEquals(2,queue.size());
+        assertEquals("https://provider.example/live/123.m3u8",queue.get(0));
+        assertEquals("https://provider.example/live/123.ts",queue.get(1));
+
+        call("buildQueue", new Class[]{String.class,String.class},
+                "https://provider.example/live/456", null);
+        queue=(List<?>)field("queue");
+        assertEquals(1,queue.size());
+        assertEquals("https://provider.example/live/456",queue.get(0));
+    }
+
+    @Test public void uiHiddenIsNotTreatedAsCriticalMemoryPressure() {
+        assertFalse(App.isAggressiveTrim(android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN));
+        assertTrue(App.isAggressiveTrim(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL));
+        assertTrue(App.isAggressiveTrim(android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE));
+    }
+
     @Test public void applyResizeDefaultsToZoomOnPhone() throws Exception {
         startActivity();
         new Prefs(RuntimeEnvironment.getApplication()).setResize("zoom");

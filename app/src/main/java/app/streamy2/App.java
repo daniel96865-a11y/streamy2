@@ -112,12 +112,18 @@ public class App extends Application {
         }
     }
 
+    static boolean isAggressiveTrim(int level) {
+        // TRIM_MEMORY_UI_HIDDEN (20) is not a stronger form of RUNNING_CRITICAL (15).
+        // Android's constants are categories, so numeric >= RUNNING_CRITICAL would
+        // wrongly classify every hidden/background UI as critical memory pressure.
+        return level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
+                || level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE;
+    }
+
     private void trimMemory(int level) {
         try {
             if (guide != null) {
-                if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE
-                        || level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL
-                        || isLowRam()) {
+                if (isAggressiveTrim(level) || isLowRam()) {
                     guide.trim(true);
                 } else {
                     guide.trim(false);
@@ -126,8 +132,7 @@ public class App extends Application {
         } catch (Throwable ignored) {
         }
         try {
-            BrowserController.trimForMemory(level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE
-                    || level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL);
+            BrowserController.trimForMemory(isAggressiveTrim(level));
         } catch (Throwable ignored) {
         }
         try {

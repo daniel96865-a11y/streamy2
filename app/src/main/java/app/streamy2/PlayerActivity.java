@@ -166,6 +166,19 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
                 }
+                if (PlayerActivity.this.freezeTicks == 5
+                        && PlayerActivity.this.liveMode
+                        && !PlayerActivity.this.catchup
+                        && !PlayerActivity.this.isVavooPlayback()
+                        && "auto".equals(PlayerActivity.this.playerPref())) {
+                    // Real Auto mode: if Exo is still buffering after ~5 s, try the
+                    // same provider URL with VLC instead of waiting through long retries.
+                    if (PlayerActivity.this.switchToVlc()) {
+                        PlayerActivity.this.freezeTicks = 0;
+                        PlayerActivity.UI.postDelayed(this, 1000L);
+                        return;
+                    }
+                }
                 if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.liveMode && !PlayerActivity.this.catchup) {
                     try {
                         PlayerActivity.this.player.seekToDefaultPosition();
@@ -534,7 +547,7 @@ public class PlayerActivity extends AppCompatActivity {
         HashMap hashMap = new HashMap();
         hashMap.put(HttpHeaders.USER_AGENT, "VLC/3.0.21 LibVLC/3.0.21");
         hashMap.put(HttpHeaders.REFERER, originOf(stringExtra));
-        this.http = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.21 LibVLC/3.0.21").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(12000).setReadTimeoutMs(15000).setDefaultRequestProperties((Map<String, String>) hashMap);
+        this.http = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.21 LibVLC/3.0.21").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(6000).setReadTimeoutMs(8000).setDefaultRequestProperties((Map<String, String>) hashMap);
         applyHeaders(stringExtra);
         DefaultLoadControl build = buildLoadControl();
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
@@ -786,6 +799,18 @@ public class PlayerActivity extends AppCompatActivity {
                 }
                 PlayerActivity.this.playCurrent();
                 return;
+            }
+            if (PlayerActivity.this.liveMode && !PlayerActivity.this.catchup
+                    && !PlayerActivity.this.isVavooPlayback()
+                    && "auto".equals(PlayerActivity.this.playerPref())
+                    && !PlayerActivity.this.useVlc
+                    && !PlayerActivity.this.queue.isEmpty()) {
+                // Exo exhausted the real provider URLs: retry the primary URL with VLC.
+                PlayerActivity.this.index = 0;
+                if (PlayerActivity.this.switchToVlc()) {
+                    PlayerActivity.this.freezeTicks = 0;
+                    return;
+                }
             }
             if (PlayerActivity.this.errorView != null) {
                 PlayerActivity.this.errorView.setVisibility(0);
@@ -1921,18 +1946,10 @@ public class PlayerActivity extends AppCompatActivity {
     private void buildQueue(String str, String str2) {
         invalidatePlayback();
         this.queue.clear();
+        // Use only URLs actually supplied by the provider. Guessing ".m3u8"/".ts"
+        // creates invalid fallback requests and makes channel changes appear to hang.
         addUrl(str);
         addUrl(str2);
-        if (str != null) {
-            if (str.endsWith(".m3u8")) {
-                addUrl(str.substring(0, str.length() - 5) + ".ts");
-            } else if (str.endsWith(".ts")) {
-                addUrl(str.substring(0, str.length() - 3) + ".m3u8");
-            } else {
-                addUrl(str + ".m3u8");
-                addUrl(str + ".ts");
-            }
-        }
         this.index = 0;
     }
 
@@ -2099,7 +2116,7 @@ public class PlayerActivity extends AppCompatActivity {
                 uri.setMimeType(MimeTypes.VIDEO_MP2T);
             }
             MediaItem build = uri.build();
-            LiveRetry liveRetry = new LiveRetry();
+            LiveRetry liveRetry = new LiveRetry(this.liveMode && !this.catchup);
             DataSource.Factory factory = this.http;
             if (z) {
                 factory = OkPlay.factory();
@@ -2542,7 +2559,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private boolean allowVlc() {
-        return !"exo".equals(new Prefs(this).player());
+        return !"exo".equals(playerPref());
     }
 
     private boolean audioNeedsVlc(Tracks tracks) {
@@ -2673,12 +2690,21 @@ public class PlayerActivity extends AppCompatActivity {
         this.useVlc = false;
         this.vlcSoft = false;
         this.freezeTicks = 0;
+        final boolean reuseVlc = this.vlc != null && "vlc".equals(playerPref());
         ExoPlayer exoPlayer = this.player;
         if (exoPlayer != null) {
             exoPlayer.stop();
             this.player.clearMediaItems();
         }
-        hideVlc();
+        if (reuseVlc) {
+            try {
+                this.vlc.stop(false);
+            } catch (Throwable ignored) {
+                hideVlc();
+            }
+        } else {
+            hideVlc();
+        }
         PlayerView playerView = this.playerView;
         if (playerView != null) {
             playerView.setVisibility(0);
@@ -2798,6 +2824,11 @@ public class PlayerActivity extends AppCompatActivity {
             swapVavoo(true);
             return;
         }
+        if (!this.useVlc && this.liveMode && !this.catchup
+                && "auto".equals(playerPref()) && allowVlc() && switchToVlc()) {
+            this.freezeTicks = 0;
+            return;
+        }
         int i = this.recoverTries;
         if (i < 2) {
             this.recoverTries = i + 1;
@@ -2885,18 +2916,23 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private static final class LiveRetry extends DefaultLoadErrorHandlingPolicy {
+        private final int retries;
+        private final long retryDelayMs;
+
+        LiveRetry(boolean fastLive) {
+            super(fastLive ? 3 : 6);
+            this.retries = fastLive ? 3 : 6;
+            this.retryDelayMs = fastLive ? 450L : 700L;
+        }
+
         @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
         public int getMinimumLoadableRetryCount(int i) {
-            return 10;
+            return this.retries;
         }
 
         @Override // androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy, androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
         public long getRetryDelayMsFor(LoadErrorHandlingPolicy.LoadErrorInfo loadErrorInfo) {
-            return 700L;
-        }
-
-        LiveRetry() {
-            super(10);
+            return this.retryDelayMs;
         }
     }
 
