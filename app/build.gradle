@@ -14,7 +14,7 @@ androidComponents {
 
 android {
     namespace 'app.streamy2'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "app.streamy2"
