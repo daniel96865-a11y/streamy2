@@ -25,6 +25,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
@@ -120,6 +121,7 @@ public class PlayerActivity extends AppCompatActivity {
     private String lastPlayUrl;
     private String lastExoError = "";
     private String lastVlcError = "";
+    private String lastFallbackReason = "";
     private long metaDurationMs;
     private boolean vlcHudArmed;
     static final String MUX_TEST_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
@@ -173,6 +175,7 @@ public class PlayerActivity extends AppCompatActivity {
                         && "auto".equals(PlayerActivity.this.playerPref())) {
                     // Real Auto mode: if Exo is still buffering after ~5 s, try the
                     // same provider URL with VLC instead of waiting through long retries.
+                    PlayerActivity.this.lastFallbackReason = "Exo länger als 5 s im Puffer";
                     if (PlayerActivity.this.switchToVlc()) {
                         PlayerActivity.this.freezeTicks = 0;
                         PlayerActivity.UI.postDelayed(this, 1000L);
@@ -806,6 +809,7 @@ public class PlayerActivity extends AppCompatActivity {
                     && !PlayerActivity.this.useVlc
                     && !PlayerActivity.this.queue.isEmpty()) {
                 // Exo exhausted the real provider URLs: retry the primary URL with VLC.
+                PlayerActivity.this.lastFallbackReason = "Exo-Fehler: " + str;
                 PlayerActivity.this.index = 0;
                 if (PlayerActivity.this.switchToVlc()) {
                     PlayerActivity.this.freezeTicks = 0;
@@ -853,8 +857,14 @@ public class PlayerActivity extends AppCompatActivity {
             String vlc = (this.lastVlcError == null || this.lastVlcError.isEmpty())
                     ? ((VlcFactory.lastError == null || VlcFactory.lastError.isEmpty()) ? "—" : VlcFactory.lastError)
                     : this.lastVlcError;
+            String fallback = (this.lastFallbackReason == null || this.lastFallbackReason.isEmpty())
+                    ? "—" : this.lastFallbackReason;
             String msg = "Engine: " + engine
                     + "\n" + App.lowRamLabel(this)
+                    + "\nMedia3: " + exoPlaybackSummary()
+                    + "\nVideo: " + selectedTrackSummary(C.TRACK_TYPE_VIDEO)
+                    + "\nAudio: " + selectedTrackSummary(C.TRACK_TYPE_AUDIO)
+                    + "\nAuto-Fallback: " + fallback
                     + "\nlibVLC: " + (libOk ? "ja" : "nein")
                     + "\nLocalHls: " + hls
                     + "\nHost: " + host
@@ -864,6 +874,55 @@ public class PlayerActivity extends AppCompatActivity {
         } catch (Throwable t) {
             Toast.makeText(this, "Diagnose: " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private static String playbackStateLabel(int state) {
+        if (state == Player.STATE_BUFFERING) return "Puffert";
+        if (state == Player.STATE_READY) return "Bereit";
+        if (state == Player.STATE_ENDED) return "Beendet";
+        return "Leerlauf";
+    }
+
+    private String exoPlaybackSummary() {
+        ExoPlayer exo = this.player;
+        if (exo == null) return "—";
+        try {
+            long bufferedMs = Math.max(0L, exo.getBufferedPosition() - exo.getCurrentPosition());
+            return playbackStateLabel(exo.getPlaybackState())
+                    + " · " + String.format(Locale.GERMANY, "%.1f s Puffer", bufferedMs / 1000.0d);
+        } catch (Throwable ignored) {
+            return playbackStateLabel(exo.getPlaybackState());
+        }
+    }
+
+    private String selectedTrackSummary(int type) {
+        ExoPlayer exo = this.player;
+        if (exo == null) return "—";
+        try {
+            for (Tracks.Group group : exo.getCurrentTracks().getGroups()) {
+                if (group.getType() != type || !group.isSelected()) continue;
+                for (int i = 0; i < group.length; i++) {
+                    if (!group.isTrackSelected(i)) continue;
+                    Format format = group.getTrackFormat(i);
+                    String codec = format.codecs;
+                    if (codec == null || codec.isEmpty()) codec = format.sampleMimeType;
+                    if (codec == null || codec.isEmpty()) codec = "unbekannt";
+                    if (type == C.TRACK_TYPE_VIDEO) {
+                        String size = (format.width > 0 && format.height > 0)
+                                ? (format.width + "×" + format.height) : "Auflösung ?";
+                        return size + " · " + codec;
+                    }
+                    if (type == C.TRACK_TYPE_AUDIO) {
+                        String channels = format.channelCount > 0 ? (format.channelCount + "ch") : "?ch";
+                        String rate = format.sampleRate > 0 ? (" · " + format.sampleRate + " Hz") : "";
+                        return codec + " · " + channels + rate;
+                    }
+                    return codec;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "—";
     }
 
     private static String redactHost(String url) {
@@ -2316,6 +2375,14 @@ public class PlayerActivity extends AppCompatActivity {
                 minBuf = 4000; maxBuf = 14000; playback = 1500; afterRebuffer = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
             }
         }
+        // For normal live TV, favor quick tuning/zapping unless the user explicitly
+        // selected a large buffer. High/max remain untouched for unstable connections.
+        if (this.liveMode && !this.catchup && !"high".equals(buf) && !"max".equals(buf)) {
+            minBuf = Math.min(minBuf, 1800);
+            maxBuf = Math.min(maxBuf, 7000);
+            playback = Math.min(playback, 1000);
+            afterRebuffer = Math.min(afterRebuffer, 1600);
+        }
         return new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(minBuf, maxBuf, playback, afterRebuffer)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -2683,6 +2750,9 @@ public class PlayerActivity extends AppCompatActivity {
         this.vavooHot = null;
         this.vavooTriedVlc = false;
         this.recoverTries = 0;
+        this.lastExoError = "";
+        this.lastVlcError = "";
+        this.lastFallbackReason = "";
         App.playing = channel;
         this.channel = channel;
         this.liveMode = true;
@@ -2825,9 +2895,12 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         if (!this.useVlc && this.liveMode && !this.catchup
-                && "auto".equals(playerPref()) && allowVlc() && switchToVlc()) {
-            this.freezeTicks = 0;
-            return;
+                && "auto".equals(playerPref()) && allowVlc()) {
+            this.lastFallbackReason = "Watchdog: Live-Stream hängt";
+            if (switchToVlc()) {
+                this.freezeTicks = 0;
+                return;
+            }
         }
         int i = this.recoverTries;
         if (i < 2) {
