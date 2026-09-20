@@ -42,7 +42,7 @@ jobs:
       - name: Upload unsigned APKs and verifier
         uses: actions/upload-artifact@v4
         with:
-          name: streamy2-3.43-unsigned
+          name: streamy2-3.44-unsigned
           path: |
             app/build/outputs/apk/**/*.apk
             build-tools-export/apksigner.jar
