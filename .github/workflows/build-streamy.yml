@@ -1,4 +1,4 @@
-name: Build Streamy 2 3.41
+name: Build Streamy 2
 
 on:
   pull_request:
@@ -33,7 +33,7 @@ jobs:
       - name: Upload unsigned APKs
         uses: actions/upload-artifact@v4
         with:
-          name: streamy2-3.41-unsigned
+          name: streamy2-unsigned
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 7
