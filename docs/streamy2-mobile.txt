@@ -1,1 +1,1 @@
-{"versionCode":162,"versionName":"3.42","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.42/Streamy2-Mobile-3.42.apk","changelog":"Neu in 3.42: Handy-Icon korrigiert – kein weißer Außenkreis mehr und das S2-Logo wird deutlich größer dargestellt."}
+{"versionCode":163,"versionName":"3.43","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.43/Streamy2-Mobile-3.43.apk","changelog":"Neu in 3.43: Live-TV stabiler und schneller, Auto-Fallback auf VLC, Browser repariert und Update-Prüfung gegen alte Cache-Antworten abgesichert."}
