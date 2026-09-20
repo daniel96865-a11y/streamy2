@@ -24,6 +24,9 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      - name: Run TV and Mobile unit tests
+        run: ./gradlew --no-daemon :app:testTvDebugUnitTest :app:testMobileDebugUnitTest
+
       - name: Build TV and Mobile release APKs
         run: ./gradlew --no-daemon :app:assembleTvRelease :app:assembleMobileRelease
 
