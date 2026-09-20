@@ -29,7 +29,7 @@ import com.google.android.material.appbar.AppBarLayout;
 
 /* loaded from: classes.dex */
 public class BrowserController {
-    public static final String HOME = "about:blank";
+    public static final String HOME = "https://www.google.com/";
     private static final String UA_PHONE = "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
     private static final String UA_TV = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
     private final Activity act;
@@ -491,6 +491,13 @@ public class BrowserController {
 
     public void show() {
         ensureWeb();
+        restoreWebLayer();
+        if (this.web != null) {
+            try {
+                this.web.onResume();
+            } catch (Throwable ignored) {
+            }
+        }
         View view = this.pane;
         if (view != null) {
             view.setVisibility(0);
@@ -606,7 +613,23 @@ public class BrowserController {
         if (!visible() || (webView = this.web) == null) {
             return;
         }
+        restoreWebLayer();
         webView.onResume();
+    }
+
+    private void restoreWebLayer() {
+        WebView webView = this.web;
+        if (webView == null) {
+            return;
+        }
+        try {
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        } catch (Throwable ignored) {
+            try {
+                webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+            } catch (Throwable ignored2) {
+            }
+        }
     }
 
     public boolean visible() {
