@@ -30,13 +30,21 @@ jobs:
       - name: Build TV and Mobile release APKs
         run: ./gradlew --no-daemon :app:assembleTvRelease :app:assembleMobileRelease
 
+      - name: Collect signing verifier tool
+        run: |
+          mkdir -p build-tools-export
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          cp "$BUILD_TOOLS_DIR/lib/apksigner.jar" build-tools-export/apksigner.jar
+
       - name: Show APKs
         run: find app/build/outputs/apk -type f -name '*.apk' -print -exec sha256sum {} \;
 
-      - name: Upload unsigned APKs
+      - name: Upload unsigned APKs and verifier
         uses: actions/upload-artifact@v4
         with:
-          name: streamy2-unsigned
-          path: app/build/outputs/apk/**/*.apk
+          name: streamy2-3.43-unsigned
+          path: |
+            app/build/outputs/apk/**/*.apk
+            build-tools-export/apksigner.jar
           if-no-files-found: error
           retention-days: 7
