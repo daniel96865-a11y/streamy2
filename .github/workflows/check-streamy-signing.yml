@@ -1,0 +1,29 @@
+name: Check Streamy signing secrets
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      KS1: ${{ secrets.STREAMY_KEYSTORE_BASE64 }}
+      KS2: ${{ secrets.STREAMY_JKS_BASE64 }}
+      KS3: ${{ secrets.STREAMY_RELEASE_KEYSTORE_BASE64 }}
+      KS4: ${{ secrets.STREAMY_SIGNING_KEY_BASE64 }}
+      STORE: ${{ secrets.STREAMY_STORE_PASSWORD }}
+      KEY: ${{ secrets.STREAMY_KEY_PASSWORD }}
+    steps:
+      - name: Check presence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          ks=no
+          for v in "$KS1" "$KS2" "$KS3" "$KS4"; do
+            if [ -n "$v" ]; then ks=yes; break; fi
+          done
+          store=no; [ -n "$STORE" ] && store=yes
+          key=no; [ -n "$KEY" ] && key=yes
+          echo "keystore_secret=$ks"
+          echo "store_password_secret=$store"
+          echo "key_password_secret=$key"
