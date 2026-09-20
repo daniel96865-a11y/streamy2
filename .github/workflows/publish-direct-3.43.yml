@@ -1,0 +1,36 @@
+name: Publish direct Streamy 3.43 update APKs
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-direct-3.43.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download verified 3.43 release APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          gh release download v3.43 --repo "$GITHUB_REPOSITORY"             --pattern 'Streamy2-TV-3.43.apk' --dir docs/downloads
+          gh release download v3.43 --repo "$GITHUB_REPOSITORY"             --pattern 'Streamy2-Mobile-3.43.apk' --dir docs/downloads
+          echo "f22c758894638bfa46d750345989891068a1b7b84422004d8f8a7c2e424e6315  docs/downloads/Streamy2-TV-3.43.apk" | sha256sum -c -
+          echo "e4f15a587458df677037a2b2cac50e00dc9c018eb90ecf0d5e05567ab4fb8277  docs/downloads/Streamy2-Mobile-3.43.apk" | sha256sum -c -
+      - name: Commit direct-download bridge APKs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.43.apk docs/downloads/Streamy2-Mobile-3.43.apk
+          git commit -m "Add direct Streamy 3.43 updater APKs"
+          git push
