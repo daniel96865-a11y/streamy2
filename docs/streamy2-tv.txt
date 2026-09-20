@@ -1,1 +1,1 @@
-{"versionCode":161,"versionName":"3.41","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.41/Streamy2-TV-3.41.apk","changelog":"Neu in 3.41: neues S2-App-Logo und deutsche Ladeanimation beim Start."}
+{"versionCode":163,"versionName":"3.43","apkUrl":"https://github.com/daniel96865-a11y/streamy2/releases/download/v3.43/Streamy2-TV-3.43.apk","changelog":"Neu in 3.43: Live-TV stabiler und schneller, Auto-Fallback auf VLC, Browser repariert und Update-Prüfung gegen alte Cache-Antworten abgesichert."}
