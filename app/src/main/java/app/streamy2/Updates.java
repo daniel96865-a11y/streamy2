@@ -184,7 +184,7 @@ public final class Updates {
         connection.setDefaultUseCaches(false);
         connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
         connection.setRequestProperty("Pragma", "no-cache");
-        connection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2/3.43");
+        connection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2/" + BuildConfig.VERSION_NAME);
         connection.setRequestProperty(HttpHeaders.ACCEPT, "text/plain, application/json, text/html, */*");
         try {
             return readLimited(connection, 192000);
