@@ -1,0 +1,64 @@
+name: Apply Streamy 2 3.46 source
+
+on:
+  push:
+    branches: [ release/3.46 ]
+    paths:
+      - .github/workflows/apply-streamy-3.46.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/3.46
+          fetch-depth: 0
+
+      - name: Decode and apply source overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .release-3.46/source-overlay.b64 > /tmp/source-overlay.zst
+          zstd -q -d /tmp/source-overlay.zst -o /tmp/source-overlay.payload
+          echo "Payload type:"
+          file /tmp/source-overlay.payload || true
+
+          if tar -tf /tmp/source-overlay.payload >/tmp/tar-list.txt 2>/dev/null; then
+            echo "Applying tar payload"
+            sed -n '1,80p' /tmp/tar-list.txt
+            tar -xf /tmp/source-overlay.payload -C .
+          elif unzip -t /tmp/source-overlay.payload >/tmp/unzip-test.txt 2>&1; then
+            echo "Applying zip payload"
+            unzip -o /tmp/source-overlay.payload -d .
+          elif git apply --check /tmp/source-overlay.payload >/dev/null 2>&1; then
+            echo "Applying git patch payload"
+            git apply /tmp/source-overlay.payload
+          else
+            echo "Unknown overlay format"
+            head -c 256 /tmp/source-overlay.payload | xxd
+            exit 1
+          fi
+
+      - name: Confirm 3.46 source
+        run: |
+          set -euo pipefail
+          grep -n 'versionCode 166' app/build.gradle
+          grep -n 'versionName "3.46"' app/build.gradle
+          test -f app/src/main/java/app/streamy2/PlayerActivity.java
+          test -f app/src/main/res/layout/activity_player.xml
+
+      - name: Commit source and remove temporary transport
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf .release-3.46
+          rm -f .github/workflows/apply-streamy-3.46.yml
+          git add -A
+          git commit -m "Release Streamy 2 3.46 player update"
+          git push origin HEAD:release/3.46
