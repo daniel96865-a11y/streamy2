@@ -1867,15 +1867,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.playerLiveAuto, "auto".equals(live), accent);
         paintChip(this.playerLiveExo, "exo".equals(live), accent);
         paintChip(this.playerLiveVlc, "vlc".equals(live), accent);
-        String vavoo = this.prefs.playerExtraLive();
-        paintChip(this.playerExtraLiveAuto, "auto".equals(vavoo), accent);
-        paintChip(this.playerExtraLiveExo, "exo".equals(vavoo), accent);
-        paintChip(this.playerExtraLiveVlc, "vlc".equals(vavoo), accent);
+        String extraLive = this.prefs.playerExtraLive();
+        paintChip(this.playerExtraLiveAuto, "auto".equals(extraLive), accent);
+        paintChip(this.playerExtraLiveExo, "exo".equals(extraLive), accent);
+        paintChip(this.playerExtraLiveVlc, "vlc".equals(extraLive), accent);
     }
 
     /** Non-auto engine string for PlayerActivity, or null for Auto. */
-    private String forceEngineFor(boolean vavoo) {
-        String pref = vavoo ? this.prefs.playerExtraLive() : this.prefs.playerLive();
+    private String forceEngineFor(boolean extraLive) {
+        String pref = extraLive ? this.prefs.playerExtraLive() : this.prefs.playerLive();
         if ("vlc".equals(pref) || "exo".equals(pref)) {
             return pref;
         }
