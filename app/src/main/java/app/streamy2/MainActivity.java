@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -59,6 +60,8 @@ import org.json.JSONObject;
 public class MainActivity extends AppCompatActivity implements ChannelAdapter.Listener {
     private LinearLayout accentRow;
     private TextView activeLabel;
+    private TextView accessStatus;
+    private View btnAccessUnlock;
     private ChannelAdapter adapter;
     private XtreamApi api;
     private AppBarLayout appBar;
@@ -117,6 +120,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView playerVavooAuto;
     private TextView playerVavooExo;
     private TextView playerVavooVlc;
+    private View playerVavooLabel;
+    private View playerVavooHint;
+    private View playerVavooRow;
     private Prefs prefs;
     private TextView resizeFit;
     private TextView resizeStretch;
@@ -221,6 +227,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.playerVavooAuto = (TextView) findViewById(R.id.playerVavooAuto);
         this.playerVavooExo = (TextView) findViewById(R.id.playerVavooExo);
         this.playerVavooVlc = (TextView) findViewById(R.id.playerVavooVlc);
+        this.playerVavooLabel = findViewById(R.id.playerVavooLabel);
+        this.playerVavooHint = findViewById(R.id.playerVavooHint);
+        this.playerVavooRow = findViewById(R.id.playerVavooRow);
+        this.accessStatus = (TextView) findViewById(R.id.accessStatus);
+        this.btnAccessUnlock = findViewById(R.id.btnAccessUnlock);
         this.bufLow = (TextView) findViewById(R.id.bufLow);
         this.bufNorm = (TextView) findViewById(R.id.bufNorm);
         this.bufHigh = (TextView) findViewById(R.id.bufHigh);
@@ -391,6 +402,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$10(view3);
             }
         });
+        if (this.btnAccessUnlock != null) {
+            this.btnAccessUnlock.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view3) {
+                    MainActivity.this.showAccessDialog();
+                }
+            });
+        }
+        updateAccessUi();
         this.chipCat.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda69
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
@@ -888,13 +908,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         Models.Catalog build = DemoCatalog.build();
         this.catalog = build;
         App.live = build.live;
-        setStatus("Ohne Playlist · Vavoo und Megakino bleiben", false);
+        boolean unlocked = FeatureAccess.isUnlocked(this);
+        setStatus(unlocked ? "Ohne Playlist · Zusatzfunktionen freigeschaltet" : "Ohne Playlist · Demo", false);
         updateEpgStatus();
         showSettings(false);
         renderList();
-        loadVavoo();
-        loadKino();
-        setTab(4);
+        if (unlocked) {
+            loadVavoo();
+            loadKino();
+            setTab(4);
+        } else {
+            setTab(0);
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1661,8 +1686,91 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void setPlayerVavooEngine(String str) {
+        if (!FeatureAccess.isUnlocked(this)) {
+            return;
+        }
         this.prefs.setPlayerVavoo(str);
         paintPlayer();
+    }
+
+    private void updateAccessUi() {
+        boolean unlocked = FeatureAccess.isUnlocked(this);
+        int restrictedVisibility = unlocked ? View.VISIBLE : View.GONE;
+        if (this.tabVavoo != null) {
+            this.tabVavoo.setVisibility(restrictedVisibility);
+            this.tabVavoo.setFocusable(unlocked);
+        }
+        if (this.tabKino != null) {
+            this.tabKino.setVisibility(restrictedVisibility);
+            this.tabKino.setFocusable(unlocked);
+        }
+        if (this.playerVavooLabel != null) this.playerVavooLabel.setVisibility(restrictedVisibility);
+        if (this.playerVavooHint != null) this.playerVavooHint.setVisibility(restrictedVisibility);
+        if (this.playerVavooRow != null) this.playerVavooRow.setVisibility(restrictedVisibility);
+        if (this.accessStatus != null) {
+            this.accessStatus.setText(unlocked
+                    ? "Zusatzfunktionen sind auf diesem Gerät freigeschaltet."
+                    : "Freigabecode erforderlich. Ohne Freigabe bleiben Zusatzfunktionen verborgen.");
+        }
+        if (this.btnAccessUnlock instanceof TextView) {
+            TextView button = (TextView) this.btnAccessUnlock;
+            button.setText(unlocked ? "Freigeschaltet" : "Freigabecode eingeben");
+            button.setEnabled(!unlocked);
+            button.setAlpha(unlocked ? 0.65f : 1.0f);
+        }
+        if (!unlocked && (this.tab == 4 || this.tab == 5)) {
+            this.tab = 0;
+            this.catId = "all";
+        }
+    }
+
+    private void showAccessDialog() {
+        if (FeatureAccess.isUnlocked(this)) {
+            updateAccessUi();
+            return;
+        }
+        final EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setHint("8-stelliger PIN");
+        input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Freigabecode")
+                .setMessage("Gib den erhaltenen Zahlen-PIN ein. Ein gültiger PIN schaltet die Zusatzfunktionen dauerhaft auf diesem Gerät frei.")
+                .setView(input)
+                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton("Prüfen", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+            final String pin = input.getText() == null ? "" : input.getText().toString().trim();
+            if (!pin.matches("\\d{6,12}")) {
+                input.setError("Bitte einen gültigen Zahlen-PIN eingeben.");
+                return;
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            if (this.accessStatus != null) {
+                this.accessStatus.setText("Freigabecode wird geprüft…");
+            }
+            IO.execute(() -> {
+                final FeatureAccess.Result result = FeatureAccess.redeem(MainActivity.this, pin);
+                UI.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    if (result.ok) {
+                        dialog.dismiss();
+                        updateAccessUi();
+                        Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
+                        loadVavoo();
+                        loadKino();
+                        paintTabs();
+                        renderList();
+                    } else {
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                        if (this.accessStatus != null) this.accessStatus.setText(result.message);
+                        input.setError(result.message);
+                    }
+                });
+            });
+        }));
+        dialog.show();
     }
 
     private void setBuffer(String str) {
@@ -1871,6 +1979,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void setTab(int i) {
+        if ((i == 4 || i == 5) && !FeatureAccess.isUnlocked(this)) {
+            i = 0;
+        }
         this.tab = i;
         this.seriesOpen = null;
         this.catId = i == 4 ? "vavoo" : "all";
@@ -2145,6 +2256,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             for (Models.Channel channel : liveSnap) {
                 if (channel != null) {
                     String str2 = channel.name == null ? "" : channel.name;
+                    if (!FeatureAccess.isUnlocked(this) && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+                        continue;
+                    }
                     if ("all".equals(this.catId) || (channel.categoryId != null && this.catId.equals(channel.categoryId))) {
                         if (lowerCase.isEmpty() || str2.toLowerCase(Locale.GERMAN).contains(lowerCase)) {
                             arrayList.add(channel);
@@ -2580,6 +2694,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             str = "";
         }
         String str2 = str;
+        if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty() && !FeatureAccess.isUnlocked(this)) {
+            Toast.makeText(this, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
             try {
                 String str3 = channel.vavooUrl;
@@ -3185,8 +3303,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         setTab(0);
         prefetchEpg();
         ensureLiveEpg(false);
-        loadVavoo();
-        loadKino();
+        if (FeatureAccess.isUnlocked(this)) {
+            loadVavoo();
+            loadKino();
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -3326,6 +3446,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void loadKino() {
+        if (!FeatureAccess.isUnlocked(this)) {
+            return;
+        }
         if (MegaKino.loading) {
             return;
         }
@@ -3373,6 +3496,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void playMega(final Models.Media media, final Models.Episode episode) {
+        if (!FeatureAccess.isUnlocked(this)) {
+            Toast.makeText(this, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
+            return;
+        }
         Toast.makeText(this, "Stream wird geladen…", 0).show();
         IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda31
             @Override // java.lang.Runnable
@@ -3432,6 +3559,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void loadVavoo() {
         TextView textView;
+        if (!FeatureAccess.isUnlocked(this)) {
+            return;
+        }
         if (this.vavooBusy) {
             return;
         }
@@ -3568,8 +3698,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                 @Override
                                 public final void run() {
                                     try {
-                                        MainActivity.this.loadVavoo();
-                                        MainActivity.this.loadKino();
+                                        if (FeatureAccess.isUnlocked(MainActivity.this)) {
+                                            MainActivity.this.loadVavoo();
+                                            MainActivity.this.loadKino();
+                                        }
                                         MainActivity.this.prefetchEpg();
                                         MainActivity.this.ensureLiveEpg(false);
                                     } catch (Throwable ignored) {
@@ -3626,8 +3758,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         renderList();
         prefetchEpg();
         ensureLiveEpg(false);
-        loadVavoo();
-        loadKino();
+        if (FeatureAccess.isUnlocked(this)) {
+            loadVavoo();
+            loadKino();
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
