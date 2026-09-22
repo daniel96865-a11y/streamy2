@@ -58,7 +58,7 @@ public final class CatalogCache {
                         channel.categoryName = optJSONObject2.optString("catName");
                         channel.logo = optJSONObject2.optString("logo");
                         channel.epgChannelId = optJSONObject2.optString("epgId");
-                        channel.number = optJSONObject2.optInt("num", i3 + 1);
+                        channel.number = i3 + 1;
                         channel.hlsUrl = optJSONObject2.optString("hls");
                         channel.tsUrl = optJSONObject2.optString("ts");
                         channel.vavooUrl = optJSONObject2.optString("vavoo");
