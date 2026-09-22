@@ -154,7 +154,7 @@ public class XtreamApi {
                 if (channel.epgChannelId.isEmpty() && !optJSONObject.isNull("xmltv_id")) {
                     channel.epgChannelId = optJSONObject.optString("xmltv_id", "");
                 }
-                channel.number = optJSONObject.optInt("num", i + 1);
+                channel.number = i + 1;
                 boolean z = true;
                 channel.header = channel.name.contains("#####") || channel.name.startsWith("---");
                 channel.hlsUrl = this.base + "/live/" + enc + "/" + enc2 + "/" + channel.id + ".m3u8";
