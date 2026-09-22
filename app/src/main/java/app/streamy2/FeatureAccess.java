@@ -1,11 +1,21 @@
 package app.streamy2;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.ViewGroup;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLException;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -36,6 +46,10 @@ final class FeatureAccess {
             this.ok = ok;
             this.message = message == null ? "" : message;
         }
+    }
+
+    interface Callback {
+        void onResult(Result result);
     }
 
     private FeatureAccess() {
@@ -179,6 +193,96 @@ final class FeatureAccess {
                 return new Result(false, "Serverfehler " + code + " bei der Freigabe.");
             }
             return new Result(false, "Ungültige Antwort vom Freigabe-Server.");
+        }
+    }
+
+    static void redeemInWebView(Activity activity, String rawPin, Callback callback) {
+        if (activity == null || callback == null) return;
+        if (isUnlocked(activity)) {
+            callback.onResult(new Result(true, "Bereits freigeschaltet"));
+            return;
+        }
+
+        String pin = rawPin == null ? "" : rawPin.replaceAll("[^0-9]", "");
+        if (!pin.matches("\\d{8}")) {
+            callback.onResult(new Result(false, "Bitte einen 8-stelligen Zahlen-PIN eingeben."));
+            return;
+        }
+
+        String base = BuildConfig.ACCESS_API_URL == null ? "" : BuildConfig.ACCESS_API_URL.trim();
+        if (base.isEmpty()) {
+            callback.onResult(new Result(false, "Freigabe momentan nicht verfügbar."));
+            return;
+        }
+        if (!base.endsWith("/")) base += "/";
+
+        final String redeemUrl = base + "#streamy-redeem?pin=" + Uri.encode(pin)
+                + "&device=" + Uri.encode(installId(activity));
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final AtomicBoolean finished = new AtomicBoolean(false);
+
+        try {
+            final WebView webView = new WebView(activity);
+            final ViewGroup decor = (ViewGroup) activity.getWindow().getDecorView();
+            webView.setAlpha(0.0f);
+            webView.setFocusable(false);
+            webView.setFocusableInTouchMode(false);
+
+            WebSettings settings = webView.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(true);
+            settings.setDatabaseEnabled(true);
+            settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+            settings.setUserAgentString(settings.getUserAgentString() + " Streamy2-Access/" + BuildConfig.VERSION_NAME);
+
+            final class Finisher {
+                void finish(Result result) {
+                    if (!finished.compareAndSet(false, true)) return;
+                    if (result.ok) markUnlocked(activity);
+                    try {
+                        webView.stopLoading();
+                        decor.removeView(webView);
+                        webView.destroy();
+                    } catch (Throwable ignored) {
+                    }
+                    callback.onResult(result);
+                }
+            }
+            final Finisher finisher = new Finisher();
+
+            webView.setWebViewClient(new WebViewClient() {
+                private boolean handle(Uri uri) {
+                    if (uri == null) return false;
+                    if ("streamy2".equalsIgnoreCase(uri.getScheme())
+                            && "redeem".equalsIgnoreCase(uri.getHost())) {
+                        boolean ok = "1".equals(uri.getQueryParameter("ok"));
+                        String message = uri.getQueryParameter("message");
+                        if (message == null || message.trim().isEmpty()) {
+                            message = ok ? "Freigabe erfolgreich" : "Freigabe wurde abgelehnt.";
+                        }
+                        finisher.finish(new Result(ok, message));
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                    return handle(request == null ? null : request.getUrl());
+                }
+
+                @Override
+                public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                    return handle(url == null ? null : Uri.parse(url));
+                }
+            });
+
+            decor.addView(webView, new ViewGroup.LayoutParams(1, 1));
+            handler.postDelayed(() -> finisher.finish(
+                    new Result(false, "Freigabe-Server antwortet nicht über die Browser-Prüfung.")), 25000L);
+            webView.loadUrl(redeemUrl);
+        } catch (Throwable t) {
+            callback.onResult(new Result(false, "Browser-Prüfung konnte nicht gestartet werden."));
         }
     }
 
