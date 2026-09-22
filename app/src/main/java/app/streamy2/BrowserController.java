@@ -379,6 +379,11 @@ public class BrowserController {
         if (!trim.contains("://")) {
             trim = (!trim.contains(".") || trim.contains(" ")) ? "https://www.google.com/search?q=" + Uri.encode(trim) : "https://" + trim;
         }
+        if (FeatureAccess.isRestrictedUrl(trim) && !FeatureAccess.isUnlocked(this.act)) {
+            Toast.makeText(this.act, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
+            forceBlankHome();
+            return;
+        }
         this.userNavigated = true;
         this.web.loadUrl(trim);
         this.web.requestFocus();
@@ -391,6 +396,10 @@ public class BrowserController {
             return true;
         }
         String lowerCase = str.toLowerCase();
+        if (FeatureAccess.isRestrictedUrl(lowerCase) && !FeatureAccess.isUnlocked(this.act)) {
+            Toast.makeText(this.act, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
+            return true;
+        }
         if (lowerCase.startsWith("about:") || lowerCase.startsWith("javascript:")) {
             return false;
         }
