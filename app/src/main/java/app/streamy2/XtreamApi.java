@@ -139,6 +139,7 @@ public class XtreamApi {
         if (jSONArray == null) {
             return;
         }
+        int channelNumber = 0;
         for (int i = 0; i < jSONArray.length(); i++) {
             JSONObject optJSONObject = jSONArray.optJSONObject(i);
             if (optJSONObject != null) {
@@ -154,9 +155,9 @@ public class XtreamApi {
                 if (channel.epgChannelId.isEmpty() && !optJSONObject.isNull("xmltv_id")) {
                     channel.epgChannelId = optJSONObject.optString("xmltv_id", "");
                 }
-                channel.number = optJSONObject.optInt("num", i + 1);
                 boolean z = true;
                 channel.header = channel.name.contains("#####") || channel.name.startsWith("---");
+                channel.number = channel.header ? 0 : ++channelNumber;
                 channel.hlsUrl = this.base + "/live/" + enc + "/" + enc2 + "/" + channel.id + ".m3u8";
                 channel.tsUrl = this.base + "/live/" + enc + "/" + enc2 + "/" + channel.id + ".ts";
                 channel.archiveDays = optJSONObject.optInt("tv_archive_duration", 0);
