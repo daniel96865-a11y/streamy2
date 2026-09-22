@@ -1,0 +1,109 @@
+name: Publish Streamy 2 3.49
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.49.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.49 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy349
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10697342671/zip > /tmp/streamy349/artifact.zip
+          unzip -q /tmp/streamy349/artifact.zip -d /tmp/streamy349/artifact
+          test -f /tmp/streamy349/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy349/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy349/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.49 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.49:refs/remotes/origin/publish/3.49
+          git show origin/publish/3.49:.release-3.49/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy349/tv.patch.zst
+          git show origin/publish/3.49:.release-3.49/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy349/mobile.patch.zst
+
+          echo "f9ceb9259ff1a4a3b33ddba08876dd4861b4ce1ba3f351329203b91876505c59  /tmp/streamy349/tv.patch.zst" | sha256sum -c -
+          echo "7c13d3d678a1714e80608ccfcc4019398ce61d92fcbb2c08557a38251d08f5aa  /tmp/streamy349/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy349/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy349/tv.patch.zst -o /tmp/streamy349/Streamy2-TV-3.49.apk
+          zstd -q -d --patch-from=/tmp/streamy349/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy349/mobile.patch.zst -o /tmp/streamy349/Streamy2-Mobile-3.49.apk
+
+          echo "5ec5c9b8465c522474f777a316bb1478ed58e16acd6f9f1cc9ccdce1bf5fdfad  /tmp/streamy349/Streamy2-TV-3.49.apk" | sha256sum -c -
+          echo "6fd1c5a799620fb0028dfbacdde78bb7bd24ad97e427ec59d6e399b08b10a750  /tmp/streamy349/Streamy2-Mobile-3.49.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy349/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy349/Streamy2-TV-3.49.apk /tmp/streamy349/Streamy2-Mobile-3.49.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy349/Streamy2-TV-3.49.apk docs/downloads/
+          cp /tmp/streamy349/Streamy2-Mobile-3.49.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":169,"versionName":"3.49","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.49.apk","changelog":"Fix in 3.49: Die Freigabecode-Prüfung wurde technisch überarbeitet. Server-Weiterleitungen sowie DNS-, TLS- und Timeout-Fehler werden korrekt behandelt; eine erfolgreiche PIN-Freigabe wird dauerhaft auf dem Gerät gespeichert."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":169,"versionName":"3.49","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.49.apk","changelog":"Fix in 3.49: Die Freigabecode-Prüfung wurde technisch überarbeitet. Server-Weiterleitungen sowie DNS-, TLS- und Timeout-Fehler werden korrekt behandelt; eine erfolgreiche PIN-Freigabe wird dauerhaft auf dem Gerät gespeichert."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.49.apk docs/downloads/Streamy2-Mobile-3.49.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.49 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy349/notes.md <<'EOF'
+          Streamy 2 3.49 – Freigabecode-Netzwerkfix
+
+          - Behebt den Fehler „Freigabe konnte nicht geprüft werden“, obwohl Internet vorhanden ist.
+          - PIN-Prüfung nutzt jetzt den stabileren Netzwerk-Client.
+          - Redirects werden verfolgt.
+          - DNS-, TLS-, Timeout- und Serverfehler werden getrennt behandelt.
+          - Erfolgreiche Freigaben werden dauerhaft lokal gespeichert.
+          - TV- und Mobile-Build erfolgreich.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.48 signiert.
+          EOF
+
+          if gh release view v3.49 >/dev/null 2>&1; then
+            gh release upload v3.49 /tmp/streamy349/Streamy2-TV-3.49.apk /tmp/streamy349/Streamy2-Mobile-3.49.apk --clobber
+          else
+            gh release create v3.49               /tmp/streamy349/Streamy2-TV-3.49.apk               /tmp/streamy349/Streamy2-Mobile-3.49.apk               --target main               --title "Streamy 2 3.49 — Freigabecode-Netzwerkfix"               --notes-file /tmp/streamy349/notes.md               --latest
+          fi
