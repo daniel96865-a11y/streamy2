@@ -291,8 +291,8 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
 
     private void bindChannel(VH vh, final Models.Channel channel) {
         if (vh.num != null) {
-            vh.num.setVisibility(0);
-            vh.num.setText(String.valueOf(channel.number));
+            vh.num.setVisibility(channel.header ? View.INVISIBLE : View.VISIBLE);
+            vh.num.setText(channel.header ? "" : String.valueOf(channel.number));
         }
         if (vh.live != null) {
             vh.live.setVisibility(channel.header ? 8 : 0);
