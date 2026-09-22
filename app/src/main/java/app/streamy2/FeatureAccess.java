@@ -65,25 +65,42 @@ final class FeatureAccess {
             return new Result(false, "Bitte einen 8-stelligen Zahlen-PIN eingeben.");
         }
 
+        String root = base.endsWith("/") ? base : base + "/";
+        String origin = root.substring(0, root.length() - 1);
+        String deviceId = installId(context);
+
         try {
             JSONObject requestJson = new JSONObject();
             requestJson.put("pin", pin);
-            requestJson.put("deviceId", installId(context));
+            requestJson.put("deviceId", deviceId);
 
-            String endpoint = base.endsWith("/") ? base + "api/redeem" : base + "/api/redeem";
-            Result first = redeemAt(endpoint, requestJson.toString());
+            String endpoint = root + "api/redeem";
+            Result first = redeemPost(endpoint, requestJson.toString(), origin, root);
             if (first.ok) {
                 markUnlocked(context);
                 return first;
             }
 
-            // Manche Reverse-Proxies unterscheiden zwischen /api/redeem und /api/redeem/.
-            // Nur bei einem reinen HTTP-Routingfehler einmal mit Slash wiederholen.
-            if (first.message.startsWith("Serverfehler 404") || first.message.startsWith("Serverfehler 405")) {
-                Result retry = redeemAt(endpoint + "/", requestJson.toString());
-                if (retry.ok) markUnlocked(context);
+            if (isProxyDenied(first)) {
+                Result nativeResult = redeemNative(root + "api/redeem-native", pin, deviceId, origin, root);
+                if (nativeResult.ok) markUnlocked(context);
+                return nativeResult;
+            }
+
+            if (first.message.startsWith("Serverfehler 404")) {
+                Result retry = redeemPost(endpoint + "/", requestJson.toString(), origin, root);
+                if (retry.ok) {
+                    markUnlocked(context);
+                    return retry;
+                }
+                if (isProxyDenied(retry)) {
+                    Result nativeResult = redeemNative(root + "api/redeem-native", pin, deviceId, origin, root);
+                    if (nativeResult.ok) markUnlocked(context);
+                    return nativeResult;
+                }
                 return retry;
             }
+
             return first;
         } catch (UnknownHostException e) {
             return new Result(false, "Freigabe-Server konnte nicht gefunden werden (DNS).");
@@ -97,14 +114,41 @@ final class FeatureAccess {
         }
     }
 
-    private static Result redeemAt(String endpoint, String jsonBody) throws Exception {
+    private static boolean isProxyDenied(Result result) {
+        return result.message.startsWith("Serverfehler 403")
+                || result.message.startsWith("Serverfehler 405");
+    }
+
+    private static Result redeemPost(String endpoint, String jsonBody, String origin, String referer) throws Exception {
         Request request = new Request.Builder()
                 .url(endpoint)
                 .header("Accept", "application/json")
+                .header("Origin", origin)
+                .header("Referer", referer)
+                .header("X-Requested-With", "XMLHttpRequest")
                 .header("User-Agent", "Streamy2/" + BuildConfig.VERSION_NAME)
                 .post(RequestBody.create(jsonBody, JSON))
                 .build();
+        return execute(request);
+    }
 
+    private static Result redeemNative(String endpoint, String pin, String deviceId,
+                                       String origin, String referer) throws Exception {
+        Request request = new Request.Builder()
+                .url(endpoint)
+                .header("Accept", "application/json")
+                .header("Origin", origin)
+                .header("Referer", referer)
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("X-Streamy-Pin", pin)
+                .header("X-Streamy-Device", deviceId)
+                .header("User-Agent", "Streamy2/" + BuildConfig.VERSION_NAME)
+                .get()
+                .build();
+        return execute(request);
+    }
+
+    private static Result execute(Request request) throws Exception {
         try (Response response = HTTP.newCall(request).execute()) {
             int code = response.code();
             String body = response.body() == null ? "" : response.body().string().trim();
@@ -118,7 +162,8 @@ final class FeatureAccess {
             }
 
             if (code >= 200 && code < 300 && json != null && json.optBoolean("ok", false)) {
-                return new Result(true, "Freigabe erfolgreich");
+                String message = json.optString("message", "Freigabe erfolgreich");
+                return new Result(true, message);
             }
 
             if (json != null) {
