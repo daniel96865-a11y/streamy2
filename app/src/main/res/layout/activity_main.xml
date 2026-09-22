@@ -83,12 +83,12 @@
                             android:text="Serien"
                             style="@style/Tab"/>
                         <TextView
-                            android:id="@+id/tabVavoo"
-                            android:text="Vavoo"
+                            android:id="@+id/tabExtraLive"
+                            android:text="Live Extra"
                             style="@style/Tab"/>
                         <TextView
                             android:id="@+id/tabKino"
-                            android:text="Megakino"
+                            android:text="Media Extra"
                             style="@style/Tab"/>
                         <TextView
                             android:id="@+id/tabBrowser"
@@ -795,22 +795,22 @@
                                 android:layout_marginStart="8dp"/>
                         </LinearLayout>
                         <TextView
-                            android:id="@+id/playerVavooLabel"
+                            android:id="@+id/playerExtraLiveLabel"
                             android:textSize="12sp"
                             android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Standard-Player – Vavoo"/>
+                            android:text="Standard-Player – Live Extra"/>
                         <TextView
-                            android:id="@+id/playerVavooHint"
+                            android:id="@+id/playerExtraLiveHint"
                             android:textSize="12sp"
                             android:textColor="@color/muted"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Separater fester Player nur für Vavoo-Sender."/>
+                            android:text="Separater fester Player nur für Live-Extra-Sender."/>
                         <LinearLayout
-                            android:id="@+id/playerVavooRow"
+                            android:id="@+id/playerExtraLiveRow"
                             android:orientation="horizontal"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -819,7 +819,7 @@
                             <TextView
                                 android:textColor="@color/accent_fg"
                                 android:gravity="center"
-                                android:id="@+id/playerVavooAuto"
+                                android:id="@+id/playerExtraLiveAuto"
                                 android:background="@drawable/bg_btn"
                                 android:focusable="true"
                                 android:clickable="true"
@@ -831,7 +831,7 @@
                             <TextView
                                 android:textColor="@color/fg"
                                 android:gravity="center"
-                                android:id="@+id/playerVavooExo"
+                                android:id="@+id/playerExtraLiveExo"
                                 android:background="@drawable/bg_btn_sec"
                                 android:focusable="true"
                                 android:clickable="true"
@@ -844,7 +844,7 @@
                             <TextView
                                 android:textColor="@color/fg"
                                 android:gravity="center"
-                                android:id="@+id/playerVavooVlc"
+                                android:id="@+id/playerExtraLiveVlc"
                                 android:background="@drawable/bg_btn_sec"
                                 android:focusable="true"
                                 android:clickable="true"

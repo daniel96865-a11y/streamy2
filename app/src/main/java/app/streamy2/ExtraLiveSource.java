@@ -24,8 +24,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /* loaded from: classes.dex */
-final class Vavoo {
-    static final String CAT_ID = "vavoo";
+final class ExtraLiveSource {
+    static final String CAT_ID = "extra_live";
     private static volatile String sig;
     private static volatile long sigAt;
     private static final String[] HOSTS = {"https://kool.to", "https://vavoo.to", "https://www.vavoo.to"};
@@ -42,7 +42,7 @@ final class Vavoo {
 
 
 
-    Vavoo() {
+    ExtraLiveSource() {
     }
 
     static void merge(Models.Catalog catalog) {
@@ -68,7 +68,7 @@ final class Vavoo {
                             break;
                         }
                     } else {
-                        catalog.liveCats.add(0, new Models.Category(CAT_ID, "Vavoo Deutschland"));
+                        catalog.liveCats.add(0, new Models.Category(CAT_ID, "Live Extra Deutschland"));
                         break;
                     }
                 }
@@ -136,7 +136,7 @@ final class Vavoo {
                     String sig = signature();
                     parseResolve = parseResolve(OkPlay.postJson(strArr2[0] + "/mediahubmx-resolve.json", jSONObject.toString(), sig));
                     if (parseResolve == null) {
-                        lastError = "Vavoo-Stream konnte nicht aufgelöst werden (Resolve)";
+                        lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
                     }
                 } catch (Exception unused) {
                 }
@@ -217,7 +217,7 @@ final class Vavoo {
             return true;
         }
         Models.Channel channel = App.playing;
-        return (channel == null || channel.vavooUrl == null || channel.vavooUrl.isEmpty()) ? false : true;
+        return (channel == null || channel.extraLiveUrl == null || channel.extraLiveUrl.isEmpty()) ? false : true;
     }
 
     static boolean isCdn(String str) {
@@ -246,7 +246,7 @@ final class Vavoo {
             }
         }
         if (lastError == null || lastError.isEmpty()) {
-            lastError = "Vavoo-Katalog leer — Host/Signatur prüfen.";
+            lastError = "Live-Extra-Katalog leer — Host/Signatur prüfen.";
         }
         return new ArrayList();
     }
@@ -308,12 +308,12 @@ final class Vavoo {
                             Models.Channel channel = new Models.Channel();
                             set = hashSet;
                             obj = r10;
-                            channel.id = "vavoo:" + optString3;
+                            channel.id = "extra_live:" + optString3;
                             channel.name = Text.clean(optString2);
                             channel.categoryId = CAT_ID;
-                            channel.categoryName = "Vavoo Deutschland";
+                            channel.categoryName = "Live Extra Deutschland";
                             channel.logo = optJSONObject.optString("logo", "");
-                            channel.vavooUrl = optString;
+                            channel.extraLiveUrl = optString;
                             channel.hlsUrl = optString;
                             arrayList.add(channel);
                             str8 = str5;
@@ -390,7 +390,7 @@ final class Vavoo {
             }
         }
         if (sig == null || sig.isEmpty()) {
-            lastError = "Vavoo-Anmeldung fehlgeschlagen (Ping/Signatur). Netzwerk prüfen oder später erneut.";
+            lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur). Netzwerk prüfen oder später erneut.";
         }
         return sig == null ? "" : sig;
     }
@@ -577,7 +577,7 @@ final class Vavoo {
                 JSONObject jSONObject = new JSONObject();
                 jSONObject.put("id", channel.id);
                 jSONObject.put("name", channel.name);
-                jSONObject.put("url", channel.vavooUrl != null ? channel.vavooUrl : channel.hlsUrl);
+                jSONObject.put("url", channel.extraLiveUrl != null ? channel.extraLiveUrl : channel.hlsUrl);
                 jSONArray.put(jSONObject);
             }
             byte[] bytes = jSONArray.toString().getBytes(StandardCharsets.UTF_8);
@@ -619,11 +619,11 @@ final class Vavoo {
                         if (!optString.isEmpty() && !optString2.isEmpty() && !hashSet.contains(optString)) {
                             hashSet.add(optString);
                             Models.Channel channel = new Models.Channel();
-                            channel.id = optJSONObject.optString("id", "vavoo:" + optString);
+                            channel.id = optJSONObject.optString("id", "extra_live:" + optString);
                             channel.name = optString2;
                             channel.categoryId = CAT_ID;
-                            channel.categoryName = "Vavoo Deutschland";
-                            channel.vavooUrl = optString;
+                            channel.categoryName = "Live Extra Deutschland";
+                            channel.extraLiveUrl = optString;
                             channel.hlsUrl = optString;
                             arrayList.add(channel);
                         }

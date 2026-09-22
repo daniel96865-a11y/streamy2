@@ -63,7 +63,7 @@ final class FeatureAccess {
 
     static boolean isRestrictedUrl(String url) {
         if (url == null) return false;
-        return url.toLowerCase().contains("megakino");
+        return ExtraMediaSource.isRestrictedUrl(url);
     }
 
     static Result redeem(Context context, String rawPin) {

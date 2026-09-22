@@ -521,9 +521,9 @@ public class BrowserController {
                 this.web.onResume();
             }
             String url = currentUrl();
-            boolean megakino = url != null && url.toLowerCase().contains("megakino");
-            // Blank until user navigated this session; always clear Megakino pollution
-            if (!this.userNavigated || megakino) {
+            boolean restrictedMedia = ExtraMediaSource.isRestrictedUrl(url);
+            // Blank until user navigated this session; always clear restricted-media pollution
+            if (!this.userNavigated || restrictedMedia) {
                 forceBlankHome();
             }
         }
