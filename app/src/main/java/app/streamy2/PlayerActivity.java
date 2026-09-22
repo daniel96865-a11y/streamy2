@@ -114,9 +114,9 @@ public class PlayerActivity extends AppCompatActivity {
     private long playbackGeneration;
     private long nextEpgSync;
     private boolean vlcStarting;
-    private String vavooHot;
-    private String vavooKeep;
-    private boolean vavooTriedVlc;
+    private String extraLiveHot;
+    private String extraLiveKeep;
+    private boolean extraLiveTriedVlc;
     private LiveEngine vlc;
     private ViewGroup vlcHost;
     private boolean vlcSoft;
@@ -163,7 +163,7 @@ public class PlayerActivity extends AppCompatActivity {
                     }
                 }
                 if (PlayerActivity.this.freezeTicks == 8
-                        && (PlayerActivity.this.vavooKeep != null || PlayerActivity.this.isVavooPlayback())) {
+                        && (PlayerActivity.this.extraLiveKeep != null || PlayerActivity.this.isExtraLivePlayback())) {
                     PlayerActivity.this.tryExoAfterVlc();
                 }
             } else if (PlayerActivity.this.player != null && !PlayerActivity.this.userPaused) {
@@ -176,7 +176,7 @@ public class PlayerActivity extends AppCompatActivity {
                 if (PlayerActivity.this.freezeTicks == 12
                         && PlayerActivity.this.liveMode
                         && !PlayerActivity.this.catchup
-                        && !PlayerActivity.this.isVavooPlayback()
+                        && !PlayerActivity.this.isExtraLivePlayback()
                         && "auto".equals(PlayerActivity.this.playerPref())) {
                     // Match the longer start gate used by the Streamy 3 player.
                     // Switching engines too early causes avoidable black frames on slow IPTV feeds.
@@ -203,7 +203,7 @@ public class PlayerActivity extends AppCompatActivity {
             PlayerActivity.UI.postDelayed(this, 1000L);
         }
     };
-    private final Runnable vavooPrefetch = new AnonymousClass6();
+    private final Runnable extraLivePrefetch = new AnonymousClass6();
 
     private void maybeVlcIfSilent() {
     }
@@ -223,15 +223,15 @@ public class PlayerActivity extends AppCompatActivity {
         intent.putExtra("title", str3);
         intent.putExtra("sub", str4);
         intent.putExtra("live", z);
-        boolean vavoo = (str4 != null && str4.toLowerCase(Locale.US).contains("vavoo"))
-                || Vavoo.isPlayUrl(str) || Vavoo.isPlayUrl(str2) || Vavoo.isCdn(str) || Vavoo.isCdn(str2);
-        if (!vavoo && z) {
+        boolean extraLive = (str4 != null && str4.toLowerCase(Locale.US).contains("extra_live"))
+                || ExtraLiveSource.isPlayUrl(str) || ExtraLiveSource.isPlayUrl(str2) || ExtraLiveSource.isCdn(str) || ExtraLiveSource.isCdn(str2);
+        if (!extraLive && z) {
             Models.Channel playing = App.playing;
-            if (playing != null && playing.vavooUrl != null && !playing.vavooUrl.isEmpty()) {
-                vavoo = true;
+            if (playing != null && playing.extraLiveUrl != null && !playing.extraLiveUrl.isEmpty()) {
+                extraLive = true;
             }
         }
-        intent.putExtra("vavoo", vavoo);
+        intent.putExtra("extra_live", extraLive);
         if (forceEngine != null && !forceEngine.isEmpty()) {
             intent.putExtra("forceEngine", forceEngine);
         }
@@ -256,7 +256,7 @@ public class PlayerActivity extends AppCompatActivity {
                 if (n <= 0) {
                     return 0L;
                 }
-                // Megakino isoDur stores minutes; values <= 600 treated as minutes
+                // Media Extra isoDur stores minutes; values <= 600 treated as minutes
                 if (n <= 600L) {
                     return n * 60000L;
                 }
@@ -781,15 +781,15 @@ public class PlayerActivity extends AppCompatActivity {
                 PlayerActivity.this.lastExoError = str;
                 PlayerActivity.this.toastPlaybackError("Player: " + str);
             } catch (Throwable ignored) {}
-            if (PlayerActivity.this.vavooKeep != null && PlayerActivity.this.recoverTries < 2) {
+            if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.recoverTries < 2) {
                 PlayerActivity.this.recoverTries++;
-                LocalHls.forget(PlayerActivity.this.vavooKeep);
+                LocalHls.forget(PlayerActivity.this.extraLiveKeep);
                 if (PlayerActivity.this.index >= 0 && PlayerActivity.this.index < PlayerActivity.this.queue.size()) {
-                    PlayerActivity.this.queue.set(PlayerActivity.this.index, PlayerActivity.this.vavooKeep);
+                    PlayerActivity.this.queue.set(PlayerActivity.this.index, PlayerActivity.this.extraLiveKeep);
                 }
                 if (PlayerActivity.this.errorView != null) {
                     PlayerActivity.this.errorView.setVisibility(0);
-                    PlayerActivity.this.errorView.setText("Vavoo neu…");
+                    PlayerActivity.this.errorView.setText("Live Extra neu…");
                 }
                 PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda0
                     @Override // java.lang.Runnable
@@ -801,7 +801,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             if (PlayerActivity.this.errorView != null) {
                 PlayerActivity.this.errorView.setVisibility(0);
-                PlayerActivity.this.errorView.setText("Vavoo: " + str);
+                PlayerActivity.this.errorView.setText("Live Extra: " + str);
             }
             if (PlayerActivity.this.index + 1 < PlayerActivity.this.queue.size()) {
                 PlayerActivity.this.index++;
@@ -812,7 +812,7 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
             if (PlayerActivity.this.liveMode && !PlayerActivity.this.catchup
-                    && !PlayerActivity.this.isVavooPlayback()
+                    && !PlayerActivity.this.isExtraLivePlayback()
                     && "auto".equals(PlayerActivity.this.playerPref())
                     && !PlayerActivity.this.useVlc
                     && !PlayerActivity.this.queue.isEmpty()) {
@@ -978,7 +978,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void stopPlayback() {
         try {
-            UI.removeCallbacks(this.vavooPrefetch);
+            UI.removeCallbacks(this.extraLivePrefetch);
         } catch (Throwable unused) {
         }
         try {
@@ -1055,8 +1055,8 @@ public class PlayerActivity extends AppCompatActivity {
         hideVlc();
         this.programmes.clear();
         this.current = null;
-        this.vavooKeep = null;
-        this.vavooHot = null;
+        this.extraLiveKeep = null;
+        this.extraLiveHot = null;
         this.recoverTries = 0;
         this.metaDurationMs = intent.getLongExtra("durationMs", 0L);
         this.playerTitle.setText(Text.clean(intent.getStringExtra("title")));
@@ -1581,7 +1581,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (!this.liveMode || (channel = this.channel) == null) {
             return;
         }
-        if ((channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) || App.api == null) {
+        if ((channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) || App.api == null) {
             Handler handler = UI;
             handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 600L);
             handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 2000);
@@ -2038,7 +2038,7 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         HashMap hashMap = new HashMap();
-        if (Vavoo.isCdn(str) || Vavoo.isPlayUrl(str)) {
+        if (ExtraLiveSource.isCdn(str) || ExtraLiveSource.isPlayUrl(str)) {
             hashMap.put(HttpHeaders.USER_AGENT, "okhttp/4.11.0");
             hashMap.put(HttpHeaders.ACCEPT, "*/*");
             this.http.setUserAgent("okhttp/4.11.0");
@@ -2114,13 +2114,13 @@ public class PlayerActivity extends AppCompatActivity {
         }
         try {
             String str = this.queue.get(this.index);
-            boolean isPlayUrl = Vavoo.isPlayUrl(str);
-            boolean z = isPlayUrl || Vavoo.isCdn(str);
+            boolean isPlayUrl = ExtraLiveSource.isPlayUrl(str);
+            boolean z = isPlayUrl || ExtraLiveSource.isCdn(str);
             if (isPlayUrl) {
-                this.vavooKeep = str;
+                this.extraLiveKeep = str;
             }
             if (z && !isPlayUrl) {
-                this.vavooHot = str;
+                this.extraLiveHot = str;
             }
             if (isPlayUrl) {
                 if (this.resolving) {
@@ -2130,9 +2130,9 @@ public class PlayerActivity extends AppCompatActivity {
                 TextView textView3 = this.errorView;
                 if (textView3 != null) {
                     textView3.setVisibility(0);
-                    this.errorView.setText("Vavoo wird geladen…");
+                    this.errorView.setText("Live Extra wird geladen…");
                 }
-                this.vavooKeep = str;
+                this.extraLiveKeep = str;
                 final String resolveUrl = str;
                 final long request = playbackGeneration;
                 final Runnable runnable = new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda20
@@ -2223,9 +2223,9 @@ public class PlayerActivity extends AppCompatActivity {
             TextView textView = this.errorView;
             if (textView != null) {
                 textView.setVisibility(0);
-                this.errorView.setText("Vavoo antwortet nicht. Signatur/Resolve prüfen.");
+                this.errorView.setText("Live Extra antwortet nicht. Signatur/Resolve prüfen.");
             }
-            toastPlaybackError("Vavoo antwortet nicht");
+            toastPlaybackError("Live Extra antwortet nicht");
         }
     }
 
@@ -2233,7 +2233,7 @@ public class PlayerActivity extends AppCompatActivity {
     public /* synthetic */ void lambda$playCurrent$19(String str, final Runnable runnable, final long request) {
         String resolved = null;
         try {
-            resolved = Vavoo.resolve(str);
+            resolved = ExtraLiveSource.resolve(str);
         } catch (Throwable unused) {
             resolved = null;
         }
@@ -2256,9 +2256,9 @@ public class PlayerActivity extends AppCompatActivity {
         this.resolving = false;
         if (str == null || str.isEmpty()) {
             TextView textView = this.errorView;
-            String err = "Vavoo-Stream nicht erreichbar. Sender erneut tippen.";
-            if (Vavoo.lastError != null && !Vavoo.lastError.isEmpty()) {
-                err = err + " (" + Vavoo.lastError + ")";
+            String err = "Live Extra-Stream nicht erreichbar. Sender erneut tippen.";
+            if (ExtraLiveSource.lastError != null && !ExtraLiveSource.lastError.isEmpty()) {
+                err = err + " (" + ExtraLiveSource.lastError + ")";
             }
             if (textView != null) {
                 textView.setVisibility(0);
@@ -2267,7 +2267,7 @@ public class PlayerActivity extends AppCompatActivity {
             toastPlaybackError(err);
             return;
         }
-        this.vavooHot = str;
+        this.extraLiveHot = str;
         int i = this.index;
         if (i >= 0 && i < this.queue.size()) {
             this.queue.set(this.index, str);
@@ -2324,16 +2324,16 @@ public class PlayerActivity extends AppCompatActivity {
         return "vlc".equals(playerPref());
     }
 
-    private boolean isVavooPlayback() {
-        if (liveMode && channel != null) return channel.vavooUrl != null && !channel.vavooUrl.isEmpty();
-        return getIntent() != null && getIntent().getBooleanExtra("vavoo", false);
+    private boolean isExtraLivePlayback() {
+        if (liveMode && channel != null) return channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty();
+        return getIntent() != null && getIntent().getBooleanExtra("extra_live", false);
     }
 
-    /** Source-specific player pref: Vavoo / Live TV / other (VOD). */
+    /** Source-specific player pref: Live Extra / Live TV / other (VOD). */
     private String playerPref() {
         Prefs prefs = new Prefs(this);
-        if (isVavooPlayback()) {
-            return prefs.playerVavoo();
+        if (isExtraLivePlayback()) {
+            return prefs.playerExtraLive();
         }
         if (this.liveMode) {
             return prefs.playerLive();
@@ -2343,8 +2343,8 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void setPlayerPref(String str) {
         Prefs prefs = new Prefs(this);
-        if (isVavooPlayback()) {
-            prefs.setPlayerVavoo(str);
+        if (isExtraLivePlayback()) {
+            prefs.setPlayerExtraLive(str);
         } else if (this.liveMode) {
             prefs.setPlayerLive(str);
             prefs.setPlayer(str);
@@ -2591,15 +2591,15 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public void tryExoAfterVlc() {
-        if (this.vavooTriedVlc) {
+        if (this.extraLiveTriedVlc) {
             TextView textView = this.errorView;
             if (textView != null) {
                 textView.setVisibility(0);
-                this.errorView.setText("Vavoo-Stream kommt nicht.");
+                this.errorView.setText("Live Extra-Stream kommt nicht.");
             }
             return;
         }
-        this.vavooTriedVlc = true;
+        this.extraLiveTriedVlc = true;
         this.freezeTicks = 0;
         hideVlc();
         this.useVlc = false;
@@ -2629,7 +2629,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (lowerCase.contains(".mp4") || lowerCase.contains(".mkv") || lowerCase.contains(".avi")) {
             return false;
         }
-        if (lowerCase.contains(".m3u8") || lowerCase.contains("timeshift.php") || lowerCase.contains("/hls/") || lowerCase.contains("/m3u8/") || lowerCase.contains("/alternative_stream/") || lowerCase.contains("master.txt") || Vavoo.isCdn(str) || Vavoo.isPlayUrl(str) || lowerCase.contains("/sunshine/")) {
+        if (lowerCase.contains(".m3u8") || lowerCase.contains("timeshift.php") || lowerCase.contains("/hls/") || lowerCase.contains("/m3u8/") || lowerCase.contains("/alternative_stream/") || lowerCase.contains("master.txt") || ExtraLiveSource.isCdn(str) || ExtraLiveSource.isPlayUrl(str) || lowerCase.contains("/sunshine/")) {
             return true;
         }
         return this.liveMode && !lowerCase.contains(".ts");
@@ -2926,7 +2926,7 @@ public class PlayerActivity extends AppCompatActivity {
         hideVlc();
         this.index = 0;
         playCurrent();
-        String scope = isVavooPlayback() ? "Vavoo" : (this.liveMode ? "Live" : "VOD");
+        String scope = isExtraLivePlayback() ? "Live Extra" : (this.liveMode ? "Live" : "VOD");
         Toast.makeText(this, "Player " + scope + ": " + labelPlayer(str), 0).show();
     }
 
@@ -2991,9 +2991,9 @@ public class PlayerActivity extends AppCompatActivity {
         this.current = null;
         this.nextEpgSync = 0;
         this.forceEngine = null;
-        this.vavooKeep = null;
-        this.vavooHot = null;
-        this.vavooTriedVlc = false;
+        this.extraLiveKeep = null;
+        this.extraLiveHot = null;
+        this.extraLiveTriedVlc = false;
         this.recoverTries = 0;
         this.lastExoError = "";
         this.lastVlcError = "";
@@ -3027,13 +3027,13 @@ public class PlayerActivity extends AppCompatActivity {
         this.playerTitle.setText(Text.clean(channel.name));
         this.playerSub.setText("");
         buildQueue(channel.hlsUrl, channel.tsUrl);
-        if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+        if (channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
             this.queue.clear();
-            addUrl(channel.vavooUrl);
+            addUrl(channel.extraLiveUrl);
             this.index = 0;
-            this.vavooKeep = channel.vavooUrl;
-            this.vavooHot = null;
-            this.vavooTriedVlc = false;
+            this.extraLiveKeep = channel.extraLiveUrl;
+            this.extraLiveHot = null;
+            this.extraLiveTriedVlc = false;
             this.recoverTries = 0;
         }
         playCurrent();
@@ -3043,10 +3043,10 @@ public class PlayerActivity extends AppCompatActivity {
         scheduleHide();
     }
 
-    private void startVavooPrefetch() {
+    private void startExtraLivePrefetch() {
         Handler handler = UI;
-        handler.removeCallbacks(this.vavooPrefetch);
-        handler.postDelayed(this.vavooPrefetch, 12000L);
+        handler.removeCallbacks(this.extraLivePrefetch);
+        handler.postDelayed(this.extraLivePrefetch, 12000L);
     }
 
     /* renamed from: app.streamy2.PlayerActivity$6, reason: invalid class name */
@@ -3056,7 +3056,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override // java.lang.Runnable
         public void run() {
-            final String str = PlayerActivity.this.vavooKeep;
+            final String str = PlayerActivity.this.extraLiveKeep;
             if (str == null || !foreground || userPaused || PlayerActivity.this.isFinishing()) {
                 return;
             }
@@ -3071,21 +3071,21 @@ public class PlayerActivity extends AppCompatActivity {
 
         /* JADX INFO: Access modifiers changed from: private */
         public void lambda$run$0(String str, final long request) {
-            final String resolved = Vavoo.resolve(str);
+            final String resolved = ExtraLiveSource.resolve(str);
             UI.post(() -> {
-                if (!acceptPlayback(request) || !str.equals(vavooKeep) || userPaused) return;
-                if (resolved != null && !resolved.isEmpty()) vavooHot = resolved;
+                if (!acceptPlayback(request) || !str.equals(extraLiveKeep) || userPaused) return;
+                if (resolved != null && !resolved.isEmpty()) extraLiveHot = resolved;
                 UI.postDelayed(this, 15000L);
             });
         }
     }
 
-    private void swapVavoo(boolean z) {
+    private void swapExtraLive(boolean z) {
         int i;
-        if (this.vavooKeep == null) {
+        if (this.extraLiveKeep == null) {
             return;
         }
-        String str = this.vavooHot;
+        String str = this.extraLiveHot;
         if (str != null && (i = this.index) >= 0 && i < this.queue.size()) {
             String str2 = this.queue.get(this.index);
             if (z || !str.equals(str2)) {
@@ -3098,32 +3098,32 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         this.resolving = true;
-        final String str3 = this.vavooKeep;
+        final String str3 = this.extraLiveKeep;
         final long request = playbackGeneration;
         IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda16
             @Override // java.lang.Runnable
             public final void run() {
-                PlayerActivity.this.lambda$swapVavoo$23(str3, request);
+                PlayerActivity.this.lambda$swapExtraLive$23(str3, request);
             }
         });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$swapVavoo$23(String str, final long request) {
-        final String resolve = Vavoo.resolve(str);
+    public /* synthetic */ void lambda$swapExtraLive$23(String str, final long request) {
+        final String resolve = ExtraLiveSource.resolve(str);
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda0
             @Override // java.lang.Runnable
             public final void run() {
-                if (acceptPlayback(request)) PlayerActivity.this.lambda$swapVavoo$22(resolve);
+                if (acceptPlayback(request)) PlayerActivity.this.lambda$swapExtraLive$22(resolve);
             }
         });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$swapVavoo$22(String str) {
+    public /* synthetic */ void lambda$swapExtraLive$22(String str) {
         this.resolving = false;
         if (str != null && !str.isEmpty()) {
-            this.vavooHot = str;
+            this.extraLiveHot = str;
             int i = this.index;
             if (i >= 0 && i < this.queue.size()) {
                 this.queue.set(this.index, str);
@@ -3135,8 +3135,8 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public void recoverStuck() {
         if (!foreground || userPaused || isFinishing()) return;
-        if (this.vavooKeep != null) {
-            swapVavoo(true);
+        if (this.extraLiveKeep != null) {
+            swapExtraLive(true);
             return;
         }
         if (!this.useVlc && this.liveMode && !this.catchup
@@ -3177,7 +3177,7 @@ public class PlayerActivity extends AppCompatActivity {
         playbackGeneration++;
         resolving = false;
         vlcStarting = false;
-        UI.removeCallbacks(vavooPrefetch);
+        UI.removeCallbacks(extraLivePrefetch);
     }
 
     @Override
@@ -3199,7 +3199,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
         }
         resumePlayback = false;
-        if (vavooKeep != null && !userPaused) startVavooPrefetch();
+        if (extraLiveKeep != null && !userPaused) startExtraLivePrefetch();
     }
 
     @Override
