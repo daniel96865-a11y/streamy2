@@ -241,7 +241,7 @@ final class LocalHls {
     }
 
     private static void segment(OutputStream outputStream, String str) throws Exception {
-        String playable = Vavoo.playable(str);
+        String playable = ExtraLiveSource.playable(str);
         if (playable != null) {
             str = playable;
         }
@@ -276,8 +276,8 @@ final class LocalHls {
     }
 
     private static String upstream(String str) {
-        if (!Vavoo.isPlayUrl(str)) {
-            return str.startsWith("http") ? str : Vavoo.playable(str);
+        if (!ExtraLiveSource.isPlayUrl(str)) {
+            return str.startsWith("http") ? str : ExtraLiveSource.playable(str);
         }
         Map<String, Held> map = HELD;
         Held held = map.get(str);
@@ -285,7 +285,7 @@ final class LocalHls {
         if (held != null && held.cdn != null && currentTimeMillis - held.at < 12000) {
             return held.cdn;
         }
-        String resolve = Vavoo.resolve(str);
+        String resolve = ExtraLiveSource.resolve(str);
         if (resolve != null) {
             Held held2 = new Held();
             held2.cdn = resolve;
@@ -355,7 +355,7 @@ final class LocalHls {
 
     private static HttpURLConnection open(String str, int i) {
         try {
-            String playable = Vavoo.playable(str);
+            String playable = ExtraLiveSource.playable(str);
             if (playable == null) {
                 return null;
             }
@@ -365,7 +365,7 @@ final class LocalHls {
             httpURLConnection.setInstanceFollowRedirects(true);
 
             if (!playable.contains("gxplayer") && !playable.contains("master.txt")) {
-                if (!Vavoo.isCdn(playable) && !Vavoo.isPlayUrl(playable) && !playable.contains("/sunshine/") && !playable.contains("ngolpdky")) {
+                if (!ExtraLiveSource.isCdn(playable) && !ExtraLiveSource.isPlayUrl(playable) && !playable.contains("/sunshine/") && !playable.contains("ngolpdky")) {
                     httpURLConnection.setRequestProperty(HttpHeaders.USER_AGENT, "libmpv");
                     httpURLConnection.setRequestProperty(HttpHeaders.ACCEPT, "*/*");
                     httpURLConnection.setRequestProperty("Icy-MetaData", "1");
