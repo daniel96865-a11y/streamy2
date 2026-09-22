@@ -72,12 +72,17 @@ final class FeatureAccess {
 
             String endpoint = base.endsWith("/") ? base + "api/redeem" : base + "/api/redeem";
             Result first = redeemAt(endpoint, requestJson.toString());
-            if (first.ok) return first;
+            if (first.ok) {
+                markUnlocked(context);
+                return first;
+            }
 
             // Manche Reverse-Proxies unterscheiden zwischen /api/redeem und /api/redeem/.
             // Nur bei einem reinen HTTP-Routingfehler einmal mit Slash wiederholen.
             if (first.message.startsWith("Serverfehler 404") || first.message.startsWith("Serverfehler 405")) {
-                return redeemAt(endpoint + "/", requestJson.toString());
+                Result retry = redeemAt(endpoint + "/", requestJson.toString());
+                if (retry.ok) markUnlocked(context);
+                return retry;
             }
             return first;
         } catch (UnknownHostException e) {
