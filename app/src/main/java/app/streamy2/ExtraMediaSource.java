@@ -183,6 +183,18 @@ final class ExtraMediaSource {
         }
     }
 
+    static void invalidateRefreshSession() {
+        synchronized (HOST) {
+            base = null;
+            tokenAt = 0L;
+            cookies.clear();
+        }
+        synchronized (ExtraMediaSource.class) {
+            lastLoadedAt = 0L;
+        }
+        lastError = "";
+    }
+
     static void load() {
         loading = true;
         final boolean hadExisting = !isCatalogEmpty();
@@ -240,9 +252,9 @@ final class ExtraMediaSource {
                     groupedSerials = null;
                     loaded = true;
                 }
-                lastLoadedAt = System.currentTimeMillis();
+                lastLoadedAt = keepExisting ? 0L : System.currentTimeMillis();
                 if (keepExisting) {
-                    lastError = "Aktualisierung lieferte keine frischen Daten — vorhandener Katalog bleibt sichtbar.";
+                    lastError = "Aktualisierung lieferte keine frischen Daten — vorhandener Katalog bleibt sichtbar und wird erneut geprüft.";
                 } else if (films.isEmpty() && serials.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
                         lastError = "Media Extra-Katalog leer. Später erneut versuchen.";
@@ -255,9 +267,7 @@ final class ExtraMediaSource {
                 serialsGrouped();
             }
         } catch (Throwable th) {
-            if (hadExisting) {
-                lastLoadedAt = System.currentTimeMillis();
-            }
+            lastLoadedAt = 0L;
             lastError = "Media Extra-Aktualisierung fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
             loading = false;

@@ -3534,8 +3534,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             Toast.makeText(this, "Aktualisierung läuft bereits…", Toast.LENGTH_SHORT).show();
             return;
         }
+        ExtraMediaSource.invalidateRefreshSession();
         this.forceMediaRefresh = true;
-        Toast.makeText(this, "Medien werden im Hintergrund aktualisiert…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Medien werden frisch im Hintergrund aktualisiert…", Toast.LENGTH_SHORT).show();
         loadKino();
     }
 
