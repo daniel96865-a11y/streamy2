@@ -88,7 +88,8 @@ final class VlcEngine implements LiveEngine {
             arrayList.add("--avcodec-hw=any");
             arrayList.add("--clock-jitter=0");
             arrayList.add("--clock-synchro=0");
-            if (!Tv.isTv(this.ctx)) {
+            String audioMode = new Prefs(this.ctx).audioMode();
+            if ("stereo".equals(audioMode) || !Tv.isTv(this.ctx)) {
                 arrayList.add("--stereo-mode=1");
             }
             this.lib = new LibVLC(this.ctx, arrayList);
