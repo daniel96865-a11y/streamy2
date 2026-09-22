@@ -1,0 +1,107 @@
+name: Publish Streamy 2 3.54
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.54.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.54 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy354
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10712523758/zip > /tmp/streamy354/artifact.zip
+          unzip -q /tmp/streamy354/artifact.zip -d /tmp/streamy354/artifact
+          test -f /tmp/streamy354/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy354/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy354/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.54 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.54:refs/remotes/origin/publish/3.54
+          git show origin/publish/3.54:.release-3.54/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy354/tv.patch.zst
+          git show origin/publish/3.54:.release-3.54/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy354/mobile.patch.zst
+
+          echo "bfbf5ebc0eee4e017323b4d0ad88dd83374dc54d4ee0af1535f16b9623ac9534  /tmp/streamy354/tv.patch.zst" | sha256sum -c -
+          echo "f520ec96f7a7a72b5605bb917e25e7b740516161a46fba2ef4b0bbe0fd12fea0  /tmp/streamy354/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy354/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy354/tv.patch.zst -o /tmp/streamy354/Streamy2-TV-3.54.apk
+          zstd -q -d --patch-from=/tmp/streamy354/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy354/mobile.patch.zst -o /tmp/streamy354/Streamy2-Mobile-3.54.apk
+
+          echo "63129511c6b060cd08c0a82062b535665c31784644018b0c7d3a39399e3dc0e1  /tmp/streamy354/Streamy2-TV-3.54.apk" | sha256sum -c -
+          echo "24c3e2150715ed27dba06cbaa02628004efeeb75baa5f4c7472846d3367c3450  /tmp/streamy354/Streamy2-Mobile-3.54.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy354/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy354/Streamy2-TV-3.54.apk /tmp/streamy354/Streamy2-Mobile-3.54.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy354/Streamy2-TV-3.54.apk docs/downloads/
+          cp /tmp/streamy354/Streamy2-Mobile-3.54.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":174,"versionName":"3.54","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.54.apk","changelog":"Neu in 3.54: Der zusätzliche Medien-Katalog wird zuverlässiger aktualisiert. Fehlgeschlagene oder leere Aktualisierungen können sofort erneut geprüft werden; beim manuellen Aktualisieren wird eine frische Netzwerk-Sitzung verwendet und vorhandene Inhalte bleiben sichtbar."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":174,"versionName":"3.54","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.54.apk","changelog":"Neu in 3.54: Der zusätzliche Medien-Katalog wird zuverlässiger aktualisiert. Fehlgeschlagene oder leere Aktualisierungen können sofort erneut geprüft werden; beim manuellen Aktualisieren wird eine frische Netzwerk-Sitzung verwendet und vorhandene Inhalte bleiben sichtbar."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.54.apk docs/downloads/Streamy2-Mobile-3.54.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.54 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy354/notes.md <<'EOF'
+          Streamy 2 3.54 – Medien-Refresh
+
+          - Zusätzlicher Medien-Katalog wird zuverlässiger aktualisiert.
+          - Fehlgeschlagene oder leere Aktualisierungen bleiben sofort erneut prüfbar.
+          - Manueller Refresh startet mit einer frischen Netzwerk-Sitzung.
+          - Bereits vorhandene Inhalte bleiben bei einem fehlgeschlagenen Refresh sichtbar.
+          - TV- und Mobile-Version mit derselben Streamy-2-Release-Signatur wie 3.53.
+          EOF
+
+          if gh release view v3.54 >/dev/null 2>&1; then
+            gh release upload v3.54 /tmp/streamy354/Streamy2-TV-3.54.apk /tmp/streamy354/Streamy2-Mobile-3.54.apk --clobber
+          else
+            gh release create v3.54               /tmp/streamy354/Streamy2-TV-3.54.apk               /tmp/streamy354/Streamy2-Mobile-3.54.apk               --target main               --title "Streamy 2 3.54 — Medien-Refresh"               --notes-file /tmp/streamy354/notes.md               --latest
+          fi
