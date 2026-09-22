@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private BrowserController browser;
     private TextView btnPlayDetail;
     private View btnTop;
+    private View btnRefreshMedia;
     private TextView bufHigh;
     private TextView bufLow;
     private TextView bufMax;
@@ -273,6 +274,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.appBar = (AppBarLayout) findViewById(R.id.appBar);
         this.topChrome = findViewById(R.id.topChrome);
         this.btnTop = findViewById(R.id.btnTop);
+        this.btnRefreshMedia = findViewById(R.id.btnRefreshMedia);
+        if (this.btnRefreshMedia != null) {
+            this.btnRefreshMedia.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view2) {
+                    MainActivity.this.refreshMediaNow();
+                }
+            });
+        }
         // Defer BrowserController to after first frame — WebView/AdBlock are lazy inside it.
         this.browser = null;
         UI.post(new Runnable() {
@@ -2047,6 +2057,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         this.tab = i;
         this.seriesOpen = null;
+        if (this.btnRefreshMedia != null) {
+            this.btnRefreshMedia.setVisibility(i == 5 ? View.VISIBLE : View.GONE);
+        }
         this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
@@ -3508,6 +3521,23 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
+    private void refreshMediaNow() {
+        if (!FeatureAccess.isUnlocked(this)) {
+            Toast.makeText(this, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (ExtraMediaSource.loading) {
+            Toast.makeText(this, "Aktualisierung läuft bereits…", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ExtraMediaSource.clearCatalogCache();
+        if (this.tab == 5) {
+            renderList();
+        }
+        Toast.makeText(this, "Medien werden aktualisiert…", Toast.LENGTH_SHORT).show();
+        loadKino();
+    }
+
     private void loadKino() {
         if (!FeatureAccess.isUnlocked(this)) {
             return;
@@ -3515,10 +3545,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (ExtraMediaSource.loading) {
             return;
         }
-        if (ExtraMediaSource.loaded && !ExtraMediaSource.isCatalogEmpty()) {
+        if (ExtraMediaSource.loaded && !ExtraMediaSource.isCatalogEmpty() && !ExtraMediaSource.shouldRefresh()) {
             return;
         }
-        if (this.empty != null) {
+        if (this.empty != null && ExtraMediaSource.isCatalogEmpty()) {
             this.empty.setText("Media Extra wird geladen…");
             this.empty.setVisibility(0);
         }

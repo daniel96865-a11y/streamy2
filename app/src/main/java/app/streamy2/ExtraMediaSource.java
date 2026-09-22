@@ -33,6 +33,8 @@ final class ExtraMediaSource {
     static volatile boolean loaded;
     static volatile boolean loading;
     static volatile String lastError = "";
+    private static volatile long lastLoadedAt;
+    private static final long CACHE_TTL_MS = 5L * 60L * 1000L;
     static final List<Models.Media> serials;
     private static long tokenAt;
     private static String[] BASES = {"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
@@ -165,6 +167,22 @@ final class ExtraMediaSource {
         }
     }
 
+    static boolean shouldRefresh() {
+        if (!loaded || isCatalogEmpty()) return true;
+        long loadedAt = lastLoadedAt;
+        return loadedAt <= 0L || System.currentTimeMillis() - loadedAt >= CACHE_TTL_MS;
+    }
+
+    static void clearCatalogCache() {
+        synchronized (ExtraMediaSource.class) {
+            films.clear();
+            serials.clear();
+            groupedSerials = null;
+            loaded = false;
+            lastLoadedAt = 0L;
+        }
+    }
+
     static void load() {
         loading = true;
         try {
@@ -217,6 +235,7 @@ final class ExtraMediaSource {
                 list2.addAll(parseList2);
                 groupedSerials = null;
                 loaded = true;
+                lastLoadedAt = System.currentTimeMillis();
                 if (list.isEmpty() && list2.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
                         lastError = "Media Extra-Katalog leer — Token oder Host prüfen.";
