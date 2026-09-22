@@ -1702,7 +1702,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (!FeatureAccess.isUnlocked(this)) {
             return;
         }
-        this.prefs.setPlayerLive Extra(str);
+        this.prefs.setPlayerExtraLive(str);
         paintPlayer();
     }
 
