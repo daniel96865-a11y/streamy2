@@ -384,6 +384,16 @@ public class Prefs {
         }
     }
 
+    public String audioMode() {
+        String value = this.p.getString("audioMode", "auto");
+        return ("surround".equals(value) || "stereo".equals(value)) ? value : "auto";
+    }
+
+    public void setAudioMode(String value) {
+        if (!"surround".equals(value) && !"stereo".equals(value)) value = "auto";
+        this.p.edit().putString("audioMode", value).apply();
+    }
+
     public int skippedUpdate() {
         return this.p.getInt("skipUp", 0);
     }
