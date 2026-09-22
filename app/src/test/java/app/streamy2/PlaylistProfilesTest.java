@@ -79,6 +79,17 @@ public class PlaylistProfilesTest {
         assertEquals("https://b.test/epg.xml", prefs.epgUrl());
     }
 
+    @Test public void audioModeNormalizesAndPersists() {
+        Prefs prefs = new Prefs(context);
+        assertEquals("auto", prefs.audioMode());
+        prefs.setAudioMode("surround");
+        assertEquals("surround", prefs.audioMode());
+        prefs.setAudioMode("stereo");
+        assertEquals("stereo", prefs.audioMode());
+        prefs.setAudioMode("invalid");
+        assertEquals("auto", prefs.audioMode());
+    }
+
     @Test public void deletingActiveProfileKeepsAnotherProfileAvailable() {
         Prefs prefs = new Prefs(context);
         String first = prefs.activeProfileId();

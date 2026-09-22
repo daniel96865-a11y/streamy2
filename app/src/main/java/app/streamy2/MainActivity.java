@@ -130,6 +130,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView playerExtraLiveAuto;
     private TextView playerExtraLiveExo;
     private TextView playerExtraLiveVlc;
+    private TextView audioAuto;
+    private TextView audioSurround;
+    private TextView audioStereo;
     private View playerExtraLiveLabel;
     private View playerExtraLiveHint;
     private View playerExtraLiveRow;
@@ -237,6 +240,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.playerExtraLiveAuto = (TextView) findViewById(R.id.playerExtraLiveAuto);
         this.playerExtraLiveExo = (TextView) findViewById(R.id.playerExtraLiveExo);
         this.playerExtraLiveVlc = (TextView) findViewById(R.id.playerExtraLiveVlc);
+        this.audioAuto = (TextView) findViewById(R.id.audioAuto);
+        this.audioSurround = (TextView) findViewById(R.id.audioSurround);
+        this.audioStereo = (TextView) findViewById(R.id.audioStereo);
         this.playerExtraLiveLabel = findViewById(R.id.playerExtraLiveLabel);
         this.playerExtraLiveHint = findViewById(R.id.playerExtraLiveHint);
         this.playerExtraLiveRow = findViewById(R.id.playerExtraLiveRow);
@@ -534,6 +540,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         });
         this.playerExtraLiveVlc.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view3) { MainActivity.this.setPlayerExtraLiveEngine("vlc"); }
+        });
+        this.audioAuto.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setAudioMode("auto"); }
+        });
+        this.audioSurround.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setAudioMode("surround"); }
+        });
+        this.audioStereo.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setAudioMode("stereo"); }
         });
         this.bufLow.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
@@ -1706,6 +1721,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintPlayer();
     }
 
+    private void setAudioMode(String mode) {
+        this.prefs.setAudioMode(mode);
+        paintPlayer();
+        String label = "surround".equals(mode) ? "Surround bevorzugen"
+                : ("stereo".equals(mode) ? "Stereo erzwingen" : "Audio automatisch");
+        Toast.makeText(this, label + " · gilt beim nächsten Start des Players", Toast.LENGTH_SHORT).show();
+    }
+
     private void validateAccessNow() {
         if (this.accessValidationBusy || !FeatureAccess.isUnlocked(this)) {
             return;
@@ -1871,6 +1894,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.playerExtraLiveAuto, "auto".equals(extraLive), accent);
         paintChip(this.playerExtraLiveExo, "exo".equals(extraLive), accent);
         paintChip(this.playerExtraLiveVlc, "vlc".equals(extraLive), accent);
+        String audio = this.prefs.audioMode();
+        paintChip(this.audioAuto, "auto".equals(audio), accent);
+        paintChip(this.audioSurround, "surround".equals(audio), accent);
+        paintChip(this.audioStereo, "stereo".equals(audio), accent);
     }
 
     /** Non-auto engine string for PlayerActivity, or null for Auto. */

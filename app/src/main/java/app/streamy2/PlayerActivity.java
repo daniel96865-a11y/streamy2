@@ -561,8 +561,10 @@ public class PlayerActivity extends AppCompatActivity {
         DefaultLoadControl build = buildLoadControl();
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
         DefaultTrackSelector defaultTrackSelector = new DefaultTrackSelector(this);
-        DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(8).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
-        if (Tv.isTv(this)) {
+        String audioMode = new Prefs(this).audioMode();
+        int maxAudioChannels = "stereo".equals(audioMode) ? 2 : 8;
+        DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(maxAudioChannels).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
+        if ("surround".equals(audioMode) || ("auto".equals(audioMode) && Tv.isTv(this))) {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG);
         } else {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC);
@@ -2280,38 +2282,105 @@ public class PlayerActivity extends AppCompatActivity {
         if (this.player == null || tracks == null) {
             return;
         }
-        Iterator<Tracks.Group> it = tracks.getGroups().iterator();
-        boolean z = false;
-        boolean z2 = false;
-        while (it.hasNext()) {
-            Tracks.Group next = it.next();
-            if (next.getType() == 1) {
-                if (next.isSelected()) {
-                    for (int i = 0; i < next.length; i++) {
-                        if (next.isTrackSelected(i) && next.isTrackSupported(i)) {
-                            z2 = true;
-                        }
-                    }
+        String mode = new Prefs(this).audioMode();
+        Tracks.Group selectedGroup = null;
+        int selectedIndex = -1;
+        Format selectedFormat = null;
+
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (group.isTrackSelected(i) && group.isTrackSupported(i)) {
+                    selectedGroup = group;
+                    selectedIndex = i;
+                    selectedFormat = group.getTrackFormat(i);
+                    break;
                 }
-                z = true;
             }
+            if (selectedFormat != null) break;
         }
-        if (z && z2) {
+
+        if ("stereo".equals(mode)) {
+            if (selectedFormat != null && (selectedFormat.channelCount <= 0 || selectedFormat.channelCount <= 2)) {
+                return;
+            }
+            AudioPick stereo = bestAudioTrack(tracks, selectedFormat, true);
+            if (stereo != null) applyAudioPick(stereo);
             return;
         }
-        Iterator<Tracks.Group> it2 = tracks.getGroups().iterator();
-        while (it2.hasNext()) {
-            Tracks.Group next2 = it2.next();
-            if (next2.getType() == 1) {
-                for (int i2 = 0; i2 < next2.length; i2++) {
-                    if (next2.isTrackSupported(i2)) {
-                        ExoPlayer exoPlayer = this.player;
-                        exoPlayer.setTrackSelectionParameters(exoPlayer.getTrackSelectionParameters().buildUpon().setOverrideForType(new TrackSelectionOverride(next2.getMediaTrackGroup(), i2)).build());
-                        return;
-                    }
+
+        boolean preferSurround = "surround".equals(mode) || ("auto".equals(mode) && Tv.isTv(this));
+        if (!preferSurround && selectedFormat != null) {
+            return;
+        }
+
+        AudioPick best = bestAudioTrack(tracks, selectedFormat, false);
+        if (best == null) {
+            return;
+        }
+        if (selectedFormat != null) {
+            int currentChannels = selectedFormat.channelCount > 0 ? selectedFormat.channelCount : 0;
+            int bestChannels = best.format.channelCount > 0 ? best.format.channelCount : 0;
+            if (bestChannels <= currentChannels) {
+                return;
+            }
+        }
+        applyAudioPick(best);
+    }
+
+    private static final class AudioPick {
+        final Tracks.Group group;
+        final int index;
+        final Format format;
+        final int score;
+
+        AudioPick(Tracks.Group group, int index, Format format, int score) {
+            this.group = group;
+            this.index = index;
+            this.format = format;
+            this.score = score;
+        }
+    }
+
+    private AudioPick bestAudioTrack(Tracks tracks, Format selectedFormat, boolean stereoOnly) {
+        String selectedLanguage = selectedFormat == null || selectedFormat.language == null
+                ? "" : selectedFormat.language.trim();
+        AudioPick best = null;
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
+            for (int i = 0; i < group.length; i++) {
+                if (!group.isTrackSupported(i)) continue;
+                Format format = group.getTrackFormat(i);
+                int channels = format.channelCount > 0 ? format.channelCount : 2;
+                if (stereoOnly && channels > 2) continue;
+
+                String language = format.language == null ? "" : format.language.trim();
+                boolean sameLanguage = selectedLanguage.isEmpty() || selectedLanguage.equalsIgnoreCase(language);
+                int score = sameLanguage ? 10000 : 0;
+                score += Math.min(channels, 8) * 100;
+                String mime = format.sampleMimeType == null ? "" : format.sampleMimeType.toLowerCase(Locale.US);
+                if (mime.contains("eac3") || mime.contains("e-ac3")) score += 40;
+                else if (mime.contains("ac3")) score += 30;
+                else if (mime.contains("dts")) score += 20;
+                else if (mime.contains("aac")) score += 10;
+
+                if (best == null || score > best.score) {
+                    best = new AudioPick(group, i, format, score);
                 }
             }
         }
+        return best;
+    }
+
+    private void applyAudioPick(AudioPick pick) {
+        if (pick == null || this.player == null) return;
+        this.player.setTrackSelectionParameters(
+                this.player.getTrackSelectionParameters().buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                        .setOverrideForType(new TrackSelectionOverride(
+                                pick.group.getMediaTrackGroup(), pick.index))
+                        .build());
     }
 
     private boolean wantVlc() {
