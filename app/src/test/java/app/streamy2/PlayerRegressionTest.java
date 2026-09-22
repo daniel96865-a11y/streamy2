@@ -28,7 +28,7 @@ public class PlayerRegressionTest {
     private Object call(String name,Class<?>[] types,Object... args) throws Exception { Method m=PlayerActivity.class.getDeclaredMethod(name,types); m.setAccessible(true); return m.invoke(activity,args); }
 
     @Test public void intentionalVlcPauseDoesNotTriggerRecovery() throws Exception {
-        FakeEngine engine=new FakeEngine(); field("vlc",engine); field("useVlc",true); field("foreground",true); field("userPaused",true); field("vavooKeep","test");
+        FakeEngine engine=new FakeEngine(); field("vlc",engine); field("useVlc",true); field("foreground",true); field("userPaused",true); field("extraLiveKeep","test");
         Runnable watchdog=(Runnable)field("watchdog");
         for(int i=0;i<25;i++) watchdog.run();
         assertEquals(0,field("freezeTicks")); assertEquals(0,engine.plays); assertEquals(0,engine.stops); assertTrue((Boolean)field("useVlc"));
