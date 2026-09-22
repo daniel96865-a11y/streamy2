@@ -104,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private EditText inUrl;
     private EditText inUser;
     private long kinoSearchGen;
+    private boolean forceMediaRefresh;
     private RecyclerView list;
     private ProgressBar loading;
     private boolean lockSearchFocus;
@@ -1408,6 +1409,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             BrowserController browserController = this.browser;
             if (browserController != null && browserController.visible()) {
                 this.browser.resume();
+            }
+            if (this.tab == 5) {
+                loadKino();
             }
             if (this.adapter == null || this.tab != 0 || (recyclerView = this.list) == null) {
                 return;
@@ -3530,11 +3534,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             Toast.makeText(this, "Aktualisierung läuft bereits…", Toast.LENGTH_SHORT).show();
             return;
         }
-        ExtraMediaSource.clearCatalogCache();
-        if (this.tab == 5) {
-            renderList();
-        }
-        Toast.makeText(this, "Medien werden aktualisiert…", Toast.LENGTH_SHORT).show();
+        this.forceMediaRefresh = true;
+        Toast.makeText(this, "Medien werden im Hintergrund aktualisiert…", Toast.LENGTH_SHORT).show();
         loadKino();
     }
 
@@ -3545,7 +3546,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (ExtraMediaSource.loading) {
             return;
         }
-        if (ExtraMediaSource.loaded && !ExtraMediaSource.isCatalogEmpty() && !ExtraMediaSource.shouldRefresh()) {
+        boolean force = this.forceMediaRefresh;
+        this.forceMediaRefresh = false;
+        if (!force && ExtraMediaSource.loaded && !ExtraMediaSource.isCatalogEmpty() && !ExtraMediaSource.shouldRefresh()) {
             return;
         }
         if (this.empty != null && ExtraMediaSource.isCatalogEmpty()) {
@@ -3584,6 +3587,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         : "Media Extra-Katalog leer. Später erneut versuchen.";
                 this.empty.setVisibility(0);
                 this.empty.setText(err);
+            } else if (ExtraMediaSource.lastError != null && !ExtraMediaSource.lastError.isEmpty()) {
+                Toast.makeText(this, ExtraMediaSource.lastError, Toast.LENGTH_SHORT).show();
             }
         }
     }
