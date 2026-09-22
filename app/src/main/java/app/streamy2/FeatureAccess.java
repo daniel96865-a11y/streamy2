@@ -27,6 +27,7 @@ import org.json.JSONObject;
 final class FeatureAccess {
     private static final String PREFS = "streamy2_access";
     private static final String KEY_UNLOCKED = "extrasUnlocked";
+    private static final String KEY_PIN = "accessPin";
     private static final String KEY_INSTALL_ID = "installId";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private static final OkHttpClient HTTP = new OkHttpClient.Builder()
@@ -56,7 +57,8 @@ final class FeatureAccess {
     }
 
     static boolean isUnlocked(Context context) {
-        return prefs(context).getBoolean(KEY_UNLOCKED, false);
+        String pin = storedPin(context);
+        return prefs(context).getBoolean(KEY_UNLOCKED, false) && pin.matches("\\d{8}");
     }
 
     static boolean isRestrictedUrl(String url) {
@@ -197,8 +199,24 @@ final class FeatureAccess {
     }
 
     static void redeemInWebView(Activity activity, String rawPin, Callback callback) {
+        redeemInWebViewInternal(activity, rawPin, false, callback);
+    }
+
+    static void validateStoredAccess(Activity activity, Callback callback) {
         if (activity == null || callback == null) return;
-        if (isUnlocked(activity)) {
+        String pin = storedPin(activity);
+        if (!pin.matches("\\d{8}")) {
+            clearUnlocked(activity);
+            callback.onResult(new Result(false, "Freigabecode erneut eingeben."));
+            return;
+        }
+        redeemInWebViewInternal(activity, pin, true, callback);
+    }
+
+    private static void redeemInWebViewInternal(Activity activity, String rawPin,
+                                                boolean forceServerCheck, Callback callback) {
+        if (activity == null || callback == null) return;
+        if (!forceServerCheck && isUnlocked(activity)) {
             callback.onResult(new Result(true, "Bereits freigeschaltet"));
             return;
         }
@@ -238,7 +256,11 @@ final class FeatureAccess {
             final class Finisher {
                 void finish(Result result) {
                     if (!finished.compareAndSet(false, true)) return;
-                    if (result.ok) markUnlocked(activity);
+                    if (result.ok) {
+                        markUnlocked(activity, pin);
+                    } else if (forceServerCheck && isDefinitiveRevocation(result)) {
+                        clearUnlocked(activity);
+                    }
                     try {
                         webView.stopLoading();
                         decor.removeView(webView);
@@ -287,7 +309,37 @@ final class FeatureAccess {
     }
 
     static void markUnlocked(Context context) {
-        prefs(context).edit().putBoolean(KEY_UNLOCKED, true).apply();
+        String pin = storedPin(context);
+        if (pin.matches("\\d{8}")) {
+            markUnlocked(context, pin);
+        }
+    }
+
+    private static void markUnlocked(Context context, String pin) {
+        prefs(context).edit()
+                .putBoolean(KEY_UNLOCKED, true)
+                .putString(KEY_PIN, pin)
+                .apply();
+    }
+
+    static void clearUnlocked(Context context) {
+        prefs(context).edit()
+                .putBoolean(KEY_UNLOCKED, false)
+                .remove(KEY_PIN)
+                .apply();
+    }
+
+    private static String storedPin(Context context) {
+        String value = prefs(context).getString(KEY_PIN, "");
+        return value == null ? "" : value.replaceAll("[^0-9]", "");
+    }
+
+    private static boolean isDefinitiveRevocation(Result result) {
+        if (result == null || result.ok) return false;
+        String message = result.message == null ? "" : result.message.toLowerCase();
+        return message.contains("gesperrt")
+                || message.contains("ungültig")
+                || message.contains("bereits verwendet");
     }
 
     private static SharedPreferences prefs(Context context) {
