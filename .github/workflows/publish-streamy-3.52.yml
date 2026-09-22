@@ -1,0 +1,109 @@
+name: Publish Streamy 2 3.52
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.52.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.52 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy352
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10703486531/zip > /tmp/streamy352/artifact.zip
+          unzip -q /tmp/streamy352/artifact.zip -d /tmp/streamy352/artifact
+          test -f /tmp/streamy352/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy352/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy352/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.52 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.52:refs/remotes/origin/publish/3.52
+          git show origin/publish/3.52:.release-3.52/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy352/tv.patch.zst
+          git show origin/publish/3.52:.release-3.52/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy352/mobile.patch.zst
+
+          echo "a236768f6a85439c28a80e24f7cd5ace2fb26b3f95b539daa3bc1d889f92744f  /tmp/streamy352/tv.patch.zst" | sha256sum -c -
+          echo "6d156dde904da82a74a54d5f53e482fc8671f21195a6e8c19757f0543a25f865  /tmp/streamy352/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy352/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy352/tv.patch.zst -o /tmp/streamy352/Streamy2-TV-3.52.apk
+          zstd -q -d --patch-from=/tmp/streamy352/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy352/mobile.patch.zst -o /tmp/streamy352/Streamy2-Mobile-3.52.apk
+
+          echo "78aa405256b7b39bede8ab9f775e99af4ea600b557a352779d4cf439a2d1a024  /tmp/streamy352/Streamy2-TV-3.52.apk" | sha256sum -c -
+          echo "b92b258fa4c01b0b262643a0729461311143ea968643043f02f61c4a2dc2ff84  /tmp/streamy352/Streamy2-Mobile-3.52.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy352/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy352/Streamy2-TV-3.52.apk /tmp/streamy352/Streamy2-Mobile-3.52.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy352/Streamy2-TV-3.52.apk docs/downloads/
+          cp /tmp/streamy352/Streamy2-Mobile-3.52.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":172,"versionName":"3.52","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.52.apk","changelog":"Neu in 3.52: Auch bereits benutzte Freigabe-PINs können nachträglich gesperrt werden. Streamy speichert den verwendeten PIN und prüft die Freigabe beim Öffnen der App sowie regelmäßig im Hintergrund. Wird der PIN gesperrt, werden die Zusatzfunktionen wieder deaktiviert."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":172,"versionName":"3.52","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.52.apk","changelog":"Neu in 3.52: Auch bereits benutzte Freigabe-PINs können nachträglich gesperrt werden. Streamy speichert den verwendeten PIN und prüft die Freigabe beim Öffnen der App sowie regelmäßig im Hintergrund. Wird der PIN gesperrt, werden die Zusatzfunktionen wieder deaktiviert."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.52.apk docs/downloads/Streamy2-Mobile-3.52.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.52 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy352/notes.md <<'EOF'
+          Streamy 2 3.52 – benutzte PINs nachträglich sperren
+
+          - Benutzte PINs können im Verwaltungsbereich jetzt ebenfalls gesperrt werden.
+          - Gesperrte PINs verschwinden aus der Verwaltungs-Liste.
+          - Streamy speichert den verwendeten PIN lokal.
+          - Freigaben werden beim Öffnen der App und regelmäßig im Hintergrund erneut geprüft.
+          - Wird der PIN gesperrt, werden Vavoo/Megakino wieder deaktiviert.
+          - Reine Server-/Internetfehler entziehen eine bestehende Freigabe nicht.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.51 signiert.
+          EOF
+
+          if gh release view v3.52 >/dev/null 2>&1; then
+            gh release upload v3.52 /tmp/streamy352/Streamy2-TV-3.52.apk /tmp/streamy352/Streamy2-Mobile-3.52.apk --clobber
+          else
+            gh release create v3.52               /tmp/streamy352/Streamy2-TV-3.52.apk               /tmp/streamy352/Streamy2-Mobile-3.52.apk               --target main               --title "Streamy 2 3.52 — benutzte PINs nachträglich sperren"               --notes-file /tmp/streamy352/notes.md               --latest
+          fi
