@@ -109,6 +109,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private View mainPane;
     private View pairPane;
     private boolean passVisible;
+    private boolean accessValidationBusy;
+    private final Runnable accessValidationTick = new Runnable() {
+        @Override
+        public void run() {
+            MainActivity.this.validateAccessNow();
+            if (!MainActivity.this.isFinishing() && !MainActivity.this.isDestroyed()) {
+                UI.postDelayed(this, 60000L);
+            }
+        }
+    };
     private Updates.Info pendingUpdate;
     private PickAdapter pickAdapter;
     private RecyclerView pickList;
@@ -1366,6 +1376,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         super.onResume();
         UI.removeCallbacks(epgTick);
         UI.postDelayed(epgTick, 1000L);
+        UI.removeCallbacks(this.accessValidationTick);
+        UI.post(this.accessValidationTick);
         this.resumeAt = SystemClock.uptimeMillis();
         try {
             BrowserController browserController = this.browser;
@@ -1396,6 +1408,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onPause() {
         UI.removeCallbacks(epgTick);
+        UI.removeCallbacks(this.accessValidationTick);
         BrowserController browserController = this.browser;
         if (browserController != null) {
             browserController.pause();
@@ -1693,6 +1706,30 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintPlayer();
     }
 
+    private void validateAccessNow() {
+        if (this.accessValidationBusy || !FeatureAccess.isUnlocked(this)) {
+            return;
+        }
+        this.accessValidationBusy = true;
+        FeatureAccess.validateStoredAccess(this, result -> {
+            this.accessValidationBusy = false;
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (!FeatureAccess.isUnlocked(this)) {
+                boolean wasRestricted = this.tab == 4 || this.tab == 5;
+                if (wasRestricted) {
+                    setTab(0);
+                } else {
+                    updateAccessUi();
+                    paintTabs();
+                    renderList();
+                }
+                Toast.makeText(this, "Freigabe wurde gesperrt.", Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
     private void updateAccessUi() {
         boolean unlocked = FeatureAccess.isUnlocked(this);
         int restrictedVisibility = unlocked ? View.VISIBLE : View.GONE;
@@ -1755,6 +1792,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 if (result.ok) {
                     dialog.dismiss();
                     updateAccessUi();
+                    UI.removeCallbacks(accessValidationTick);
+                    UI.postDelayed(accessValidationTick, 60000L);
                     Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
                     loadVavoo();
                     loadKino();
