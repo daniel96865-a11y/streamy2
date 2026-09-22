@@ -658,6 +658,42 @@
                 <LinearLayout
                     android:orientation="vertical"
                     android:background="@drawable/bg_card"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+                    <TextView
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/fg"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Zusatzfunktionen"/>
+                    <TextView
+                        android:id="@+id/accessStatus"
+                        android:textSize="12sp"
+                        android:textColor="@color/muted"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Freigabecode erforderlich."/>
+                    <TextView
+                        android:id="@+id/btnAccessUnlock"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/accent_fg"
+                        android:gravity="center"
+                        android:background="@drawable/bg_btn"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:layout_width="match_parent"
+                        android:layout_height="46dp"
+                        android:layout_marginTop="12dp"
+                        android:text="Freigabecode eingeben"/>
+                </LinearLayout>
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_card"
                     android:padding="12dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -759,12 +795,14 @@
                                 android:layout_marginStart="8dp"/>
                         </LinearLayout>
                         <TextView
+                            android:id="@+id/playerVavooLabel"
                             android:textSize="12sp"
                             android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Standard-Player – Vavoo"/>
                         <TextView
+                            android:id="@+id/playerVavooHint"
                             android:textSize="12sp"
                             android:textColor="@color/muted"
                             android:layout_width="match_parent"
@@ -772,6 +810,7 @@
                             android:layout_marginTop="4dp"
                             android:text="Separater fester Player nur für Vavoo-Sender."/>
                         <LinearLayout
+                            android:id="@+id/playerVavooRow"
                             android:orientation="horizontal"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
