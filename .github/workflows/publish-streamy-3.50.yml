@@ -1,0 +1,109 @@
+name: Publish Streamy 2 3.50
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.50.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.50 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy350
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10699601709/zip > /tmp/streamy350/artifact.zip
+          unzip -q /tmp/streamy350/artifact.zip -d /tmp/streamy350/artifact
+          test -f /tmp/streamy350/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy350/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy350/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.50 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.50:refs/remotes/origin/publish/3.50
+          git show origin/publish/3.50:.release-3.50/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy350/tv.patch.zst
+          git show origin/publish/3.50:.release-3.50/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy350/mobile.patch.zst
+
+          echo "234544a87d7d22c6bef0995683c9dbeefca5af66c77790ddc8d9a4c9c934e81c  /tmp/streamy350/tv.patch.zst" | sha256sum -c -
+          echo "b1403ef28050e568f61c2296e7ac6b374e97e5cb524f214cfb73e29be711507b  /tmp/streamy350/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy350/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy350/tv.patch.zst -o /tmp/streamy350/Streamy2-TV-3.50.apk
+          zstd -q -d --patch-from=/tmp/streamy350/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy350/mobile.patch.zst -o /tmp/streamy350/Streamy2-Mobile-3.50.apk
+
+          echo "176cecef2a78e3322e95b44723ab7588a0262a7ef1e1cfe77052fd26d0e6e78a  /tmp/streamy350/Streamy2-TV-3.50.apk" | sha256sum -c -
+          echo "fd1a4e9e117f1e92dd36bc02fbafb400a0baace8e6eaba8931a905afed4ef55d  /tmp/streamy350/Streamy2-Mobile-3.50.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy350/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy350/Streamy2-TV-3.50.apk /tmp/streamy350/Streamy2-Mobile-3.50.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy350/Streamy2-TV-3.50.apk docs/downloads/
+          cp /tmp/streamy350/Streamy2-Mobile-3.50.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":170,"versionName":"3.50","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.50.apk","changelog":"Neu in 3.50: HTTP-403 bei der Freigabecode-Prüfung behoben. Die App sendet nun den passenden Browser-Kontext und nutzt bei 403/405 automatisch einen separaten nativen Fallback-Endpunkt. Bereits serverseitig eingelöste Codes werden auf demselben Gerät korrekt erkannt."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":170,"versionName":"3.50","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.50.apk","changelog":"Neu in 3.50: HTTP-403 bei der Freigabecode-Prüfung behoben. Die App sendet nun den passenden Browser-Kontext und nutzt bei 403/405 automatisch einen separaten nativen Fallback-Endpunkt. Bereits serverseitig eingelöste Codes werden auf demselben Gerät korrekt erkannt."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.50.apk docs/downloads/Streamy2-Mobile-3.50.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.50 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy350/notes.md <<'EOF'
+          Streamy 2 3.50 – 403-Fallback für Freigabecode
+
+          - Behebt HTTP 403 bei der PIN-Freigabe.
+          - Normaler POST enthält jetzt passenden Origin-/Referer-Kontext.
+          - Bei 403/405 wechselt die App automatisch auf einen separaten nativen Fallback-Endpunkt.
+          - PIN und Geräte-ID werden beim Fallback nicht in die URL geschrieben.
+          - Ein bereits serverseitig eingelöster PIN gilt auf demselben Gerät weiterhin als erfolgreich.
+          - TV- und Mobile-Build erfolgreich.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.49 signiert.
+          EOF
+
+          if gh release view v3.50 >/dev/null 2>&1; then
+            gh release upload v3.50 /tmp/streamy350/Streamy2-TV-3.50.apk /tmp/streamy350/Streamy2-Mobile-3.50.apk --clobber
+          else
+            gh release create v3.50               /tmp/streamy350/Streamy2-TV-3.50.apk               /tmp/streamy350/Streamy2-Mobile-3.50.apk               --target main               --title "Streamy 2 3.50 — 403-Fallback für Freigabecode"               --notes-file /tmp/streamy350/notes.md               --latest
+          fi
