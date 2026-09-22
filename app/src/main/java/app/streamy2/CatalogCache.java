@@ -61,9 +61,9 @@ public final class CatalogCache {
                         channel.epgChannelId = optJSONObject2.optString("epgId");
                         channel.hlsUrl = optJSONObject2.optString("hls");
                         channel.tsUrl = optJSONObject2.optString("ts");
-                        channel.vavooUrl = optJSONObject2.optString("vavoo");
-                        if (channel.vavooUrl != null && channel.vavooUrl.isEmpty()) {
-                            channel.vavooUrl = null;
+                        channel.extraLiveUrl = optJSONObject2.optString("extra_live");
+                        if (channel.extraLiveUrl != null && channel.extraLiveUrl.isEmpty()) {
+                            channel.extraLiveUrl = null;
                         }
                         channel.archive = optJSONObject2.optBoolean("archive");
                         channel.archiveDays = optJSONObject2.optInt("days");
@@ -111,8 +111,8 @@ public final class CatalogCache {
                 jSONObject3.put("num", channel.number);
                 jSONObject3.put("hls", channel.hlsUrl);
                 jSONObject3.put("ts", channel.tsUrl);
-                if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
-                    jSONObject3.put("vavoo", channel.vavooUrl);
+                if (channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
+                    jSONObject3.put("extra_live", channel.extraLiveUrl);
                 }
                 jSONObject3.put("archive", channel.archive);
                 jSONObject3.put("days", channel.archiveDays);
