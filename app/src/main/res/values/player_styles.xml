@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="StreamyPlayerPill">
+        <item name="android:background">@drawable/bg_player_control</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:minWidth">42dp</item>
+        <item name="android:paddingStart">15dp</item>
+        <item name="android:paddingEnd">15dp</item>
+        <item name="android:textColor">@color/player_control_text</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="StreamyPlayerCircle">
+        <item name="android:background">@drawable/bg_player_control</item>
+        <item name="android:clickable">true</item>
+        <item name="android:drawableTint">@color/player_control_text</item>
+        <item name="android:focusable">true</item>
+        <item name="android:gravity">center</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:textColor">@color/player_control_text</item>
+    </style>
+    <style name="StreamyPlayerCircleLarge" parent="StreamyPlayerCircle">
+        <item name="android:background">@drawable/bg_player_circle_dark</item>
+        <item name="android:padding">12dp</item>
+    </style>
+</resources>

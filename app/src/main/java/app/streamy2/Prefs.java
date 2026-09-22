@@ -310,8 +310,25 @@ public class Prefs {
         return this.p.getString("resize", "zoom");
     }
 
+    /**
+     * Version 3.46 changes the mobile player's initial picture mode to "Anpassen".
+     * Run the migration once so existing mobile installations get the new default,
+     * while a later manual selection remains untouched.
+     */
+    public void ensureMobilePlayerDefaults346() {
+        if (!"mobile".equals(BuildConfig.FLAVOR)
+                || this.p.getBoolean("mobilePlayerDefaults346", false)) {
+            return;
+        }
+        this.p.edit()
+                .putString("resize", "fit")
+                .putBoolean("mobilePlayerDefaults346", true)
+                .apply();
+    }
+
     public void setResize(String str) {
-        this.p.edit().putString("resize", "zoom".equals(str) ? "zoom" : "fit").apply();
+        String value = "stretch".equals(str) ? "stretch" : ("zoom".equals(str) ? "zoom" : "fit");
+        this.p.edit().putString("resize", value).apply();
     }
 
     private static String normPlayer(String string) {
