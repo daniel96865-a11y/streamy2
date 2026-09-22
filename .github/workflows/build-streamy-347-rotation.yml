@@ -2,6 +2,10 @@ name: Build Streamy 2 3.47 rotation
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/build-streamy-347-rotation.yml
 
 permissions:
   contents: read
