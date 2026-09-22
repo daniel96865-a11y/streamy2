@@ -1,0 +1,110 @@
+name: Publish Streamy 2 3.53
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.53.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.53 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy353
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10707843126/zip > /tmp/streamy353/artifact.zip
+          unzip -q /tmp/streamy353/artifact.zip -d /tmp/streamy353/artifact
+          test -f /tmp/streamy353/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy353/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy353/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.53 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.53:refs/remotes/origin/publish/3.53
+          git show origin/publish/3.53:.release-3.53/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy353/tv.patch.zst
+          git show origin/publish/3.53:.release-3.53/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy353/mobile.patch.zst
+
+          echo "123e0b75dc94f2f09a340983948a0d0348429ac5939acce62439b414c2da5f78  /tmp/streamy353/tv.patch.zst" | sha256sum -c -
+          echo "92c4668dc9e9f60d694bfec52ef9477bb3c473005695b49a0bc1a44ff947b719  /tmp/streamy353/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy353/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy353/tv.patch.zst -o /tmp/streamy353/Streamy2-TV-3.53.apk
+          zstd -q -d --patch-from=/tmp/streamy353/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy353/mobile.patch.zst -o /tmp/streamy353/Streamy2-Mobile-3.53.apk
+
+          echo "416b67d9a100c60c0aaaf69607f7c245db839ebeface0a60d1058b1c00e094d9  /tmp/streamy353/Streamy2-TV-3.53.apk" | sha256sum -c -
+          echo "91cc8468731479db5f1c037b3bea5953a5f90ae5c5afb51c503a0e8b37a2eac5  /tmp/streamy353/Streamy2-Mobile-3.53.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy353/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy353/Streamy2-TV-3.53.apk /tmp/streamy353/Streamy2-Mobile-3.53.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy353/Streamy2-TV-3.53.apk docs/downloads/
+          cp /tmp/streamy353/Streamy2-Mobile-3.53.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":173,"versionName":"3.53","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.53.apk","changelog":"Neu in 3.53: Audio-Modus Automatisch, Surround und Stereo. Auf TV werden vorhandene Mehrkanalspuren wie 5.1/7.1 bevorzugt. Surround sucht gezielt die Spur mit der höchsten Kanalzahl; Stereo begrenzt auf 2 Kanäle."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":173,"versionName":"3.53","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.53.apk","changelog":"Neu in 3.53: Audio-Modus Automatisch, Surround und Stereo. Mehrkanalspuren werden unterstützt und können bevorzugt werden; Stereo begrenzt auf 2 Kanäle."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.53.apk docs/downloads/Streamy2-Mobile-3.53.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.53 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy353/notes.md <<'EOF'
+          Streamy 2 3.53 – Surround Audio
+
+          - Neue Audio-Einstellung: Automatisch / Surround / Stereo.
+          - Auf Android TV werden vorhandene Mehrkanalspuren automatisch bevorzugt.
+          - Surround bevorzugt die Spur mit der höchsten Kanalzahl, möglichst ohne die Sprache zu wechseln.
+          - Stereo begrenzt die Ausgabe auf 2 Kanäle.
+          - AC3, E-AC3 und weitere unterstützte Mehrkanalformate werden weiterhin bevorzugt.
+          - VLC berücksichtigt die neue Audio-Einstellung ebenfalls.
+          - Echtes 5.1/7.1 ist nur möglich, wenn der jeweilige Stream eine Mehrkanal-Tonspur liefert.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.52 signiert.
+          EOF
+
+          if gh release view v3.53 >/dev/null 2>&1; then
+            gh release upload v3.53 /tmp/streamy353/Streamy2-TV-3.53.apk /tmp/streamy353/Streamy2-Mobile-3.53.apk --clobber
+          else
+            gh release create v3.53               /tmp/streamy353/Streamy2-TV-3.53.apk               /tmp/streamy353/Streamy2-Mobile-3.53.apk               --target main               --title "Streamy 2 3.53 — Surround Audio"               --notes-file /tmp/streamy353/notes.md               --latest
+          fi
