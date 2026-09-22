@@ -1,0 +1,108 @@
+name: Publish Streamy 2 3.51
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.51.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.51 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy351
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10701400321/zip > /tmp/streamy351/artifact.zip
+          unzip -q /tmp/streamy351/artifact.zip -d /tmp/streamy351/artifact
+          test -f /tmp/streamy351/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy351/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy351/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.51 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.51:refs/remotes/origin/publish/3.51
+          git show origin/publish/3.51:.release-3.51/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy351/tv.patch.zst
+          git show origin/publish/3.51:.release-3.51/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy351/mobile.patch.zst
+
+          echo "95a4a5caa18499ed81e2679362d163c31e02ced2596f9ea5b87c20c47abb957d  /tmp/streamy351/tv.patch.zst" | sha256sum -c -
+          echo "c2decfe3c4f7d56e4683d13dd85b8b9b32bf56d6fccc2bfe128c11372217ed48  /tmp/streamy351/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy351/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy351/tv.patch.zst -o /tmp/streamy351/Streamy2-TV-3.51.apk
+          zstd -q -d --patch-from=/tmp/streamy351/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy351/mobile.patch.zst -o /tmp/streamy351/Streamy2-Mobile-3.51.apk
+
+          echo "4554e9d1814cacba0dfbe91a3fdaac407942884ada2afeed60f9607b3658e788  /tmp/streamy351/Streamy2-TV-3.51.apk" | sha256sum -c -
+          echo "b19989fa4b1e8eb8d6d70d4875e0561c3308b59b6e1ba2e58b9ed50a10ee9650  /tmp/streamy351/Streamy2-Mobile-3.51.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy351/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy351/Streamy2-TV-3.51.apk /tmp/streamy351/Streamy2-Mobile-3.51.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy351/Streamy2-TV-3.51.apk docs/downloads/
+          cp /tmp/streamy351/Streamy2-Mobile-3.51.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":171,"versionName":"3.51","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.51.apk","changelog":"Neu in 3.51: Die Freigabecode-Prüfung läuft nun unsichtbar über einen echten Browser-Kontext innerhalb der App. Dadurch werden die Proxy-Probleme der direkten Android-API-Aufrufe umgangen. Erfolgreiche Freigaben bleiben dauerhaft auf dem Gerät gespeichert."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":171,"versionName":"3.51","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.51.apk","changelog":"Neu in 3.51: Die Freigabecode-Prüfung läuft nun unsichtbar über einen echten Browser-Kontext innerhalb der App. Dadurch werden die Proxy-Probleme der direkten Android-API-Aufrufe umgangen. Erfolgreiche Freigaben bleiben dauerhaft auf dem Gerät gespeichert."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.51.apk docs/downloads/Streamy2-Mobile-3.51.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.51 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy351/notes.md <<'EOF'
+          Streamy 2 3.51 – Freigabecode per Browser-Kontext
+
+          - Behebt die weiterhin fehlerhafte PIN-Prüfung hinter dem AppDeploy-Proxy.
+          - Die Prüfung läuft unsichtbar über einen echten WebView-Browser-Kontext.
+          - Der Benutzer gibt den PIN weiterhin ganz normal in Streamy ein.
+          - Erfolgreiche Freigaben bleiben lokal auf dem Gerät gespeichert.
+          - TV- und Mobile-Build erfolgreich.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.50 signiert.
+          EOF
+
+          if gh release view v3.51 >/dev/null 2>&1; then
+            gh release upload v3.51 /tmp/streamy351/Streamy2-TV-3.51.apk /tmp/streamy351/Streamy2-Mobile-3.51.apk --clobber
+          else
+            gh release create v3.51               /tmp/streamy351/Streamy2-TV-3.51.apk               /tmp/streamy351/Streamy2-Mobile-3.51.apk               --target main               --title "Streamy 2 3.51 — Freigabecode per Browser-Kontext"               --notes-file /tmp/streamy351/notes.md               --latest
+          fi
