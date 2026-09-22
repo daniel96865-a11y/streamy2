@@ -18,10 +18,12 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
@@ -29,6 +31,7 @@ import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
@@ -124,6 +127,8 @@ public class PlayerActivity extends AppCompatActivity {
     private String lastFallbackReason = "";
     private long metaDurationMs;
     private boolean vlcHudArmed;
+    private boolean audioOnly;
+    private Runnable sleepTimer;
     static final String MUX_TEST_HLS = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
     private final List<String> queue = new ArrayList();
     private boolean hud = true;
@@ -168,14 +173,14 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
                 }
-                if (PlayerActivity.this.freezeTicks == 5
+                if (PlayerActivity.this.freezeTicks == 12
                         && PlayerActivity.this.liveMode
                         && !PlayerActivity.this.catchup
                         && !PlayerActivity.this.isVavooPlayback()
                         && "auto".equals(PlayerActivity.this.playerPref())) {
-                    // Real Auto mode: if Exo is still buffering after ~5 s, try the
-                    // same provider URL with VLC instead of waiting through long retries.
-                    PlayerActivity.this.lastFallbackReason = "Exo länger als 5 s im Puffer";
+                    // Match the longer start gate used by the Streamy 3 player.
+                    // Switching engines too early causes avoidable black frames on slow IPTV feeds.
+                    PlayerActivity.this.lastFallbackReason = "Streamy Player länger als 12 s im Puffer";
                     if (PlayerActivity.this.switchToVlc()) {
                         PlayerActivity.this.freezeTicks = 0;
                         PlayerActivity.UI.postDelayed(this, 1000L);
@@ -326,6 +331,7 @@ public class PlayerActivity extends AppCompatActivity {
         this.bottomBar = findViewById(R.id.bottomBar);
         this.epgSheet = findViewById(R.id.epgSheet);
         this.epgBtns = findViewById(R.id.epgBtns);
+        configureAerioChrome();
         TextView textView = this.playerTitle;
         if (textView != null) {
             if (stringExtra3 == null) {
@@ -589,6 +595,7 @@ public class PlayerActivity extends AppCompatActivity {
                 playerView.setPlayer(this.player);
             }
         }
+        new Prefs(this).ensureMobilePlayerDefaults346();
         applyResize();
         hideSystemBars();
         if (Tv.isTv(this)) {
@@ -604,6 +611,7 @@ public class PlayerActivity extends AppCompatActivity {
             Tv.focusTree(this.topBar);
             Tv.focusTree(this.epgSheet);
         }
+        installPlayerFocusEffects();
         if (this.player != null) {
             this.player.addListener(new AnonymousClass3());
         }
@@ -682,7 +690,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$6(View view) {
-        cyclePlayer();
+        showPlayerOptions();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1920,18 +1928,19 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void toggleResize() {
         Prefs prefs = new Prefs(this);
-        prefs.setResize("zoom".equals(prefs.resize()) ^ true ? "zoom" : "fit");
+        String current = prefs.resize();
+        prefs.setResize("fit".equals(current) ? "zoom" : ("zoom".equals(current) ? "stretch" : "fit"));
         applyResize();
     }
 
     private void applyResize() {
-        // Phone + TV: default/pref "zoom" = fill screen (crop); only explicit "fit" letterboxes.
-        boolean zoom = !"fit".equals(new Prefs(this).resize());
+        String resize = new Prefs(this).resize();
+        boolean zoom = "zoom".equals(resize);
+        boolean stretch = "stretch".equals(resize);
         PlayerView playerView = this.playerView;
         if (playerView != null) {
-            playerView.setResizeMode(zoom
-                    ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    : AspectRatioFrameLayout.RESIZE_MODE_FIT);
+            playerView.setResizeMode(stretch ? AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    : (zoom ? AspectRatioFrameLayout.RESIZE_MODE_ZOOM : AspectRatioFrameLayout.RESIZE_MODE_FIT));
         }
         ExoPlayer exoPlayer = this.player;
         if (exoPlayer != null) {
@@ -1948,7 +1957,8 @@ public class PlayerActivity extends AppCompatActivity {
         }
         TextView textView = this.btnResize;
         if (textView != null) {
-            textView.setText(zoom ? "Füllen" : "Fit");
+            textView.setText(stretch ? "Strecken" : (zoom ? "Füllen" : "Anpassen"));
+            textView.setContentDescription("Video-Skalierung: " + resizeLabel());
         }
     }
 
@@ -2659,6 +2669,240 @@ public class PlayerActivity extends AppCompatActivity {
         return lowerCase.contains(".ts") || lowerCase.contains("/live/") || lowerCase.contains("mpegts");
     }
 
+    /**
+     * Adapts Streamy 2's data to the player chrome used by Streamy 3 / AerioTV 0.5.9.
+     * The playback surface and Streamy 2 provider handling stay native to this activity.
+     */
+    private void configureAerioChrome() {
+        boolean tv = Tv.isTv(this);
+        View close = findViewById(R.id.btnBack);
+        if (close != null) close.setVisibility(tv ? View.GONE : View.VISIBLE);
+        View epgBand = findViewById(R.id.epgBand);
+        if (epgBand != null) epgBand.setVisibility(tv && this.liveMode ? View.GONE : View.VISIBLE);
+
+        ImageView logo = (ImageView) findViewById(R.id.playerLogo);
+        TextView fallback = (TextView) findViewById(R.id.playerLogoText);
+        String name = this.channel == null ? "Streamy 2" : Text.clean(this.channel.name);
+        String logoUrl = this.channel == null ? null : this.channel.logo;
+        if (logo != null && logoUrl != null && !logoUrl.trim().isEmpty()) {
+            logo.setVisibility(View.VISIBLE);
+            if (fallback != null) fallback.setVisibility(View.GONE);
+            Images.load(logo, logoUrl);
+        } else {
+            if (logo != null) logo.setVisibility(View.GONE);
+            if (fallback != null) {
+                fallback.setVisibility(View.VISIBLE);
+                fallback.setText(initials(name));
+            }
+        }
+    }
+
+    private static String initials(String value) {
+        if (value == null || value.trim().isEmpty()) return "S2";
+        String[] words = value.trim().split("\\s+");
+        StringBuilder out = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) out.append(Character.toUpperCase(word.charAt(0)));
+            if (out.length() == 2) break;
+        }
+        return out.length() == 0 ? "S2" : out.toString();
+    }
+
+    private void installPlayerFocusEffects() {
+        final TextView caption = (TextView) findViewById(R.id.playerFocusCaption);
+        int[] ids = new int[]{R.id.btnPrevCh, R.id.btnPlay, R.id.btnNextCh, R.id.btnEpg, R.id.btnPlayer};
+        for (int id : ids) {
+            final View control = findViewById(id);
+            if (control == null) continue;
+            control.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                @Override public void onFocusChange(View view, boolean focused) {
+                    view.animate().scaleX(focused ? 1.04f : 1.0f).scaleY(focused ? 1.04f : 1.0f).setDuration(90L).start();
+                    if (caption != null) caption.setText(focused ? String.valueOf(view.getContentDescription()) : "");
+                    if (focused) scheduleHide();
+                }
+            });
+        }
+    }
+
+    private void showPlayerOptions() {
+        final ArrayList<String> items = new ArrayList<>();
+        items.add("Untertitel");
+        items.add("Audiospur");
+        items.add("Wiedergabegeschwindigkeit");
+        items.add("Video-Skalierung: " + resizeLabel());
+        items.add("Sleep-Timer");
+        items.add("Stream-Info");
+        items.add(this.audioOnly ? "Video anzeigen" : "Nur Audio");
+        if (this.liveMode) items.add("Programm");
+        new AlertDialog.Builder(this)
+                .setTitle("Optionen")
+                .setItems(items.toArray(new String[0]), (dialog, which) -> {
+                    String selected = items.get(which);
+                    if (selected.equals("Untertitel")) showTrackOptions(C.TRACK_TYPE_TEXT);
+                    else if (selected.equals("Audiospur")) showTrackOptions(C.TRACK_TYPE_AUDIO);
+                    else if (selected.equals("Wiedergabegeschwindigkeit")) showSpeedOptions();
+                    else if (selected.startsWith("Video-Skalierung")) showResizeOptions();
+                    else if (selected.equals("Sleep-Timer")) showSleepTimer();
+                    else if (selected.equals("Stream-Info")) showDiagnostics();
+                    else if (selected.equals("Nur Audio") || selected.equals("Video anzeigen")) toggleAudioOnly();
+                    else if (selected.equals("Programm")) openEpg();
+                })
+                .setNegativeButton("Schließen", null)
+                .show();
+    }
+
+    private void showTrackOptions(final int trackType) {
+        final ExoPlayer exo = this.player;
+        if (exo == null || this.useVlc) {
+            Toast.makeText(this, "Spurauswahl ist im Streamy Player verfügbar.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final ArrayList<Tracks.Group> groups = new ArrayList<>();
+        final ArrayList<Integer> trackIndexes = new ArrayList<>();
+        final ArrayList<String> labels = new ArrayList<>();
+        int selectedIndex = -1;
+        if (trackType == C.TRACK_TYPE_TEXT) {
+            labels.add("Aus");
+            groups.add(null);
+            trackIndexes.add(-1);
+            selectedIndex = 0;
+        }
+        for (Tracks.Group group : exo.getCurrentTracks().getGroups()) {
+            if (group.getType() != trackType) continue;
+            for (int i = 0; i < group.length; i++) {
+                Format format = group.getTrackFormat(i);
+                String title = format.label;
+                String language = languageLabel(format.language);
+                if (title == null || title.trim().isEmpty()) title = "Spur " + (labels.size() + (trackType == C.TRACK_TYPE_TEXT ? 0 : 1));
+                StringBuilder label = new StringBuilder(title);
+                if (!language.isEmpty() && !title.toLowerCase(Locale.GERMANY).contains(language.toLowerCase(Locale.GERMANY))) {
+                    label.append("  ·  ").append(language);
+                }
+                if (trackType == C.TRACK_TYPE_AUDIO && format.channelCount > 0) {
+                    label.append("  ·  ").append(format.channelCount).append(" Kanäle");
+                }
+                groups.add(group);
+                trackIndexes.add(i);
+                labels.add(label.toString());
+                if (group.isTrackSelected(i)) selectedIndex = labels.size() - 1;
+            }
+        }
+        if (labels.isEmpty() || (trackType == C.TRACK_TYPE_TEXT && labels.size() == 1)) {
+            Toast.makeText(this, trackType == C.TRACK_TYPE_TEXT
+                    ? "Der Stream meldet keine Untertitelspuren."
+                    : "Der Stream meldet keine Audiospuren.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final int checked = selectedIndex;
+        new AlertDialog.Builder(this)
+                .setTitle(trackType == C.TRACK_TYPE_TEXT ? "Untertitel" : "Audiospur")
+                .setSingleChoiceItems(labels.toArray(new String[0]), checked, (dialog, which) -> {
+                    androidx.media3.common.TrackSelectionParameters.Builder params = exo.getTrackSelectionParameters().buildUpon()
+                            .clearOverridesOfType(trackType);
+                    Tracks.Group group = groups.get(which);
+                    int track = trackIndexes.get(which);
+                    if (group == null || track < 0) {
+                        params.setTrackTypeDisabled(trackType, true);
+                    } else {
+                        params.setTrackTypeDisabled(trackType, false)
+                                .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), track));
+                    }
+                    exo.setTrackSelectionParameters(params.build());
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Schließen", null)
+                .show();
+    }
+
+    private static String languageLabel(String language) {
+        if (language == null || language.trim().isEmpty() || "und".equalsIgnoreCase(language)) return "";
+        try {
+            Locale locale = Locale.forLanguageTag(language.replace('_', '-'));
+            String label = locale.getDisplayLanguage(Locale.GERMAN);
+            return label == null || label.isEmpty() ? language : label;
+        } catch (Throwable ignored) {
+            return language;
+        }
+    }
+
+    private void showSpeedOptions() {
+        final ExoPlayer exo = this.player;
+        if (exo == null || this.useVlc) {
+            Toast.makeText(this, "Wiedergabegeschwindigkeit ist im Streamy Player verfügbar.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final float[] values = new float[]{0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+        final String[] labels = new String[]{"0,5×", "0,75×", "Normal (1,0×)", "1,25×", "1,5×", "2,0×"};
+        float current = exo.getPlaybackParameters().speed;
+        int checked = 2;
+        for (int i = 0; i < values.length; i++) if (Math.abs(current - values[i]) < 0.01f) checked = i;
+        new AlertDialog.Builder(this)
+                .setTitle("Wiedergabegeschwindigkeit")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    exo.setPlaybackParameters(new PlaybackParameters(values[which]));
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Schließen", null)
+                .show();
+    }
+
+    private void showSleepTimer() {
+        final int[] minutes = new int[]{0, 15, 30, 45, 60, 90};
+        final String[] labels = new String[]{"Aus", "15 Minuten", "30 Minuten", "45 Minuten", "60 Minuten", "90 Minuten"};
+        new AlertDialog.Builder(this)
+                .setTitle("Sleep-Timer")
+                .setItems(labels, (dialog, which) -> {
+                    if (this.sleepTimer != null) UI.removeCallbacks(this.sleepTimer);
+                    this.sleepTimer = null;
+                    if (minutes[which] > 0) {
+                        this.sleepTimer = new Runnable() {
+                            @Override public void run() { PlayerActivity.this.leave(); }
+                        };
+                        UI.postDelayed(this.sleepTimer, minutes[which] * 60_000L);
+                        Toast.makeText(this, "Sleep-Timer: " + labels[which], Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "Sleep-Timer aus", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Schließen", null)
+                .show();
+    }
+
+    private void toggleAudioOnly() {
+        this.audioOnly = !this.audioOnly;
+        ExoPlayer exo = this.player;
+        if (exo != null) {
+            exo.setTrackSelectionParameters(exo.getTrackSelectionParameters().buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, this.audioOnly).build());
+        }
+        if (this.playerView != null) this.playerView.setVisibility(this.audioOnly ? View.INVISIBLE : View.VISIBLE);
+        if (this.vlcHost != null) this.vlcHost.setVisibility(this.audioOnly ? View.INVISIBLE : (this.useVlc ? View.VISIBLE : View.GONE));
+        Toast.makeText(this, this.audioOnly ? "Nur Audio" : "Video anzeigen", Toast.LENGTH_SHORT).show();
+    }
+
+    private String resizeLabel() {
+        String value = new Prefs(this).resize();
+        if ("stretch".equals(value)) return "Strecken";
+        if ("zoom".equals(value)) return "Füllen";
+        return "Anpassen";
+    }
+
+    private void showResizeOptions() {
+        final String[] values = new String[]{"fit", "zoom", "stretch"};
+        final String[] labels = new String[]{"Anpassen", "Füllen", "Strecken"};
+        String current = new Prefs(this).resize();
+        int checked = "zoom".equals(current) ? 1 : ("stretch".equals(current) ? 2 : 0);
+        new AlertDialog.Builder(this)
+                .setTitle("Video-Skalierung")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    new Prefs(this).setResize(values[which]);
+                    applyResize();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("Schließen", null)
+                .show();
+    }
+
     private void cyclePlayer() {
         String player = playerPref();
         String str = "auto";
@@ -2695,11 +2939,12 @@ public class PlayerActivity extends AppCompatActivity {
         if (eng == null || eng.isEmpty()) {
             eng = playerPref();
         }
-        textView.setText(labelPlayer(eng));
+        textView.setText("");
+        textView.setContentDescription("Optionen");
     }
 
     private static String labelPlayer(String str) {
-        return "vlc".equals(str) ? "VLC" : "exo".equals(str) ? "Exo" : "Auto";
+        return "vlc".equals(str) ? "VLC" : "exo".equals(str) ? "Streamy" : "Auto";
     }
 
     /* JADX WARN: Removed duplicated region for block: B:12:0x0023  */
