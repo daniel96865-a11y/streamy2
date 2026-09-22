@@ -8,10 +8,12 @@ import android.text.style.RelativeSizeSpan;
 import android.text.style.StyleSpan;
 import android.text.style.SuperscriptSpan;
 import android.view.LayoutInflater;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import app.streamy2.ChannelAdapter;
@@ -31,6 +33,15 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     private final Listener listener;
     private final List<Object> items = new ArrayList();
     private final Handler epgUi = new Handler(Looper.getMainLooper());
+    private final Handler numberUi = new Handler(Looper.getMainLooper());
+    private final StringBuilder numberBuffer = new StringBuilder();
+    private Toast numberToast;
+    private final Runnable numberTuneRun = new Runnable() {
+        @Override
+        public void run() {
+            ChannelAdapter.this.tuneEnteredNumber();
+        }
+    };
     private final Runnable epgNotifyRun = new Runnable() {
         @Override
         public void run() {
@@ -119,6 +130,12 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     public void onDetachedFromRecyclerView(RecyclerView recyclerView) {
         super.onDetachedFromRecyclerView(recyclerView);
         this.epgUi.removeCallbacks(this.epgNotifyRun);
+        this.numberUi.removeCallbacks(this.numberTuneRun);
+        this.numberBuffer.setLength(0);
+        if (this.numberToast != null) {
+            this.numberToast.cancel();
+            this.numberToast = null;
+        }
         if (this.attached == recyclerView) {
             this.attached = null;
         }
@@ -308,6 +325,12 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
             }
         });
         vh.itemView.setOnLongClickListener(null);
+        vh.itemView.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View view, int keyCode, KeyEvent event) {
+                return ChannelAdapter.this.handleChannelNumberKey(view, keyCode, event);
+            }
+        });
         vh.itemView.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.ChannelAdapter$$ExternalSyntheticLambda1
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
@@ -326,7 +349,102 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         listener.onChannel(channel);
     }
 
+    private boolean handleChannelNumberKey(View view, int keyCode, KeyEvent event) {
+        if (event == null || event.getAction() != KeyEvent.ACTION_DOWN || !Tv.isTv(view.getContext())) {
+            return false;
+        }
+        int digit = digitFromKeyCode(keyCode);
+        if (digit >= 0) {
+            if (this.numberBuffer.length() >= 6) {
+                this.numberBuffer.setLength(0);
+            }
+            this.numberBuffer.append(digit);
+            this.numberUi.removeCallbacks(this.numberTuneRun);
+            showNumberToast(view, "Sender " + this.numberBuffer);
+            this.numberUi.postDelayed(this.numberTuneRun, 1300L);
+            return true;
+        }
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)
+                && this.numberBuffer.length() > 0) {
+            this.numberUi.removeCallbacks(this.numberTuneRun);
+            tuneEnteredNumber();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DEL && this.numberBuffer.length() > 0) {
+            this.numberBuffer.deleteCharAt(this.numberBuffer.length() - 1);
+            this.numberUi.removeCallbacks(this.numberTuneRun);
+            if (this.numberBuffer.length() > 0) {
+                showNumberToast(view, "Sender " + this.numberBuffer);
+                this.numberUi.postDelayed(this.numberTuneRun, 1300L);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static int digitFromKeyCode(int keyCode) {
+        if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+            return keyCode - KeyEvent.KEYCODE_0;
+        }
+        if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9) {
+            return keyCode - KeyEvent.KEYCODE_NUMPAD_0;
+        }
+        return -1;
+    }
+
+    private void tuneEnteredNumber() {
+        if (this.numberBuffer.length() == 0) {
+            return;
+        }
+        int number;
+        try {
+            number = Integer.parseInt(this.numberBuffer.toString());
+        } catch (NumberFormatException e) {
+            this.numberBuffer.setLength(0);
+            return;
+        }
+        this.numberBuffer.setLength(0);
+        Models.Channel found = findChannelByNumber(number);
+        if (found != null && !found.header && this.listener != null) {
+            this.listener.onChannel(found);
+            return;
+        }
+        RecyclerView recyclerView = this.attached;
+        if (recyclerView != null) {
+            showNumberToast(recyclerView, "Sender " + number + " nicht vorhanden");
+        }
+    }
+
+    private Models.Channel findChannelByNumber(int number) {
+        List<Models.Channel> all = App.live;
+        if (all != null) {
+            for (Models.Channel channel : all) {
+                if (channel != null && !channel.header && channel.number == number) {
+                    return channel;
+                }
+            }
+        }
+        for (Object item : this.items) {
+            if (item instanceof Models.Channel) {
+                Models.Channel channel = (Models.Channel) item;
+                if (!channel.header && channel.number == number) {
+                    return channel;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void showNumberToast(View view, String text) {
+        if (this.numberToast != null) {
+            this.numberToast.cancel();
+        }
+        this.numberToast = Toast.makeText(view.getContext(), text, Toast.LENGTH_SHORT);
+        this.numberToast.show();
+    }
+
     private void bindMedia(final VH vh, final Models.Media media) {
+        vh.itemView.setOnKeyListener(null);
         if (vh.num != null) {
             vh.num.setVisibility(8);
         }
