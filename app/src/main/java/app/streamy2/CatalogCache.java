@@ -48,6 +48,7 @@ public final class CatalogCache {
             }
             JSONArray optJSONArray2 = jSONObject.optJSONArray("live");
             if (optJSONArray2 != null) {
+                int channelNumber = 0;
                 for (int i3 = 0; i3 < optJSONArray2.length(); i3++) {
                     JSONObject optJSONObject2 = optJSONArray2.optJSONObject(i3);
                     if (optJSONObject2 != null) {
@@ -58,7 +59,6 @@ public final class CatalogCache {
                         channel.categoryName = optJSONObject2.optString("catName");
                         channel.logo = optJSONObject2.optString("logo");
                         channel.epgChannelId = optJSONObject2.optString("epgId");
-                        channel.number = i3 + 1;
                         channel.hlsUrl = optJSONObject2.optString("hls");
                         channel.tsUrl = optJSONObject2.optString("ts");
                         channel.vavooUrl = optJSONObject2.optString("vavoo");
@@ -72,6 +72,7 @@ public final class CatalogCache {
                         } else {
                             channel.header = isHeaderName(channel.name);
                         }
+                        channel.number = channel.header ? 0 : ++channelNumber;
                         catalog.live.add(channel);
                     }
                 }
