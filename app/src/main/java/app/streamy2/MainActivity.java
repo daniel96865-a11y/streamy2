@@ -136,6 +136,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private View updateBanner;
     private TextView updateText;
     private volatile boolean vavooBusy;
+    private final StringBuilder channelNumberBuffer = new StringBuilder();
+    private Toast channelNumberToast;
+    private final Runnable channelNumberTuneRun = new Runnable() {
+        @Override
+        public void run() {
+            MainActivity.this.tuneChannelNumber();
+        }
+    };
     private static final ExecutorService IO = Executors.newFixedThreadPool(6);
     private static final ExecutorService UPDATE_IO = Executors.newSingleThreadExecutor();
     private static final ExecutorService EPG = Executors.newSingleThreadExecutor(new ThreadFactory() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda111
@@ -1107,6 +1115,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (browserController3 != null && browserController3.handleKey(keyEvent)) {
             return true;
         }
+        if (handleTvChannelNumberKey(keyEvent)) {
+            return true;
+        }
         if (keyEvent.getAction() == 0 && (view4 = this.detailPane) != null && view4.getVisibility() == 0) {
             int keyCode = keyEvent.getKeyCode();
             if (keyCode == 126 || keyCode == 85) {
@@ -1164,6 +1175,107 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         return super.dispatchKeyEvent(keyEvent);
+    }
+
+    private boolean handleTvChannelNumberKey(KeyEvent event) {
+        if (event == null || event.getAction() != KeyEvent.ACTION_DOWN || !Tv.isTv(this)) {
+            return false;
+        }
+        if (this.tab != 0 && this.tab != 4) {
+            return false;
+        }
+        View focus = getCurrentFocus();
+        if (focus instanceof EditText) {
+            return false;
+        }
+        if ((this.detailPane != null && this.detailPane.getVisibility() == View.VISIBLE)
+                || (this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE)
+                || (this.pickerPane != null && this.pickerPane.getVisibility() == View.VISIBLE)
+                || (this.pairPane != null && this.pairPane.getVisibility() == View.VISIBLE)
+                || (this.browser != null && this.browser.visible())) {
+            return false;
+        }
+
+        int digit = channelDigit(event.getKeyCode());
+        if (digit >= 0) {
+            if (this.channelNumberBuffer.length() >= 6) {
+                this.channelNumberBuffer.setLength(0);
+            }
+            this.channelNumberBuffer.append(digit);
+            UI.removeCallbacks(this.channelNumberTuneRun);
+            showChannelNumberToast("Sender " + this.channelNumberBuffer);
+            UI.postDelayed(this.channelNumberTuneRun, 1300L);
+            return true;
+        }
+
+        if (this.channelNumberBuffer.length() == 0) {
+            return false;
+        }
+        int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            UI.removeCallbacks(this.channelNumberTuneRun);
+            tuneChannelNumber();
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DEL) {
+            this.channelNumberBuffer.deleteCharAt(this.channelNumberBuffer.length() - 1);
+            UI.removeCallbacks(this.channelNumberTuneRun);
+            if (this.channelNumberBuffer.length() > 0) {
+                showChannelNumberToast("Sender " + this.channelNumberBuffer);
+                UI.postDelayed(this.channelNumberTuneRun, 1300L);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static int channelDigit(int keyCode) {
+        if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+            return keyCode - KeyEvent.KEYCODE_0;
+        }
+        if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9) {
+            return keyCode - KeyEvent.KEYCODE_NUMPAD_0;
+        }
+        return -1;
+    }
+
+    private void tuneChannelNumber() {
+        if (this.channelNumberBuffer.length() == 0) {
+            return;
+        }
+        int wanted;
+        try {
+            wanted = Integer.parseInt(this.channelNumberBuffer.toString());
+        } catch (NumberFormatException e) {
+            this.channelNumberBuffer.setLength(0);
+            return;
+        }
+        this.channelNumberBuffer.setLength(0);
+
+        Models.Catalog current = this.catalog;
+        List<Models.Channel> channels = current != null ? current.live : null;
+        if (channels == null || channels.isEmpty()) {
+            channels = App.live;
+        }
+        if (channels != null) {
+            for (Models.Channel channel : channels) {
+                if (channel != null && !channel.header && channel.number == wanted) {
+                    onChannel(channel);
+                    return;
+                }
+            }
+        }
+        showChannelNumberToast("Sender " + wanted + " nicht vorhanden");
+    }
+
+    private void showChannelNumberToast(String text) {
+        if (this.channelNumberToast != null) {
+            this.channelNumberToast.cancel();
+        }
+        this.channelNumberToast = Toast.makeText(this, text, Toast.LENGTH_SHORT);
+        this.channelNumberToast.show();
     }
 
     private void syncTvChrome(View view) {
