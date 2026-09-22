@@ -18,7 +18,7 @@
         android:textColor="@color/subtle"
         android:gravity="center"
         android:id="@+id/num"
-        android:layout_width="18dp"
+        android:layout_width="44dp"
         android:layout_height="wrap_content"/>
     <TextView
         android:textSize="11sp"
