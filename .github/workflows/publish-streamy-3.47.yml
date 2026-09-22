@@ -1,0 +1,110 @@
+name: Publish Streamy 2 3.47
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.47.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.47 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy347
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10692576697/zip > /tmp/streamy347/artifact.zip
+          unzip -q /tmp/streamy347/artifact.zip -d /tmp/streamy347/artifact
+          test -f /tmp/streamy347/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy347/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy347/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.47 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.47:refs/remotes/origin/publish/3.47
+          git show origin/publish/3.47:.release-3.47/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy347/tv.patch.zst
+          git show origin/publish/3.47:.release-3.47/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy347/mobile.patch.zst
+
+          echo "6d1ee29e2c319829731ceed715883968c09f3550bed012137133a3b2ab20a18d  /tmp/streamy347/tv.patch.zst" | sha256sum -c -
+          echo "cd11d21167bf97f4ab3fbcc97958734048c7bdf625b02e339c6e0185240330dd  /tmp/streamy347/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy347/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy347/tv.patch.zst -o /tmp/streamy347/Streamy2-TV-3.47.apk
+          zstd -q -d --patch-from=/tmp/streamy347/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy347/mobile.patch.zst -o /tmp/streamy347/Streamy2-Mobile-3.47.apk
+
+          echo "b4862275b92098851708d3a8277e802980b69bac75fbd139f11b26f644038f15  /tmp/streamy347/Streamy2-TV-3.47.apk" | sha256sum -c -
+          echo "6d10e7c576b36015a933a575c762cf69d221cd26c0001ce5375fd405850262b1  /tmp/streamy347/Streamy2-Mobile-3.47.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy347/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy347/Streamy2-TV-3.47.apk /tmp/streamy347/Streamy2-Mobile-3.47.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy347/Streamy2-TV-3.47.apk docs/downloads/
+          cp /tmp/streamy347/Streamy2-Mobile-3.47.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":167,"versionName":"3.47","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.47.apk","changelog":"Neu in 3.47: alle Live-TV-Sender werden lückenlos von 1 bis zum letzten Sender nummeriert. Auf dem TV kann die Sendernummer direkt über die Zifferntasten der Fernbedienung eingegeben werden."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":167,"versionName":"3.47","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.47.apk","changelog":"Neu in 3.47: alle Live-TV-Sender werden lückenlos von 1 bis zum letzten Sender nummeriert und die Nummern sind in der Senderliste sichtbar."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.47.apk docs/downloads/Streamy2-Mobile-3.47.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.47 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy347/notes.md <<'EOF'
+          Streamy 2 3.47 – Sendernummern
+
+          - Live-TV-Sender werden lückenlos von 1 bis zum letzten Sender nummeriert.
+          - Sendernummern sind auf TV und Mobile sichtbar.
+          - Auf Android TV / Fire TV kann die Sendernummer direkt über die Zifferntasten eingegeben werden.
+          - OK bestätigt die Eingabe sofort; alternativ wird nach kurzer Eingabepause umgeschaltet.
+          - Trennzeilen verbrauchen keine Sendernummer.
+          - Cache und Vavoo werden ebenfalls fortlaufend nummeriert.
+          - TV- und Mobile-Build erfolgreich getestet.
+          - Mit derselben Streamy-2-Release-Signatur wie 3.46 signiert.
+          EOF
+
+          if gh release view v3.47 >/dev/null 2>&1; then
+            gh release upload v3.47 /tmp/streamy347/Streamy2-TV-3.47.apk /tmp/streamy347/Streamy2-Mobile-3.47.apk --clobber
+          else
+            gh release create v3.47               /tmp/streamy347/Streamy2-TV-3.47.apk               /tmp/streamy347/Streamy2-Mobile-3.47.apk               --target main               --title "Streamy 2 3.47 — Sendernummern"               --notes-file /tmp/streamy347/notes.md               --latest
+          fi
