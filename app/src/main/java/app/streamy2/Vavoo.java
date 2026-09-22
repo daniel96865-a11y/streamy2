@@ -73,12 +73,15 @@ final class Vavoo {
                     }
                 }
                 HashSet hashSet = new HashSet();
+                int size = 0;
                 for (Models.Channel channel : catalog.live) {
                     if (channel != null && channel.id != null) {
                         hashSet.add(channel.id);
                     }
+                    if (channel != null && !channel.header && channel.number > size) {
+                        size = channel.number;
+                    }
                 }
-                int size = catalog.live.size();
                 for (Models.Channel channel2 : fetchGermany) {
                     if (channel2.id != null && !hashSet.contains(channel2.id)) {
                         hashSet.add(channel2.id);
