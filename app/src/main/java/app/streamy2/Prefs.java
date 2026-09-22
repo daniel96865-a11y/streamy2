@@ -352,16 +352,16 @@ public class Prefs {
         this.p.edit().putString("playerLive", normPlayer(str)).apply();
     }
 
-    public String playerVavoo() {
-        if (!this.p.contains("playerVavoo")) {
+    public String playerExtraLive() {
+        if (!this.p.contains("playerExtraLive")) {
             String legacy = player();
             return "vlc".equals(legacy) ? "auto" : legacy;
         }
-        return normPlayer(this.p.getString("playerVavoo", "auto"));
+        return normPlayer(this.p.getString("playerExtraLive", "auto"));
     }
 
-    public void setPlayerVavoo(String str) {
-        this.p.edit().putString("playerVavoo", normPlayer(str)).apply();
+    public void setPlayerExtraLive(String str) {
+        this.p.edit().putString("playerExtraLive", normPlayer(str)).apply();
     }
 
     public String buffer() {

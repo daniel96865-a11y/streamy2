@@ -27,7 +27,7 @@ public final class Models {
         public String name;
         public int number;
         public String tsUrl;
-        public String vavooUrl;
+        public String extraLiveUrl;
         public String categoryName = "";
         public String epgChannelId = "";
     }

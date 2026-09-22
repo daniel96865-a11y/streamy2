@@ -26,8 +26,8 @@ import java.util.regex.Pattern;
 import kotlin.text.Typography;
 
 /* loaded from: classes.dex */
-final class MegaKino {
-    static final String CAT = "megakino";
+final class ExtraMediaSource {
+    static final String CAT = "extra_media";
     private static String base;
     static final List<Models.Media> films;
     static volatile boolean loaded;
@@ -57,7 +57,11 @@ final class MegaKino {
     private static final Pattern POSTER_SUB = Pattern.compile("<li>([^<]+)</li>", 2);
     private static final Map<String, String> cookies = new LinkedHashMap();
 
-    MegaKino() {
+    ExtraMediaSource() {
+    }
+
+    static boolean isRestrictedUrl(String url) {
+        return url != null && url.toLowerCase(Locale.US).contains("megakino");
     }
 
     static {
@@ -104,7 +108,7 @@ final class MegaKino {
                 live.add(b);
             }
             BASES = live.toArray(new String[0]);
-            // Preferred live Megakino host for scraping only (do not touch browser HOME)
+            // Preferred live Media Extra host for scraping only (do not touch browser HOME)
             base = preferred;
         }
     }
@@ -135,10 +139,10 @@ final class MegaKino {
                         return base;
                     }
                 } catch (Exception e) {
-                    lastError = "Megakino-Host fehlgeschlagen: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+                    lastError = "Media Extra-Host fehlgeschlagen: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
                 }
             }
-            lastError = "Kein funktionierender Megakino-Host gefunden (Token/Seite)";
+            lastError = "Kein funktionierender Media Extra-Host gefunden (Token/Seite)";
             String str3 = BASES[0];
             base = str3;
             return str3;
@@ -151,10 +155,10 @@ final class MegaKino {
             String tokenResp = req(host + "/index.php?yg=token", null);
             // token endpoint often returns 204; cookies in jar are what matter
             if (cookies.isEmpty() && tokenResp == null) {
-                lastError = "Megakino-Token fehlgeschlagen — Cookies fehlen. Später erneut versuchen.";
+                lastError = "Media Extra-Token fehlgeschlagen — Cookies fehlen. Später erneut versuchen.";
             } else {
                 tokenAt = System.currentTimeMillis();
-                if (lastError != null && lastError.startsWith("Megakino-Token")) {
+                if (lastError != null && lastError.startsWith("Media Extra-Token")) {
                     lastError = "";
                 }
             }
@@ -204,7 +208,7 @@ final class MegaKino {
                     return Integer.compare(seasonOf(a == null ? null : a.name), seasonOf(b == null ? null : b.name));
                 }
             });
-            synchronized (MegaKino.class) {
+            synchronized (ExtraMediaSource.class) {
                 List<Models.Media> list = films;
                 list.clear();
                 list.addAll(parseList);
@@ -215,7 +219,7 @@ final class MegaKino {
                 loaded = true;
                 if (list.isEmpty() && list2.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
-                        lastError = "Megakino-Katalog leer — Token oder Host prüfen.";
+                        lastError = "Media Extra-Katalog leer — Token oder Host prüfen.";
                     }
                 } else {
                     lastError = "";
@@ -223,7 +227,7 @@ final class MegaKino {
             }
             serialsGrouped();
         } catch (Throwable th) {
-            lastError = "Megakino-Laden fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
+            lastError = "Media Extra-Laden fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
             loading = false;
         }
@@ -232,7 +236,7 @@ final class MegaKino {
     static List<Models.Media> all() {
         ArrayList<Models.Media> arrayList = new ArrayList<>();
         List<Models.Media> grouped;
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             arrayList.addAll(films);
             grouped = groupedSerials;
         }
@@ -244,7 +248,7 @@ final class MegaKino {
     }
 
     static boolean isCatalogEmpty() {
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             return films.isEmpty() && serials.isEmpty();
         }
     }
@@ -404,11 +408,11 @@ final class MegaKino {
                 }
             }
         }
-        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda1
+        arrayList.sort(new Comparator() { // from class: app.streamy2.ExtraMediaSource$$ExternalSyntheticLambda1
             @Override // java.util.Comparator
             public final int compare(Object obj, Object obj2) {
                 int compare;
-                compare = Integer.compare(MegaKino.rank((String) obj), MegaKino.rank((String) obj2));
+                compare = Integer.compare(ExtraMediaSource.rank((String) obj), ExtraMediaSource.rank((String) obj2));
                 return compare;
             }
         });
@@ -435,11 +439,11 @@ final class MegaKino {
         while (matcher2.find()) {
             addEmbed(arrayList, matcher2.group(1));
         }
-        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda2
+        arrayList.sort(new Comparator() { // from class: app.streamy2.ExtraMediaSource$$ExternalSyntheticLambda2
             @Override // java.util.Comparator
             public final int compare(Object obj, Object obj2) {
                 int compare;
-                compare = Integer.compare(MegaKino.rank((String) obj), MegaKino.rank((String) obj2));
+                compare = Integer.compare(ExtraMediaSource.rank((String) obj), ExtraMediaSource.rank((String) obj2));
                 return compare;
             }
         });
@@ -516,7 +520,7 @@ final class MegaKino {
                     media.poster = abs(first2);
                     media.streamUrl = abs(first);
                     media.series = z2;
-                    media.genre = z2 ? "Serie · Megakino" : "Film · Megakino";
+                    media.genre = z2 ? "Serie · Media Extra" : "Film · Media Extra";
                     media.categoryId = CAT;
                     media.plot = Text.clean(first(POSTER_TEXT, substring));
                     Matcher matcher = POSTER_SUB.matcher(substring);
@@ -603,7 +607,7 @@ final class MegaKino {
     /** One card per series (latest season), A–Z — seasons remain in {@link #serials} for the picker. */
     static List<Models.Media> serialsGrouped() {
         List<Models.Media> snap;
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             if (groupedSerials != null) {
                 return groupedSerials;
             }
@@ -651,7 +655,7 @@ final class MegaKino {
             }
             out.add(card);
         }
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             if (groupedSerials == null) {
                 groupedSerials = out;
             }
@@ -679,18 +683,18 @@ final class MegaKino {
         if (showKey.isEmpty()) {
             return arrayList;
         }
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             for (Models.Media media2 : serials) {
                 if (media2 != null && showKey.equals(showKey(media2.name))) {
                     arrayList.add(media2);
                 }
             }
         }
-        arrayList.sort(new Comparator() { // from class: app.streamy2.MegaKino$$ExternalSyntheticLambda0
+        arrayList.sort(new Comparator() { // from class: app.streamy2.ExtraMediaSource$$ExternalSyntheticLambda0
             @Override // java.util.Comparator
             public final int compare(Object obj, Object obj2) {
                 int compare;
-                compare = Integer.compare(MegaKino.seasonOf(((Models.Media) obj).name), MegaKino.seasonOf(((Models.Media) obj2).name));
+                compare = Integer.compare(ExtraMediaSource.seasonOf(((Models.Media) obj).name), ExtraMediaSource.seasonOf(((Models.Media) obj2).name));
                 return compare;
             }
         });
@@ -746,7 +750,7 @@ final class MegaKino {
         return str != null && SEASON_SUFFIX.matcher(str).find();
     }
 
-    /** "Folge 1" — skips redundant "Episode 1" from Megakino option labels. */
+    /** "Folge 1" — skips redundant "Episode 1" from Media Extra option labels. */
     static String formatEpisodeRow(Models.Episode episode) {
         if (episode == null) {
             return "";
@@ -944,7 +948,7 @@ final class MegaKino {
     }
 
     private static synchronized void absorbCookies(HttpURLConnection httpURLConnection) {
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             int i = 0;
             while (true) {
                 try {
@@ -971,7 +975,7 @@ final class MegaKino {
     }
 
     private static synchronized String cookieHeader() {
-        synchronized (MegaKino.class) {
+        synchronized (ExtraMediaSource.class) {
             Map<String, String> map = cookies;
             if (map.isEmpty()) {
                 return "";

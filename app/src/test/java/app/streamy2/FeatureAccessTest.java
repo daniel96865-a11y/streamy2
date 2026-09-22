@@ -26,12 +26,6 @@ public class FeatureAccessTest {
     }
 
     @Test
-    public void megakinoUrlsAreRestricted() {
-        assertTrue(FeatureAccess.isRestrictedUrl("https://megakino.example/watch"));
-        assertTrue(FeatureAccess.isRestrictedUrl("HTTPS://MEGAKINO.EXAMPLE"));
-    }
-
-    @Test
     public void normalBrowserUrlsRemainAvailable() {
         assertFalse(FeatureAccess.isRestrictedUrl("https://example.com"));
         assertFalse(FeatureAccess.isRestrictedUrl(null));

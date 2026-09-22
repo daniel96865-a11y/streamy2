@@ -76,7 +76,7 @@ final class EpgRefresh {
             primary = new XtreamApi(prefs.url(), prefs.user(), prefs.pass(), prefs.format()).xmltvUrl();
         }
         if (!primary.isEmpty()) sources.add(primary);
-        for (String url : Vavoo.EPG_URLS) sources.add(url);
+        for (String url : ExtraLiveSource.EPG_URLS) sources.add(url);
         String key = digest(primary);
         if (!key.equals(sourceKey)) { guide.clear(); hydratedAt = 0; sourceKey = key; }
         long now = System.currentTimeMillis();

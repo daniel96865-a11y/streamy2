@@ -127,12 +127,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView playerLiveAuto;
     private TextView playerLiveExo;
     private TextView playerLiveVlc;
-    private TextView playerVavooAuto;
-    private TextView playerVavooExo;
-    private TextView playerVavooVlc;
-    private View playerVavooLabel;
-    private View playerVavooHint;
-    private View playerVavooRow;
+    private TextView playerExtraLiveAuto;
+    private TextView playerExtraLiveExo;
+    private TextView playerExtraLiveVlc;
+    private View playerExtraLiveLabel;
+    private View playerExtraLiveHint;
+    private View playerExtraLiveRow;
     private Prefs prefs;
     private TextView resizeFit;
     private TextView resizeStretch;
@@ -147,11 +147,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView tabLive;
     private TextView tabMovies;
     private TextView tabSeries;
-    private TextView tabVavoo;
+    private TextView tabExtraLive;
     private View topChrome;
     private View updateBanner;
     private TextView updateText;
-    private volatile boolean vavooBusy;
+    private volatile boolean extraLiveBusy;
     private final StringBuilder channelNumberBuffer = new StringBuilder();
     private Toast channelNumberToast;
     private final Runnable channelNumberTuneRun = new Runnable() {
@@ -214,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.tabLive = (TextView) findViewById(R.id.tabLive);
         this.tabMovies = (TextView) findViewById(R.id.tabMovies);
         this.tabSeries = (TextView) findViewById(R.id.tabSeries);
-        this.tabVavoo = (TextView) findViewById(R.id.tabVavoo);
+        this.tabExtraLive = (TextView) findViewById(R.id.tabExtraLive);
         this.tabKino = (TextView) findViewById(R.id.tabKino);
         this.tabBrowser = (TextView) findViewById(R.id.tabBrowser);
         this.chipCat = (TextView) findViewById(R.id.chipCat);
@@ -234,12 +234,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.playerLiveAuto = (TextView) findViewById(R.id.playerLiveAuto);
         this.playerLiveExo = (TextView) findViewById(R.id.playerLiveExo);
         this.playerLiveVlc = (TextView) findViewById(R.id.playerLiveVlc);
-        this.playerVavooAuto = (TextView) findViewById(R.id.playerVavooAuto);
-        this.playerVavooExo = (TextView) findViewById(R.id.playerVavooExo);
-        this.playerVavooVlc = (TextView) findViewById(R.id.playerVavooVlc);
-        this.playerVavooLabel = findViewById(R.id.playerVavooLabel);
-        this.playerVavooHint = findViewById(R.id.playerVavooHint);
-        this.playerVavooRow = findViewById(R.id.playerVavooRow);
+        this.playerExtraLiveAuto = (TextView) findViewById(R.id.playerExtraLiveAuto);
+        this.playerExtraLiveExo = (TextView) findViewById(R.id.playerExtraLiveExo);
+        this.playerExtraLiveVlc = (TextView) findViewById(R.id.playerExtraLiveVlc);
+        this.playerExtraLiveLabel = findViewById(R.id.playerExtraLiveLabel);
+        this.playerExtraLiveHint = findViewById(R.id.playerExtraLiveHint);
+        this.playerExtraLiveRow = findViewById(R.id.playerExtraLiveRow);
         this.accessStatus = (TextView) findViewById(R.id.accessStatus);
         this.btnAccessUnlock = findViewById(R.id.btnAccessUnlock);
         this.bufLow = (TextView) findViewById(R.id.bufLow);
@@ -367,7 +367,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$4(view2);
             }
         });
-        TextView textView = this.tabVavoo;
+        TextView textView = this.tabExtraLive;
         if (textView != null) {
             textView.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda110
                 @Override // android.view.View.OnClickListener
@@ -526,14 +526,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.playerLiveVlc.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view3) { MainActivity.this.setPlayerLiveEngine("vlc"); }
         });
-        this.playerVavooAuto.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("auto"); }
+        this.playerExtraLiveAuto.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerExtraLiveEngine("auto"); }
         });
-        this.playerVavooExo.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("exo"); }
+        this.playerExtraLiveExo.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerExtraLiveEngine("exo"); }
         });
-        this.playerVavooVlc.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View view3) { MainActivity.this.setPlayerVavooEngine("vlc"); }
+        this.playerExtraLiveVlc.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) { MainActivity.this.setPlayerExtraLiveEngine("vlc"); }
         });
         this.bufLow.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
@@ -785,7 +785,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             UI.post(new Runnable() {
                 @Override
                 public final void run() {
-                    MainActivity.this.loadVavoo();
+                    MainActivity.this.loadExtraLive();
                     MainActivity.this.loadKino();
                     MainActivity.this.prefetchEpg();
                 }
@@ -924,7 +924,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         showSettings(false);
         renderList();
         if (unlocked) {
-            loadVavoo();
+            loadExtraLive();
             loadKino();
             setTab(4);
         } else {
@@ -1000,7 +1000,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             LocalHls.start();
             String hls = LocalHls.isReady() ? ("bereit · Port " + LocalHls.getPort()) : "nicht bereit";
             boolean lib = VlcFactory.isAvailable();
-            String msg = "Engine Live: " + this.prefs.playerLive() + " · Vavoo: " + this.prefs.playerVavoo() + " · Sonst: " + this.prefs.player()
+            String msg = "Engine Live: " + this.prefs.playerLive() + " · Live Extra: " + this.prefs.playerExtraLive() + " · Sonst: " + this.prefs.player()
                     + "\n" + App.lowRamLabel(this)
                     + "\nlibVLC: " + (lib ? "ja" : "nein")
                     + "\nLocalHls: " + hls
@@ -1056,7 +1056,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$34(View view) {
         if (MainActivity.this.tab == 0 || MainActivity.this.tab == 4) {
-            // Live-TV + Vavoo: net-first internet XMLTV (toast + session stamp)
+            // Live-TV + Live Extra: net-first internet XMLTV (toast + session stamp)
             ensureNetEpg(true);
         } else {
             refreshXmltv(true);
@@ -1698,11 +1698,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintPlayer();
     }
 
-    private void setPlayerVavooEngine(String str) {
+    private void setPlayerExtraLiveEngine(String str) {
         if (!FeatureAccess.isUnlocked(this)) {
             return;
         }
-        this.prefs.setPlayerVavoo(str);
+        this.prefs.setPlayerExtraLive(str);
         paintPlayer();
     }
 
@@ -1733,17 +1733,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private void updateAccessUi() {
         boolean unlocked = FeatureAccess.isUnlocked(this);
         int restrictedVisibility = unlocked ? View.VISIBLE : View.GONE;
-        if (this.tabVavoo != null) {
-            this.tabVavoo.setVisibility(restrictedVisibility);
-            this.tabVavoo.setFocusable(unlocked);
+        if (this.tabExtraLive != null) {
+            this.tabExtraLive.setVisibility(restrictedVisibility);
+            this.tabExtraLive.setFocusable(unlocked);
         }
         if (this.tabKino != null) {
             this.tabKino.setVisibility(restrictedVisibility);
             this.tabKino.setFocusable(unlocked);
         }
-        if (this.playerVavooLabel != null) this.playerVavooLabel.setVisibility(restrictedVisibility);
-        if (this.playerVavooHint != null) this.playerVavooHint.setVisibility(restrictedVisibility);
-        if (this.playerVavooRow != null) this.playerVavooRow.setVisibility(restrictedVisibility);
+        if (this.playerExtraLiveLabel != null) this.playerExtraLiveLabel.setVisibility(restrictedVisibility);
+        if (this.playerExtraLiveHint != null) this.playerExtraLiveHint.setVisibility(restrictedVisibility);
+        if (this.playerExtraLiveRow != null) this.playerExtraLiveRow.setVisibility(restrictedVisibility);
         if (this.accessStatus != null) {
             this.accessStatus.setText(unlocked
                     ? "Zusatzfunktionen sind auf diesem Gerät freigeschaltet."
@@ -1795,7 +1795,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     UI.removeCallbacks(accessValidationTick);
                     UI.postDelayed(accessValidationTick, 60000L);
                     Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
-                    loadVavoo();
+                    loadExtraLive();
                     loadKino();
                     paintTabs();
                     renderList();
@@ -1829,7 +1829,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.cols4, cols == 4, accent);
     }
 
-    /** Linear list for Live/Vavoo; Grid for Movies/Series/Kino when columns > 1. */
+    /** Linear list for Live/Live Extra; Grid for Movies/Series/Kino when columns > 1. */
     private void applyListLayout() {
         if (this.list == null || this.adapter == null) {
             return;
@@ -1867,15 +1867,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.playerLiveAuto, "auto".equals(live), accent);
         paintChip(this.playerLiveExo, "exo".equals(live), accent);
         paintChip(this.playerLiveVlc, "vlc".equals(live), accent);
-        String vavoo = this.prefs.playerVavoo();
-        paintChip(this.playerVavooAuto, "auto".equals(vavoo), accent);
-        paintChip(this.playerVavooExo, "exo".equals(vavoo), accent);
-        paintChip(this.playerVavooVlc, "vlc".equals(vavoo), accent);
+        String extraLive = this.prefs.playerExtraLive();
+        paintChip(this.playerExtraLiveAuto, "auto".equals(extraLive), accent);
+        paintChip(this.playerExtraLiveExo, "exo".equals(extraLive), accent);
+        paintChip(this.playerExtraLiveVlc, "vlc".equals(extraLive), accent);
     }
 
     /** Non-auto engine string for PlayerActivity, or null for Auto. */
-    private String forceEngineFor(boolean vavoo) {
-        String pref = vavoo ? this.prefs.playerVavoo() : this.prefs.playerLive();
+    private String forceEngineFor(boolean extraLive) {
+        String pref = extraLive ? this.prefs.playerExtraLive() : this.prefs.playerLive();
         if ("vlc".equals(pref) || "exo".equals(pref)) {
             return pref;
         }
@@ -2020,7 +2020,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         this.tab = i;
         this.seriesOpen = null;
-        this.catId = i == 4 ? "vavoo" : "all";
+        this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
             showBrowser(true);
@@ -2030,9 +2030,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 loadKino();
             }
             if (i == 4) {
-                loadVavoo();
-                // Phone + TV: always (re)bind EPG for Vavoo rows — do not rely on loadVavoo busy path alone
-                ensureVavooEpg(false);
+                loadExtraLive();
+                // Phone + TV: always (re)bind EPG for Live Extra rows — do not rely on loadExtraLive busy path alone
+                ensureExtraLiveEpg(false);
             } else if (i == 0) {
                 // Live-TV: internet XMLTV (epg.pw) + unify HD/FHD by normName
                 ensureLiveEpg(false);
@@ -2106,7 +2106,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         colorTab(this.tabLive, this.tab == 0);
         colorTab(this.tabMovies, this.tab == 1);
         colorTab(this.tabSeries, this.tab == 2);
-        colorTab(this.tabVavoo, this.tab == 4);
+        colorTab(this.tabExtraLive, this.tab == 4);
         colorTab(this.tabKino, this.tab == 5);
         colorTab(this.tabBrowser, this.tab == 3);
         View view = this.chips;
@@ -2180,7 +2180,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             str = "Nichts gefunden.";
             if (i2 == 0 || i2 == 4) {
                 if (i2 == 4) {
-                    this.catId = "vavoo";
+                    this.catId = "extra_live";
                 }
                 List<Models.Channel> filterLive = filterLive();
                 this.adapter.setChannels(filterLive);
@@ -2189,8 +2189,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     i = 8;
                 }
                 textView2.setVisibility(i);
-                this.empty.setText(this.tab == 4 ? "Vavoo wird geladen…" : "Nichts gefunden.");
-                this.chipCat.setText(this.tab == 4 ? "Vavoo Deutschland" : catName(this.catalog != null ? this.catalog.liveCats : null, this.catId));
+                this.empty.setText(this.tab == 4 ? "Live Extra wird geladen…" : "Nichts gefunden.");
+                this.chipCat.setText(this.tab == 4 ? "Live Extra Deutschland" : catName(this.catalog != null ? this.catalog.liveCats : null, this.catId));
                 this.chipSort.setText(sortLabel());
                 focusFirstRow();
                 return;
@@ -2236,8 +2236,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 textView5.setVisibility(i);
                 TextView textView6 = this.empty;
-                if (!MegaKino.loaded) {
-                    str = "Megakino wird geladen…";
+                if (!ExtraMediaSource.loaded) {
+                    str = "Media Extra wird geladen…";
                 }
                 textView6.setText(str);
                 this.chipCat.setText(kinoCatLabel());
@@ -2292,7 +2292,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             for (Models.Channel channel : liveSnap) {
                 if (channel != null) {
                     String str2 = channel.name == null ? "" : channel.name;
-                    if (!FeatureAccess.isUnlocked(this) && channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+                    if (!FeatureAccess.isUnlocked(this) && channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
                         continue;
                     }
                     if ("all".equals(this.catId) || (channel.categoryId != null && this.catId.equals(channel.categoryId))) {
@@ -2730,17 +2730,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             str = "";
         }
         String str2 = str;
-        if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty() && !FeatureAccess.isUnlocked(this)) {
+        if (channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty() && !FeatureAccess.isUnlocked(this)) {
             Toast.makeText(this, "Freigabecode erforderlich", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (channel.vavooUrl != null && !channel.vavooUrl.isEmpty()) {
+        if (channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
             try {
-                String str3 = channel.vavooUrl;
-                String str4 = channel.vavooUrl;
+                String str3 = channel.extraLiveUrl;
+                String str4 = channel.extraLiveUrl;
                 String str5 = channel.name;
                 if (str2.isEmpty()) {
-                    str2 = "Vavoo";
+                    str2 = "Live Extra";
                 }
                 PlayerActivity.open(this, str3, str4, str5, str2, true, forceEngineFor(true));
                 return;
@@ -2793,7 +2793,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (media.series) {
             openDetail(media);
-        } else if (MegaKino.owns(media)) {
+        } else if (ExtraMediaSource.owns(media)) {
             playMega(media, null);
         } else {
             PlayerActivity.open(this, media.streamUrl, null, media.name, join(media.genre, media.year), false);
@@ -2806,7 +2806,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         if (media.plot == null || media.plot.trim().isEmpty()) {
-            if (MegaKino.owns(media)) {
+            if (ExtraMediaSource.owns(media)) {
                 if (this.plotFetch.add(media.id)) {
                     IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda32
                         @Override // java.lang.Runnable
@@ -2829,7 +2829,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onNeedPlot$69(final Models.Media media, final int i) {
         try {
-            MegaKino.enrich(media);
+            ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda49
@@ -2919,7 +2919,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             });
         }
-        if (MegaKino.owns(media)) {
+        if (ExtraMediaSource.owns(media)) {
             ProgressBar progressBar = this.loading;
             if (progressBar != null) {
                 progressBar.setVisibility(0);
@@ -2953,7 +2953,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$openDetail$75(final Models.Media media) {
         try {
-            MegaKino.enrich(media);
+            ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda61
@@ -2998,11 +2998,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void bindDetail(final Models.Media media) {
-        boolean mkSeries = media.series && MegaKino.owns(media);
+        boolean mkSeries = media.series && ExtraMediaSource.owns(media);
         TextView textView = this.detailTitle;
         if (textView != null) {
             if (mkSeries) {
-                String shown = MegaKino.showTitle(media.name);
+                String shown = ExtraMediaSource.showTitle(media.name);
                 textView.setText(shown.isEmpty() ? media.name : shown);
             } else {
                 textView.setText(media.name);
@@ -3011,8 +3011,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         TextView textView2 = this.detailMeta;
         if (textView2 != null) {
             String meta = detailLine(media);
-            if (mkSeries && MegaKino.hasSeasonSuffix(media.name)) {
-                int se = MegaKino.seasonOf(media.name);
+            if (mkSeries && ExtraMediaSource.hasSeasonSuffix(media.name)) {
+                int se = ExtraMediaSource.seasonOf(media.name);
                 if (se > 0) {
                     meta = join("Staffel " + se, meta);
                 }
@@ -3055,17 +3055,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (this.detailEps == null || this.epAdapter == null) {
             return;
         }
-        if (media.series && MegaKino.owns(media)) {
-            final List<Models.Media> seasonsOf = MegaKino.seasonsOf(media);
+        if (media.series && ExtraMediaSource.owns(media)) {
+            final List<Models.Media> seasonsOf = ExtraMediaSource.seasonsOf(media);
             final List<Models.Episode> arrayList = media.episodes == null ? new ArrayList() : media.episodes;
             ArrayList arrayList2 = new ArrayList();
             final int size = seasonsOf.size() > 1 ? seasonsOf.size() : 0;
             for (int i = 0; i < size; i++) {
                 Models.Media media2 = seasonsOf.get(i);
-                arrayList2.add(((media2.id == null || !media2.id.equals(media.id)) ? "" : "● ") + "Staffel " + MegaKino.seasonOf(media2.name));
+                arrayList2.add(((media2.id == null || !media2.id.equals(media.id)) ? "" : "● ") + "Staffel " + ExtraMediaSource.seasonOf(media2.name));
             }
             for (Models.Episode episode : arrayList) {
-                arrayList2.add(MegaKino.formatEpisodeRow(episode));
+                arrayList2.add(ExtraMediaSource.formatEpisodeRow(episode));
             }
             this.epAdapter.set(arrayList2, -1, new PickAdapter.OnPick() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda45
                 @Override // app.streamy2.MainActivity.PickAdapter.OnPick
@@ -3124,7 +3124,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$bindDetail$79(final Models.Media media) {
         try {
-            MegaKino.enrich(media);
+            ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda119
@@ -3195,7 +3195,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (media.episodes != null && !media.episodes.isEmpty()) {
                 playEpisode(media, media.episodes.get(0));
                 return;
-            } else if (MegaKino.owns(media)) {
+            } else if (ExtraMediaSource.owns(media)) {
                 IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda50
                     @Override // java.lang.Runnable
                     public final void run() {
@@ -3208,7 +3208,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 return;
             }
         }
-        if (MegaKino.owns(media)) {
+        if (ExtraMediaSource.owns(media)) {
             playMega(media, null);
         } else {
             PlayerActivity.open(this, media.streamUrl, null, media.name, join(media.genre, media.year), false);
@@ -3218,7 +3218,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$playDetail$83(final Models.Media media) {
         try {
-            MegaKino.enrich(media);
+            ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda54
@@ -3242,7 +3242,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (episode == null) {
             return;
         }
-        if (MegaKino.owns(media) || (episode.id != null && episode.id.startsWith("mkep:"))) {
+        if (ExtraMediaSource.owns(media) || (episode.id != null && episode.id.startsWith("mkep:"))) {
             playMega(media, episode);
         } else {
             PlayerActivity.open(this, episode.streamUrl, null, media.name, "S" + episode.season + " E" + episode.episode + " · " + episode.title, false);
@@ -3340,7 +3340,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         prefetchEpg();
         ensureLiveEpg(false);
         if (FeatureAccess.isUnlocked(this)) {
-            loadVavoo();
+            loadExtraLive();
             loadKino();
         }
     }
@@ -3365,7 +3365,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private List<Models.Media> filterKino() {
         String str = this.query;
         String lowerCase = str == null ? "" : str.trim().toLowerCase(Locale.GERMAN);
-        List<Models.Media> all = MegaKino.all();
+        List<Models.Media> all = ExtraMediaSource.all();
         ArrayList arrayList = new ArrayList();
         for (Models.Media media : all) {
             if (media != null && (!"mk-films".equals(this.catId) || !media.series)) {
@@ -3425,7 +3425,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$searchKinoRemote$94(final String str, final long j) {
         List<Models.Media> list;
         try {
-            list = MegaKino.search(str);
+            list = ExtraMediaSource.search(str);
         } catch (Throwable unused) {
             list = null;
         }
@@ -3485,14 +3485,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (!FeatureAccess.isUnlocked(this)) {
             return;
         }
-        if (MegaKino.loading) {
+        if (ExtraMediaSource.loading) {
             return;
         }
-        if (MegaKino.loaded && !MegaKino.isCatalogEmpty()) {
+        if (ExtraMediaSource.loaded && !ExtraMediaSource.isCatalogEmpty()) {
             return;
         }
         if (this.empty != null) {
-            this.empty.setText("Megakino wird geladen…");
+            this.empty.setText("Media Extra wird geladen…");
             this.empty.setVisibility(0);
         }
         IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda59
@@ -3506,7 +3506,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$loadKino$96() {
         try {
-            MegaKino.load();
+            ExtraMediaSource.load();
         } catch (Throwable unused) {
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda11
@@ -3521,10 +3521,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$loadKino$95() {
         if (this.tab == 5) {
             renderList();
-            if (MegaKino.isCatalogEmpty()) {
-                String err = MegaKino.lastError != null && !MegaKino.lastError.isEmpty()
-                        ? MegaKino.lastError
-                        : "Megakino-Katalog leer. Später erneut versuchen.";
+            if (ExtraMediaSource.isCatalogEmpty()) {
+                String err = ExtraMediaSource.lastError != null && !ExtraMediaSource.lastError.isEmpty()
+                        ? ExtraMediaSource.lastError
+                        : "Media Extra-Katalog leer. Später erneut versuchen.";
                 this.empty.setVisibility(0);
                 this.empty.setText(err);
             }
@@ -3550,9 +3550,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         String play = null;
         try {
             if (episode != null) {
-                play = MegaKino.playEpisode(episode);
+                play = ExtraMediaSource.playEpisode(episode);
             } else {
-                play = MegaKino.playUrl(media);
+                play = ExtraMediaSource.playUrl(media);
             }
         } catch (Throwable unused) {
             play = null;
@@ -3569,18 +3569,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$playMega$97(String str, Models.Episode episode, Models.Media media) {
         if (str == null || str.isEmpty()) {
-            String err = (MegaKino.lastError != null && !MegaKino.lastError.isEmpty())
-                    ? MegaKino.lastError
-                    : "Megakino-Stream nicht erreichbar. Host/Player prüfen oder später erneut versuchen.";
+            String err = (ExtraMediaSource.lastError != null && !ExtraMediaSource.lastError.isEmpty())
+                    ? ExtraMediaSource.lastError
+                    : "Media Extra-Stream nicht erreichbar. Host/Player prüfen oder später erneut versuchen.";
             Toast.makeText(this, err, 1).show();
         } else {
             long durMs = PlayerActivity.parseDurationMs(media != null ? media.duration : null);
             String sub = episode == null
                     ? join(media.genre, media.year)
-                    : MegaKino.formatEpisodeSub(episode);
+                    : ExtraMediaSource.formatEpisodeSub(episode);
             String playTitle = media.name;
-            if (MegaKino.owns(media) && media.series) {
-                String shown = MegaKino.showTitle(media.name);
+            if (ExtraMediaSource.owns(media) && media.series) {
+                String shown = ExtraMediaSource.showTitle(media.name);
                 if (!shown.isEmpty()) {
                     playTitle = shown;
                 }
@@ -3589,33 +3589,33 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
-    private File vavooListCache() {
-        return new File(getCacheDir(), "streamy2-vavoo-live-v4.json");
+    private File extraLiveListCache() {
+        return new File(getCacheDir(), "streamy2-extra-live-v4.json");
     }
 
-    private void loadVavoo() {
+    private void loadExtraLive() {
         TextView textView;
         if (!FeatureAccess.isUnlocked(this)) {
             return;
         }
-        if (this.vavooBusy) {
+        if (this.extraLiveBusy) {
             return;
         }
-        this.vavooBusy = true;
+        this.extraLiveBusy = true;
         if (this.tab == 4 && (textView = this.empty) != null) {
-            textView.setText("Vavoo wird geladen…");
+            textView.setText("Live Extra wird geladen…");
             this.empty.setVisibility(0);
         }
         IO.execute(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda4
             @Override // java.lang.Runnable
             public final void run() {
-                MainActivity.this.lambda$loadVavoo$101();
+                MainActivity.this.lambda$loadExtraLive$101();
             }
         });
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$loadVavoo$101() {
+    public /* synthetic */ void lambda$loadExtraLive$101() {
         Models.Catalog catalog = this.catalog;
         if (catalog == null) {
             catalog = DemoCatalog.build();
@@ -3623,7 +3623,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         final Models.Catalog catalogFinal = catalog;
         try {
-            Vavoo.merge(catalogFinal, vavooListCache());
+            ExtraLiveSource.merge(catalogFinal, extraLiveListCache());
             try {
                 this.guide.apply(catalogFinal.live);
             } catch (Throwable unused) {
@@ -3632,20 +3632,20 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             handler.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda42
                 @Override // java.lang.Runnable
                 public final void run() {
-                    MainActivity.this.lambda$loadVavoo$99();
+                    MainActivity.this.lambda$loadExtraLive$99();
                 }
             });
             handler.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda43
                 @Override // java.lang.Runnable
                 public final void run() {
-                    MainActivity.this.lambda$loadVavoo$100(catalogFinal);
+                    MainActivity.this.lambda$loadExtraLive$100(catalogFinal);
                 }
             });
         } catch (Throwable th) {
             UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda43
                 @Override // java.lang.Runnable
                 public final void run() {
-                    MainActivity.this.lambda$loadVavoo$100(catalogFinal);
+                    MainActivity.this.lambda$loadExtraLive$100(catalogFinal);
                 }
             });
             throw th;
@@ -3653,15 +3653,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$loadVavoo$99() {
-        ensureVavooEpg(false);
+    public /* synthetic */ void lambda$loadExtraLive$99() {
+        ensureExtraLiveEpg(false);
     }
 
     /* JADX INFO: Access modifiers changed from: private */
-    public /* synthetic */ void lambda$loadVavoo$100(Models.Catalog catalog) {
+    public /* synthetic */ void lambda$loadExtraLive$100(Models.Catalog catalog) {
         int i;
         TextView textView;
-        this.vavooBusy = false;
+        this.extraLiveBusy = false;
         Models.Catalog catalog2 = this.catalog;
         if (catalog2 == catalog) {
             App.live = catalog2.live;
@@ -3676,7 +3676,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 i = 0;
                 try {
                     for (Models.Channel channel : new ArrayList<>(catalog3.live)) {
-                        if (channel != null && "vavoo".equals(channel.categoryId)) {
+                        if (channel != null && "extra_live".equals(channel.categoryId)) {
                             i++;
                         }
                     }
@@ -3689,7 +3689,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (i != 0 || (textView = this.empty) == null) {
                 return;
             }
-            textView.setText("Vavoo-Katalog leer. Tab erneut öffnen oder später versuchen." + (Vavoo.lastError != null && !Vavoo.lastError.isEmpty() ? ("\n" + Vavoo.lastError) : ""));
+            textView.setText("Live Extra-Katalog leer. Tab erneut öffnen oder später versuchen." + (ExtraLiveSource.lastError != null && !ExtraLiveSource.lastError.isEmpty() ? ("\n" + ExtraLiveSource.lastError) : ""));
             this.empty.setVisibility(0);
         }
     }
@@ -3729,13 +3729,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                             MainActivity.this.paintTabs();
                             MainActivity.this.renderList();
                             MainActivity.this.setStatus("Cache · " + cached.live.size() + " Sender", false);
-                            // After first interactive frame: Vavoo/Kino/EPG in background
+                            // After first interactive frame: Live Extra/Kino/EPG in background
                             UI.post(new Runnable() {
                                 @Override
                                 public final void run() {
                                     try {
                                         if (FeatureAccess.isUnlocked(MainActivity.this)) {
-                                            MainActivity.this.loadVavoo();
+                                            MainActivity.this.loadExtraLive();
                                             MainActivity.this.loadKino();
                                         }
                                         MainActivity.this.prefetchEpg();
@@ -3795,7 +3795,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         prefetchEpg();
         ensureLiveEpg(false);
         if (FeatureAccess.isUnlocked(this)) {
-            loadVavoo();
+            loadExtraLive();
             loadKino();
         }
     }
@@ -3817,7 +3817,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             App.live = build.live;
             Toast.makeText(this, "Xtream nicht erreichbar — Demo geladen", 1).show();
             renderList();
-            loadVavoo();
+            loadExtraLive();
         }
     }
 
@@ -3912,7 +3912,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     });
                 }
 
-            } else if ((channel.vavooUrl == null || channel.vavooUrl.isEmpty()) && this.api != null) {
+            } else if ((channel.extraLiveUrl == null || channel.extraLiveUrl.isEmpty()) && this.api != null) {
                 synchronized (this.epgAsked) {
                     if (this.epgAsked.contains(channel.id)) {
                         return;
@@ -4002,7 +4002,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         updateEpgStatus();
     }
 
-    private void ensureVavooEpg(boolean force) { ensureNetEpg(force); }
+    private void ensureExtraLiveEpg(boolean force) { ensureNetEpg(force); }
     private void ensureLiveEpg(boolean force) { ensureNetEpg(force); }
 
     private void updateEpgStatus() {
@@ -4038,7 +4038,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         } else if (this.prefs.hasXtream()) {
             str = "Noch nicht geladen. „EPG jetzt aktualisieren“ tippen.";
         } else {
-            str = "Demo-EPG ist lokal. Vavoo lädt XMLTV automatisch.";
+            str = "Demo-EPG ist lokal. Live Extra lädt XMLTV automatisch.";
         }
         textView.setText(str);
     }
