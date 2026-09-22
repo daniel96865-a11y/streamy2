@@ -4,7 +4,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
-import androidx.test.core.app.ApplicationProvider;
+import org.robolectric.RuntimeEnvironment;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -16,7 +16,7 @@ public class FeatureAccessTest {
 
     @Before
     public void setUp() {
-        context = ApplicationProvider.getApplicationContext();
+        context = RuntimeEnvironment.getApplication();
         context.getSharedPreferences("streamy2_access", Context.MODE_PRIVATE).edit().clear().commit();
     }
 
