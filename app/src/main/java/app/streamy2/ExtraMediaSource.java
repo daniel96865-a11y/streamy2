@@ -34,7 +34,7 @@ final class ExtraMediaSource {
     static volatile boolean loading;
     static volatile String lastError = "";
     private static volatile long lastLoadedAt;
-    private static final long CACHE_TTL_MS = 5L * 60L * 1000L;
+    private static final long CACHE_TTL_MS = 2L * 60L * 1000L;
     static final List<Models.Media> serials;
     private static long tokenAt;
     private static String[] BASES = {"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
@@ -240,8 +240,11 @@ final class ExtraMediaSource {
                     groupedSerials = null;
                     loaded = true;
                 }
-                lastLoadedAt = System.currentTimeMillis();
+                if (!keepExisting) {
+                    lastLoadedAt = System.currentTimeMillis();
+                }
                 if (keepExisting) {
+                    lastLoadedAt = 0L;
                     lastError = "Aktualisierung lieferte keine frischen Daten — vorhandener Katalog bleibt sichtbar.";
                 } else if (films.isEmpty() && serials.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
@@ -255,9 +258,7 @@ final class ExtraMediaSource {
                 serialsGrouped();
             }
         } catch (Throwable th) {
-            if (hadExisting) {
-                lastLoadedAt = System.currentTimeMillis();
-            }
+            lastLoadedAt = 0L;
             lastError = "Media Extra-Aktualisierung fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
             loading = false;
