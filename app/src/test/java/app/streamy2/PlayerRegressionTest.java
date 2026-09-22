@@ -125,7 +125,7 @@ public class PlayerRegressionTest {
         assertEquals("Beendet", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_ENDED));
     }
 
-    @Test public void applyResizeDefaultsToZoomOnPhone() throws Exception {
+    @Test public void applyResizeSupportsAllThreeModes() throws Exception {
         startActivity();
         new Prefs(RuntimeEnvironment.getApplication()).setResize("zoom");
         call("applyResize", new Class[]{});
@@ -136,7 +136,23 @@ public class PlayerRegressionTest {
         new Prefs(RuntimeEnvironment.getApplication()).setResize("fit");
         call("applyResize", new Class[]{});
         assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT, view.getResizeMode());
-        assertEquals("Fit", btn.getText().toString());
+        assertEquals("Anpassen", btn.getText().toString());
+        new Prefs(RuntimeEnvironment.getApplication()).setResize("stretch");
+        call("applyResize", new Class[]{});
+        assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL, view.getResizeMode());
+        assertEquals("Strecken", btn.getText().toString());
+    }
+
+    @Test public void version346UsesFitAsMobileDefaultOnlyOnce() {
+        android.content.Context context = RuntimeEnvironment.getApplication();
+        context.getSharedPreferences("streamy2", 0).edit().clear().commit();
+        Prefs prefs = new Prefs(context);
+        prefs.setResize("zoom");
+        prefs.ensureMobilePlayerDefaults346();
+        assertEquals("mobile".equals(BuildConfig.FLAVOR) ? "fit" : "zoom", prefs.resize());
+        prefs.setResize("stretch");
+        prefs.ensureMobilePlayerDefaults346();
+        assertEquals("stretch", prefs.resize());
     }
 
     private static class FakeEngine implements LiveEngine {

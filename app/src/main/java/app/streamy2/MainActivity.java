@@ -119,6 +119,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView playerVavooVlc;
     private Prefs prefs;
     private TextView resizeFit;
+    private TextView resizeStretch;
     private TextView resizeZoom;
     private long resumeAt;
     private EditText search;
@@ -177,6 +178,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         super.onCreate(bundle);
         setContentView(R.layout.activity_main);
         this.prefs = new Prefs(this);
+        this.prefs.ensureMobilePlayerDefaults346();
         if (App.guide == null) {
             App.guide = new EpgGuide();
         }
@@ -203,6 +205,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.epg12 = (TextView) findViewById(R.id.epg12);
         this.epg24 = (TextView) findViewById(R.id.epg24);
         this.resizeFit = (TextView) findViewById(R.id.resizeFit);
+        this.resizeStretch = (TextView) findViewById(R.id.resizeStretch);
         this.resizeZoom = (TextView) findViewById(R.id.resizeZoom);
         this.playerLiveAuto = (TextView) findViewById(R.id.playerLiveAuto);
         this.playerLiveExo = (TextView) findViewById(R.id.playerLiveExo);
@@ -469,6 +472,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
                 MainActivity.this.lambda$onCreate$23(view3);
+            }
+        });
+        this.resizeStretch.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View view3) {
+                MainActivity.this.setResize("stretch");
             }
         });
         this.playerLiveAuto.setOnClickListener(new View.OnClickListener() {
@@ -1629,9 +1637,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void paintResize() {
         Theme.Accent accent = Theme.get(this.prefs.accent());
-        boolean equals = "zoom".equals(this.prefs.resize());
-        paintChip(this.resizeFit, !equals, accent);
-        paintChip(this.resizeZoom, equals, accent);
+        String resize = this.prefs.resize();
+        paintChip(this.resizeFit, "fit".equals(resize), accent);
+        paintChip(this.resizeZoom, "zoom".equals(resize), accent);
+        paintChip(this.resizeStretch, "stretch".equals(resize), accent);
     }
 
     private void setEpgInterval(int i) {
