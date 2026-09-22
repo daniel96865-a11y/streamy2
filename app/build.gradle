@@ -20,8 +20,8 @@ android {
         applicationId "app.streamy2"
         minSdk providers.gradleProperty('streamyMinSdk').map { it.toInteger() }.getOrElse(24)
         targetSdk 34
-        versionCode 166
-        versionName "3.46"
+        versionCode 167
+        versionName "3.47"
         vectorDrawables.useSupportLibrary = true
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
@@ -39,8 +39,8 @@ android {
         mobile {
             dimension "device"
             applicationId "app.streamy2.mobile"
-            versionCode 166
-            versionName "3.46"
+            versionCode 167
+            versionName "3.47"
             resValue "string", "app_name_variant", "Streamy 2 Mobile"
             buildConfigField "String", "UPDATE_CHANNEL", '"mobile"'
         }
