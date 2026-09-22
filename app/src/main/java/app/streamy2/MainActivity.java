@@ -1750,24 +1750,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (this.accessStatus != null) {
                 this.accessStatus.setText("Freigabecode wird geprüft…");
             }
-            IO.execute(() -> {
-                final FeatureAccess.Result result = FeatureAccess.redeem(MainActivity.this, pin);
-                UI.post(() -> {
-                    if (isFinishing() || isDestroyed()) return;
-                    if (result.ok) {
-                        dialog.dismiss();
-                        updateAccessUi();
-                        Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
-                        loadVavoo();
-                        loadKino();
-                        paintTabs();
-                        renderList();
-                    } else {
-                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
-                        if (this.accessStatus != null) this.accessStatus.setText(result.message);
-                        input.setError(result.message);
-                    }
-                });
+            FeatureAccess.redeemInWebView(MainActivity.this, pin, result -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (result.ok) {
+                    dialog.dismiss();
+                    updateAccessUi();
+                    Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
+                    loadVavoo();
+                    loadKino();
+                    paintTabs();
+                    renderList();
+                } else {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                    if (this.accessStatus != null) this.accessStatus.setText(result.message);
+                    input.setError(result.message);
+                }
             });
         }));
         dialog.show();
