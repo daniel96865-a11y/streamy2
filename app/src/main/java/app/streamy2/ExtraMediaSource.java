@@ -185,6 +185,7 @@ final class ExtraMediaSource {
 
     static void load() {
         loading = true;
+        final boolean hadExisting = !isCatalogEmpty();
         try {
             ensureToken();
             String base2 = base();
@@ -226,27 +227,38 @@ final class ExtraMediaSource {
                     return Integer.compare(seasonOf(a == null ? null : a.name), seasonOf(b == null ? null : b.name));
                 }
             });
+            boolean freshEmpty = parseList.isEmpty() && parseList2.isEmpty();
+            boolean keepExisting = freshEmpty && hadExisting;
             synchronized (ExtraMediaSource.class) {
-                List<Models.Media> list = films;
-                list.clear();
-                list.addAll(parseList);
-                List<Models.Media> list2 = serials;
-                list2.clear();
-                list2.addAll(parseList2);
-                groupedSerials = null;
-                loaded = true;
+                if (!keepExisting) {
+                    List<Models.Media> list = films;
+                    list.clear();
+                    list.addAll(parseList);
+                    List<Models.Media> list2 = serials;
+                    list2.clear();
+                    list2.addAll(parseList2);
+                    groupedSerials = null;
+                    loaded = true;
+                }
                 lastLoadedAt = System.currentTimeMillis();
-                if (list.isEmpty() && list2.isEmpty()) {
+                if (keepExisting) {
+                    lastError = "Aktualisierung lieferte keine frischen Daten — vorhandener Katalog bleibt sichtbar.";
+                } else if (films.isEmpty() && serials.isEmpty()) {
                     if (lastError == null || lastError.isEmpty()) {
-                        lastError = "Media Extra-Katalog leer — Token oder Host prüfen.";
+                        lastError = "Media Extra-Katalog leer. Später erneut versuchen.";
                     }
                 } else {
                     lastError = "";
                 }
             }
-            serialsGrouped();
+            if (!keepExisting) {
+                serialsGrouped();
+            }
         } catch (Throwable th) {
-            lastError = "Media Extra-Laden fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
+            if (hadExisting) {
+                lastLoadedAt = System.currentTimeMillis();
+            }
+            lastError = "Media Extra-Aktualisierung fehlgeschlagen: " + (th.getMessage() != null ? th.getMessage() : th.getClass().getSimpleName());
         } finally {
             loading = false;
         }
