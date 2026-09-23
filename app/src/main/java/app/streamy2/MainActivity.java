@@ -2106,29 +2106,33 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 && accessUnlock.getVisibility() == View.VISIBLE
                 && accessUnlock.isEnabled();
         if (findViewById5 != null) {
-            findViewById5.setNextFocusDownId(open(findViewById)
-                    ? R.id.inName
-                    : (accessFocusable ? R.id.btnAccessUnlock : R.id.headPlay));
+            findViewById5.setNextFocusDownId(open(findViewById) ? R.id.inName : R.id.headPlay);
         }
         if (accessUnlock != null) {
-            accessUnlock.setNextFocusUpId(R.id.headAccount);
-            accessUnlock.setNextFocusDownId(R.id.headPlay);
+            accessUnlock.setNextFocusUpId(R.id.headLook);
+            accessUnlock.setNextFocusDownId(R.id.btnCheckUpdate);
         }
         View getPin = findViewById(R.id.btnGetPin);
         if (getPin != null) {
-            getPin.setNextFocusDownId(accessFocusable ? R.id.btnAccessUnlock : R.id.headPlay);
+            getPin.setNextFocusDownId(R.id.headPlay);
         }
         if (findViewById6 != null) {
             findViewById6.setNextFocusDownId(open(findViewById2) ? R.id.fmtHls : R.id.headEpg);
-            findViewById6.setNextFocusUpId(accessFocusable ? R.id.btnAccessUnlock : R.id.headAccount);
+            findViewById6.setNextFocusUpId(R.id.headAccount);
         }
         if (findViewById7 != null) {
             findViewById7.setNextFocusDownId(open(findViewById3) ? R.id.epg6 : R.id.headLook);
             findViewById7.setNextFocusUpId(R.id.headPlay);
         }
         if (findViewById8 != null) {
-            findViewById8.setNextFocusDownId(open(findViewById4) ? R.id.cols1 : R.id.btnCheckUpdate);
+            findViewById8.setNextFocusDownId(open(findViewById4)
+                    ? R.id.cols1
+                    : (accessFocusable ? R.id.btnAccessUnlock : R.id.btnCheckUpdate));
             findViewById8.setNextFocusUpId(R.id.headEpg);
+        }
+        View checkUpdate = findViewById(R.id.btnCheckUpdate);
+        if (checkUpdate != null) {
+            checkUpdate.setNextFocusUpId(accessFocusable ? R.id.btnAccessUnlock : R.id.headLook);
         }
     }
 

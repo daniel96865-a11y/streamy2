@@ -785,13 +785,17 @@ public class PlayerActivity extends AppCompatActivity {
             } catch (Throwable ignored) {}
             if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.recoverTries < 2) {
                 PlayerActivity.this.recoverTries++;
+                // A provider-side auth/resolve change can leave the cached signature valid-looking
+                // but unusable. Force a fresh login/resolve before replaying the canonical URL.
+                ExtraLiveSource.invalidateSig();
+                PlayerActivity.this.extraLiveHot = null;
                 LocalHls.forget(PlayerActivity.this.extraLiveKeep);
                 if (PlayerActivity.this.index >= 0 && PlayerActivity.this.index < PlayerActivity.this.queue.size()) {
                     PlayerActivity.this.queue.set(PlayerActivity.this.index, PlayerActivity.this.extraLiveKeep);
                 }
                 if (PlayerActivity.this.errorView != null) {
                     PlayerActivity.this.errorView.setVisibility(0);
-                    PlayerActivity.this.errorView.setText("Live Extra neu…");
+                    PlayerActivity.this.errorView.setText("Live Extra wird neu verbunden…");
                 }
                 PlayerActivity.UI.postDelayed(new Runnable() { // from class: app.streamy2.PlayerActivity$3$$ExternalSyntheticLambda0
                     @Override // java.lang.Runnable
