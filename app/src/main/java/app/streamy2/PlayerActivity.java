@@ -736,6 +736,12 @@ public class PlayerActivity extends AppCompatActivity {
             if (!foreground || useVlc || userPaused) return;
             if (i == 3) {
                 PlayerActivity.this.freezeTicks = 0;
+                try {
+                    if (PlayerActivity.this.player != null) {
+                        PlayerActivity.this.pickPlayableAudio(PlayerActivity.this.player.getCurrentTracks());
+                    }
+                } catch (Throwable ignored) {
+                }
             }
             if (i == 4 && PlayerActivity.this.liveMode && !PlayerActivity.this.userPaused) {
                 final long request = playbackGeneration;
@@ -2309,7 +2315,7 @@ public class PlayerActivity extends AppCompatActivity {
         for (Tracks.Group group : tracks.getGroups()) {
             if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
             for (int i = 0; i < group.length; i++) {
-                if (group.isTrackSelected(i) && group.isTrackSupported(i)) {
+                if (group.isTrackSelected(i) && group.isTrackSupported(i, true)) {
                     selectedGroup = group;
                     selectedIndex = i;
                     selectedFormat = group.getTrackFormat(i);
@@ -2368,7 +2374,7 @@ public class PlayerActivity extends AppCompatActivity {
         for (Tracks.Group group : tracks.getGroups()) {
             if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
             for (int i = 0; i < group.length; i++) {
-                if (!group.isTrackSupported(i)) continue;
+                if (!group.isTrackSupported(i, true)) continue;
                 Format format = group.getTrackFormat(i);
                 int channels = format.channelCount > 0 ? format.channelCount : 2;
                 if (stereoOnly && channels > 2) continue;
