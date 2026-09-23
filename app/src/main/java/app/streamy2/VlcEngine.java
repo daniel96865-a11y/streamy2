@@ -79,7 +79,6 @@ final class VlcEngine implements LiveEngine {
     void prepare() {
         if (this.lib == null || this.player == null) {
             ArrayList arrayList = new ArrayList();
-            arrayList.add("--aout=opensles");
             int cacheMs = new Prefs(this.ctx).bufferMs();
             arrayList.add("--network-caching=" + cacheMs);
             arrayList.add("--live-caching=" + cacheMs);
@@ -90,7 +89,7 @@ final class VlcEngine implements LiveEngine {
             arrayList.add("--clock-jitter=0");
             arrayList.add("--clock-synchro=0");
             String audioMode = new Prefs(this.ctx).audioMode();
-            if ("stereo".equals(audioMode) || !Tv.isTv(this.ctx)) {
+            if (!"surround".equals(audioMode)) {
                 arrayList.add("--stereo-mode=1");
             }
             this.lib = new LibVLC(this.ctx, arrayList);

@@ -11,6 +11,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            app
+            buildSrc
+            gradle
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

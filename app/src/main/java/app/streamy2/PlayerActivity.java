@@ -554,9 +554,9 @@ public class PlayerActivity extends AppCompatActivity {
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
         DefaultTrackSelector defaultTrackSelector = new DefaultTrackSelector(this);
         String audioMode = new Prefs(this).audioMode();
-        int maxAudioChannels = "stereo".equals(audioMode) ? 2 : 8;
+        int maxAudioChannels = "surround".equals(audioMode) ? 8 : 2;
         DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(maxAudioChannels).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
-        if ("surround".equals(audioMode) || ("auto".equals(audioMode) && Tv.isTv(this))) {
+        if ("surround".equals(audioMode)) {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG);
         } else {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC);
@@ -2234,13 +2234,11 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$playCurrent$17() {
         if (this.resolving) {
-            this.resolving = false;
             TextView textView = this.errorView;
             if (textView != null) {
                 textView.setVisibility(0);
-                this.errorView.setText("Live Extra antwortet nicht. Signatur/Resolve prüfen.");
+                this.errorView.setText("Live Extra antwortet langsam. Verbindung wird weiter geprüft…");
             }
-            toastPlaybackError("Live Extra antwortet nicht");
         }
     }
 
@@ -2313,17 +2311,18 @@ public class PlayerActivity extends AppCompatActivity {
             if (selectedFormat != null) break;
         }
 
-        if ("stereo".equals(mode)) {
-            if (selectedFormat != null && (selectedFormat.channelCount <= 0 || selectedFormat.channelCount <= 2)) {
+        if ("stereo".equals(mode) || "auto".equals(mode)) {
+            String selectedMime = selectedFormat == null || selectedFormat.sampleMimeType == null
+                    ? "" : selectedFormat.sampleMimeType.toLowerCase(Locale.US);
+            if (selectedFormat != null && (selectedFormat.channelCount <= 0 || selectedFormat.channelCount <= 2)
+                    && (selectedMime.contains("aac") || selectedMime.contains("mpeg")
+                    || selectedMime.contains("opus"))) {
                 return;
             }
             AudioPick stereo = bestAudioTrack(tracks, selectedFormat, true);
-            if (stereo != null) applyAudioPick(stereo);
-            return;
-        }
-
-        boolean preferSurround = "surround".equals(mode) || ("auto".equals(mode) && Tv.isTv(this));
-        if (!preferSurround && selectedFormat != null) {
+            if (stereo != null && (stereo.group != selectedGroup || stereo.index != selectedIndex)) {
+                applyAudioPick(stereo);
+            }
             return;
         }
 
@@ -2372,10 +2371,15 @@ public class PlayerActivity extends AppCompatActivity {
                 int score = sameLanguage ? 10000 : 0;
                 score += Math.min(channels, 8) * 100;
                 String mime = format.sampleMimeType == null ? "" : format.sampleMimeType.toLowerCase(Locale.US);
-                if (mime.contains("eac3") || mime.contains("e-ac3")) score += 40;
-                else if (mime.contains("ac3")) score += 30;
-                else if (mime.contains("dts")) score += 20;
-                else if (mime.contains("aac")) score += 10;
+                if (stereoOnly) {
+                    if (mime.contains("aac")) score += 50;
+                    else if (mime.contains("mpeg") || mime.contains("opus")) score += 40;
+                } else {
+                    if (mime.contains("eac3") || mime.contains("e-ac3")) score += 40;
+                    else if (mime.contains("ac3")) score += 30;
+                    else if (mime.contains("dts")) score += 20;
+                    else if (mime.contains("aac")) score += 10;
+                }
 
                 if (best == null || score > best.score) {
                     best = new AudioPick(group, i, format, score);
