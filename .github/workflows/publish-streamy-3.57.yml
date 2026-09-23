@@ -1,0 +1,114 @@
+name: Publish Streamy 2 3.57
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.57.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.57 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy357
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10745323071/zip > /tmp/streamy357/artifact.zip
+          unzip -q /tmp/streamy357/artifact.zip -d /tmp/streamy357/artifact
+          test -f /tmp/streamy357/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy357/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy357/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.57 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.57:refs/remotes/origin/publish/3.57
+          git show origin/publish/3.57:.release-3.57/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy357/tv.patch.zst
+          git show origin/publish/3.57:.release-3.57/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy357/mobile.patch.zst
+
+          echo "b0859f6410cc7d5aea113a1f8038554d0f94fffa211c7d955fd269845309e4e4  /tmp/streamy357/tv.patch.zst" | sha256sum -c -
+          echo "fb2ee02d6bca04a4105357ea9b74f3d88d35c553938ee147de8b395d32ca6278  /tmp/streamy357/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy357/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy357/tv.patch.zst -o /tmp/streamy357/Streamy2-TV-3.57.apk
+          zstd -q -d --patch-from=/tmp/streamy357/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy357/mobile.patch.zst -o /tmp/streamy357/Streamy2-Mobile-3.57.apk
+
+          echo "3a905b4c3aa59d283fbb29aaeb6a6fe6fcf49595d8f4de7e49473f3cd6c912ae  /tmp/streamy357/Streamy2-TV-3.57.apk" | sha256sum -c -
+          echo "4eacaa2fe8b4c5f70d26eb54b683a6e4bedad7541cddffed36cd4938c215ed40  /tmp/streamy357/Streamy2-Mobile-3.57.apk" | sha256sum -c -
+
+      - name: Verify version package and rotated signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy357/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy357/Streamy2-TV-3.57.apk | tee /tmp/streamy357/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='177' versionName='3.57'" /tmp/streamy357/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy357/Streamy2-Mobile-3.57.apk | tee /tmp/streamy357/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='177' versionName='3.57'" /tmp/streamy357/mobile.badging
+
+          for apk in /tmp/streamy357/Streamy2-TV-3.57.apk /tmp/streamy357/Streamy2-Mobile-3.57.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy357/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy357/verify.txt
+            grep -qi "9d7f061b552e04c4e257f59df209c0860d5fc095aa1fc25e782480a5b46761ce" /tmp/streamy357/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy357/Streamy2-TV-3.57.apk docs/downloads/
+          cp /tmp/streamy357/Streamy2-Mobile-3.57.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":177,"versionName":"3.57","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.57.apk","changelog":"Neu in 3.57: Zusatzfunktionen stehen jetzt weiter unten direkt über Daten & Updates. Außerdem verbindet sich Live Extra nach Netzwerkfehlern mit frischer Anmeldung und erneuter Stream-Auflösung neu."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":177,"versionName":"3.57","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.57.apk","changelog":"Neu in 3.57: Zusatzfunktionen stehen jetzt weiter unten direkt über Daten & Updates. Außerdem verbindet sich Live Extra nach Netzwerkfehlern mit frischer Anmeldung und erneuter Stream-Auflösung neu."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.57.apk docs/downloads/Streamy2-Mobile-3.57.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.57 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy357/notes.md <<'EOF'
+          Streamy 2 3.57
+
+          - Zusatzfunktionen stehen jetzt direkt über Daten & Updates.
+          - TV-Fokusreihenfolge an die neue Position angepasst.
+          - Live Extra verwirft nach Netzwerkfehlern die alte Anmeldung und löst den Stream frisch neu auf.
+          - TV und Mobile, Version 3.57 / Build 177.
+          EOF
+
+          if gh release view v3.57 >/dev/null 2>&1; then
+            gh release upload v3.57 /tmp/streamy357/Streamy2-TV-3.57.apk /tmp/streamy357/Streamy2-Mobile-3.57.apk --clobber
+          else
+            gh release create v3.57               /tmp/streamy357/Streamy2-TV-3.57.apk               /tmp/streamy357/Streamy2-Mobile-3.57.apk               --target main               --title "Streamy 2 3.57"               --notes-file /tmp/streamy357/notes.md               --latest
+          fi
