@@ -1,0 +1,107 @@
+name: Publish Streamy 2 3.64
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.64.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.64 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy364
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10763522961/zip > /tmp/streamy364/artifact.zip
+          unzip -q /tmp/streamy364/artifact.zip -d /tmp/streamy364/artifact
+          test -f /tmp/streamy364/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy364/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy364/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.64:refs/remotes/origin/publish/3.64
+          git show origin/publish/3.64:.release-3.64/tv.patch.zst > /tmp/streamy364/tv.patch.zst
+          git show origin/publish/3.64:.release-3.64/mobile.patch.zst > /tmp/streamy364/mobile.patch.zst
+          echo '8107ba16169728be161e60bcfe8110b1f672709e3ebc667029f85d0ba4d18197  /tmp/streamy364/tv.patch.zst' | sha256sum -c -
+          echo '9cf65fba92f28d472cf3af5ba3e4bd50dc2ada005da78b93dc4cfedc5e331360  /tmp/streamy364/mobile.patch.zst' | sha256sum -c -
+          zstd -q -d --patch-from=/tmp/streamy364/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy364/tv.patch.zst -o /tmp/streamy364/Streamy2-TV-3.64.apk
+          zstd -q -d --patch-from=/tmp/streamy364/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy364/mobile.patch.zst -o /tmp/streamy364/Streamy2-Mobile-3.64.apk
+          echo '98323947676ff976efda41f816e93c36c0764b41409fa717012ce55e3c1c084a  /tmp/streamy364/Streamy2-TV-3.64.apk' | sha256sum -c -
+          echo 'd9a3140f074eab29f72d585f1577eb306fa1dee28bbe1625aff7a8cc8f52927e  /tmp/streamy364/Streamy2-Mobile-3.64.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy364/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy364/Streamy2-TV-3.64.apk | grep -q "package: name='app.streamy2' versionCode='184' versionName='3.64'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy364/Streamy2-Mobile-3.64.apk | grep -q "package: name='app.streamy2.mobile' versionCode='184' versionName='3.64'"
+          for apk in /tmp/streamy364/Streamy2-TV-3.64.apk /tmp/streamy364/Streamy2-Mobile-3.64.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy364/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy364/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy364/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy364/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy364/Streamy2-TV-3.64.apk docs/downloads/
+          cp /tmp/streamy364/Streamy2-Mobile-3.64.apk docs/downloads/
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":184,"versionName":"3.64","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.64.apk","changelog":"Neu in 3.64: schnellerer Live-Start mit früherem Player-Wechsel, VLC-Pufferstufen, begrenzte Live-Extra-Auflösung und bessere Fehlerbehandlung."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":184,"versionName":"3.64","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.64.apk","changelog":"Neu in 3.64: schnellerer Live-Start mit früherem Player-Wechsel, VLC-Pufferstufen, begrenzte Live-Extra-Auflösung und bessere Fehlerbehandlung."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.64.apk docs/downloads/Streamy2-Mobile-3.64.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.64 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy364/notes.md <<'EOF'
+          Streamy 2 3.64 — Live-Player und Live Extra
+
+          - Live-TV startet im Automatikmodus schneller mit früherem Wechsel zu VLC bei ausbleibendem Bild.
+          - Die Pufferstufen wirken jetzt auch auf VLC.
+          - Live Extra begrenzt fehlgeschlagene Stream-Auflösungen und zeigt Fehler anstelle endloser Neustarts.
+          - TV und Mobile: Version 3.64 / Build 184, mit der bisherigen Release-Signatur.
+          EOF
+          gh release create v3.64 \
+            /tmp/streamy364/Streamy2-TV-3.64.apk \
+            /tmp/streamy364/Streamy2-Mobile-3.64.apk \
+            --target main \
+            --title 'Streamy 2 3.64 — Live-Player und Live Extra' \
+            --notes-file /tmp/streamy364/notes.md \
+            --latest
