@@ -1,0 +1,115 @@
+name: Publish Streamy 2 3.59
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.59.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.59 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy359
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10747508980/zip > /tmp/streamy359/artifact.zip
+          unzip -q /tmp/streamy359/artifact.zip -d /tmp/streamy359/artifact
+          test -f /tmp/streamy359/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy359/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy359/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.59 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.59:refs/remotes/origin/publish/3.59
+          git show origin/publish/3.59:.release-3.59/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy359/tv.patch.zst
+          git show origin/publish/3.59:.release-3.59/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy359/mobile.patch.zst
+
+          echo "830b14c3662dd2d5cedeb81bd3e315a1ffa0608d0decd133e134ac27e27df9c4  /tmp/streamy359/tv.patch.zst" | sha256sum -c -
+          echo "ec04c90cc77a14e6b9e0bcb268ef0d87ebb0d7e100f44eb4c65e37a0d5fea108  /tmp/streamy359/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy359/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy359/tv.patch.zst -o /tmp/streamy359/Streamy2-TV-3.59.apk
+          zstd -q -d --patch-from=/tmp/streamy359/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy359/mobile.patch.zst -o /tmp/streamy359/Streamy2-Mobile-3.59.apk
+
+          echo "b7d1bcac7678805d343f85f8f731c26f9c4d0aefa69d6ae390129dfbada876e8  /tmp/streamy359/Streamy2-TV-3.59.apk" | sha256sum -c -
+          echo "92afe1bbc5ae731e0f97cfe41bcbccf8c08751954a01376143e4262a4ecefaa4  /tmp/streamy359/Streamy2-Mobile-3.59.apk" | sha256sum -c -
+
+      - name: Verify version package and Streamy signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy359/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy359/Streamy2-TV-3.59.apk | tee /tmp/streamy359/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='179' versionName='3.59'" /tmp/streamy359/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy359/Streamy2-Mobile-3.59.apk | tee /tmp/streamy359/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='179' versionName='3.59'" /tmp/streamy359/mobile.badging
+
+          for apk in /tmp/streamy359/Streamy2-TV-3.59.apk /tmp/streamy359/Streamy2-Mobile-3.59.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy359/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy359/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy359/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy359/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy359/Streamy2-TV-3.59.apk docs/downloads/
+          cp /tmp/streamy359/Streamy2-Mobile-3.59.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":179,"versionName":"3.59","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.59.apk","changelog":"Neu in 3.59: Live Extra erhält bei DNS-Problemen mit finalen Stream-Hosts einen gezielten Fallback. Normale Sender und andere Verbindungen verwenden weiterhin unverändert das Android-System-DNS."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":179,"versionName":"3.59","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.59.apk","changelog":"Neu in 3.59: Live Extra erhält bei DNS-Problemen mit finalen Stream-Hosts einen gezielten Fallback. Normale Sender und andere Verbindungen verwenden weiterhin unverändert das Android-System-DNS."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.59.apk docs/downloads/Streamy2-Mobile-3.59.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.59 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy359/notes.md <<'EOF'
+          Streamy 2 3.59 — Live Extra DNS-Fix
+
+          - Behebt DNS-Auflösungsfehler bei finalen Live-Extra-Stream-Hosts.
+          - Android-System-DNS bleibt der Standard.
+          - Der zusätzliche DNS-Fallback greift nur bei den betroffenen Live-Extra-Hosts.
+          - TV und Mobile, Version 3.59 / Build 179.
+          EOF
+
+          if gh release view v3.59 >/dev/null 2>&1; then
+            gh release upload v3.59 /tmp/streamy359/Streamy2-TV-3.59.apk /tmp/streamy359/Streamy2-Mobile-3.59.apk --clobber
+          else
+            gh release create v3.59               /tmp/streamy359/Streamy2-TV-3.59.apk               /tmp/streamy359/Streamy2-Mobile-3.59.apk               --target main               --title "Streamy 2 3.59 — Live Extra DNS-Fix"               --notes-file /tmp/streamy359/notes.md               --latest
+          fi
