@@ -40,8 +40,8 @@ android {
         mobile {
             dimension "device"
             applicationId "app.streamy2.mobile"
-            versionCode 174
-            versionName "3.54"
+            // Inherit versionCode/versionName from defaultConfig so TV and Mobile
+            // can never drift onto different release numbers again.
             resValue "string", "app_name_variant", "Streamy 2 Mobile"
             buildConfigField "String", "UPDATE_CHANNEL", '"mobile"'
         }
