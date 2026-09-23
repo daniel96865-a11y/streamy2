@@ -173,30 +173,22 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
                 }
-                if (PlayerActivity.this.freezeTicks == 12
+                if (PlayerActivity.this.freezeTicks == 7
                         && PlayerActivity.this.liveMode
                         && !PlayerActivity.this.catchup
                         && !PlayerActivity.this.isExtraLivePlayback()
                         && "auto".equals(PlayerActivity.this.playerPref())) {
-                    // Match the longer start gate used by the Streamy 3 player.
-                    // Switching engines too early causes avoidable black frames on slow IPTV feeds.
-                    PlayerActivity.this.lastFallbackReason = "Streamy Player länger als 12 s im Puffer";
+                    PlayerActivity.this.lastFallbackReason = "Streamy Player länger als 7 s im Puffer";
                     if (PlayerActivity.this.switchToVlc()) {
                         PlayerActivity.this.freezeTicks = 0;
                         PlayerActivity.UI.postDelayed(this, 1000L);
                         return;
                     }
                 }
-                if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.liveMode && !PlayerActivity.this.catchup) {
-                    try {
-                        PlayerActivity.this.player.seekToDefaultPosition();
-                    } catch (Throwable unused) {
-                    }
-                }
             } else {
                 PlayerActivity.this.freezeTicks = 0;
             }
-            if (PlayerActivity.this.freezeTicks >= 18) {
+            if (PlayerActivity.this.freezeTicks >= 12) {
                 PlayerActivity.this.freezeTicks = 0;
                 PlayerActivity.this.recoverStuck();
             }
@@ -2112,7 +2104,7 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         int i = this.index;
-        if (i < 0 || i >= this.queue.size() || this.player == null) {
+        if (i < 0 || i >= this.queue.size()) {
             TextView textView2 = this.errorView;
             if (textView2 != null) {
                 textView2.setVisibility(0);
@@ -2149,7 +2141,7 @@ public class PlayerActivity extends AppCompatActivity {
                         if (request == playbackGeneration) PlayerActivity.this.lambda$playCurrent$17();
                     }
                 };
-                UI.postDelayed(runnable, 10000);
+                UI.postDelayed(runnable, 16000);
                 IO.execute(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda21
                     @Override // java.lang.Runnable
                     public final void run() {
@@ -2171,6 +2163,14 @@ public class PlayerActivity extends AppCompatActivity {
             } else if ((!z && wantVlc()) || "vlc".equals(this.forceEngine)) {
                 playWithVlc(str);
                 return;
+            }
+            if (this.player == null) {
+                if (!"exo".equals(this.forceEngine) && !"exo".equals(playerPref())) {
+                    lastFallbackReason = "Streamy Player konnte nicht initialisiert werden";
+                    playWithVlc(str);
+                    return;
+                }
+                throw new IllegalStateException("Streamy Player nicht verfügbar");
             }
             hideVlc();
             this.useVlc = false;
@@ -2216,6 +2216,13 @@ public class PlayerActivity extends AppCompatActivity {
             TextView textView4 = this.errorView;
             String msg = "Wiedergabe fehlgeschlagen" + (unused.getMessage() != null ? (": " + unused.getMessage()) : ".");
             this.lastExoError = msg;
+            if (this.liveMode && !this.catchup && !this.useVlc
+                    && !isExtraLivePlayback() && "auto".equals(playerPref())
+                    && this.index >= 0 && this.index < this.queue.size()) {
+                this.lastFallbackReason = msg;
+                playWithVlc(this.queue.get(this.index));
+                return;
+            }
             if (textView4 != null) {
                 textView4.setVisibility(0);
                 this.errorView.setText(msg);
@@ -3235,12 +3242,17 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$swapExtraLive$22(String str) {
         this.resolving = false;
-        if (str != null && !str.isEmpty()) {
-            this.extraLiveHot = str;
-            int i = this.index;
-            if (i >= 0 && i < this.queue.size()) {
-                this.queue.set(this.index, str);
+        if (str == null || str.isEmpty()) {
+            if (this.errorView != null) {
+                this.errorView.setVisibility(View.VISIBLE);
+                this.errorView.setText("Live Extra: " + ExtraLiveSource.diagnosticSummary());
             }
+            return;
+        }
+        this.extraLiveHot = str;
+        int i = this.index;
+        if (i >= 0 && i < this.queue.size()) {
+            this.queue.set(this.index, str);
         }
         playCurrent();
     }
@@ -3249,7 +3261,26 @@ public class PlayerActivity extends AppCompatActivity {
     public void recoverStuck() {
         if (!foreground || userPaused || isFinishing()) return;
         if (this.extraLiveKeep != null) {
-            swapExtraLive(true);
+            if (this.resolving) return;
+            if (this.recoverTries++ < 2) {
+                this.extraLiveHot = null;
+                ExtraLiveSource.invalidateSig();
+                swapExtraLive(false);
+            } else if (this.errorView != null) {
+                this.errorView.setVisibility(View.VISIBLE);
+                this.errorView.setText("Live Extra antwortet nicht: " + ExtraLiveSource.diagnosticSummary());
+            }
+            return;
+        }
+        if (this.liveMode && !this.catchup && this.index + 1 < this.queue.size()) {
+            this.index++;
+            this.freezeTicks = 0;
+            if ("auto".equals(playerPref())) {
+                hideVlc();
+                this.useVlc = false;
+            }
+            this.lastFallbackReason = "Alternative Stream-URL wird versucht";
+            playCurrent();
             return;
         }
         if (!this.useVlc && this.liveMode && !this.catchup
