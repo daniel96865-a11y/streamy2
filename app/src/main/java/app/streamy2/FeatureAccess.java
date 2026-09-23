@@ -337,9 +337,14 @@ final class FeatureAccess {
     private static boolean isDefinitiveRevocation(Result result) {
         if (result == null || result.ok) return false;
         String message = result.message == null ? "" : result.message.toLowerCase();
-        return message.contains("gesperrt")
-                || message.contains("ungültig")
-                || message.contains("bereits verwendet");
+        // Keep an already valid local grant on transport, parser and
+        // "already used" responses. Only an explicit revocation may
+        // kick the device out of restricted tabs.
+        return message.contains("freigabe wurde gesperrt")
+                || message.contains("gerät wurde gesperrt")
+                || message.contains("freigabe widerrufen")
+                || message.contains("zugang widerrufen")
+                || message.contains("revoked");
     }
 
     private static SharedPreferences prefs(Context context) {
