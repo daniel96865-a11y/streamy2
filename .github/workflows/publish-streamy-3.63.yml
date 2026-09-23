@@ -1,0 +1,124 @@
+name: Publish Streamy 2 3.63
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.63.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.63 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy363
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10763235083/zip > /tmp/streamy363/artifact.zip
+          unzip -q /tmp/streamy363/artifact.zip -d /tmp/streamy363/artifact
+          test -f /tmp/streamy363/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy363/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy363/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.63 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.63:refs/remotes/origin/publish/3.63
+
+          git ls-tree -r --name-only origin/publish/3.63 '.release-3.63/tv' | sort | while read -r p; do
+            git show "origin/publish/3.63:$p"
+          done | tr -d '\n\r' | base64 -d > /tmp/streamy363/tv.patch.zst
+
+          git ls-tree -r --name-only origin/publish/3.63 '.release-3.63/mobile' | sort | while read -r p; do
+            git show "origin/publish/3.63:$p"
+          done | tr -d '\n\r' | base64 -d > /tmp/streamy363/mobile.patch.zst
+
+          echo "e747fbbdfc18dea54d174033832678912162884ce7781fbbe60c62d03145ae7c  /tmp/streamy363/tv.patch.zst" | sha256sum -c -
+          echo "f04b38a8cfde02b74f20701b8f7c421d197c1de4aadd6b95f46f9863b7dc8f18  /tmp/streamy363/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy363/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy363/tv.patch.zst -o /tmp/streamy363/Streamy2-TV-3.63.apk
+          zstd -q -d --patch-from=/tmp/streamy363/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy363/mobile.patch.zst -o /tmp/streamy363/Streamy2-Mobile-3.63.apk
+
+          echo "923b29ba72cecc6d64ba554e8d68f80ca0e23d305d964a87daadfe305103b607  /tmp/streamy363/Streamy2-TV-3.63.apk" | sha256sum -c -
+          echo "c018b6e897da635b4baeb7b0c5248715754592cbc6bc303d8dc81362f367228a  /tmp/streamy363/Streamy2-Mobile-3.63.apk" | sha256sum -c -
+
+      - name: Verify version package and Streamy signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy363/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy363/Streamy2-TV-3.63.apk | tee /tmp/streamy363/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='183' versionName='3.63'" /tmp/streamy363/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy363/Streamy2-Mobile-3.63.apk | tee /tmp/streamy363/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='183' versionName='3.63'" /tmp/streamy363/mobile.badging
+
+          for apk in /tmp/streamy363/Streamy2-TV-3.63.apk /tmp/streamy363/Streamy2-Mobile-3.63.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy363/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy363/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy363/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy363/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy363/Streamy2-TV-3.63.apk docs/downloads/
+          cp /tmp/streamy363/Streamy2-Mobile-3.63.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":183,"versionName":"3.63","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.63.apk","changelog":"Neu in 3.63: Live Extra wurde beim Stream-Auflösen korrigiert. Die originale Sender-Adresse bleibt erhalten und nur der Resolve-Server wird gewechselt. Auf TV-Geräten führt eine technische Freigabe-Prüfung nicht mehr fälschlich zum Verlassen von Live Extra."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":183,"versionName":"3.63","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.63.apk","changelog":"Neu in 3.63: Live Extra wurde beim Stream-Auflösen korrigiert. Die originale Sender-Adresse bleibt erhalten und nur der Resolve-Server wird gewechselt. Auf TV-Geräten führt eine technische Freigabe-Prüfung nicht mehr fälschlich zum Verlassen von Live Extra."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.63.apk docs/downloads/Streamy2-Mobile-3.63.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Streamy 2 3.63 updater APKs"
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy363/notes.md <<'EOF'
+          Streamy 2 3.63 — Live Extra Stabilität
+
+          - Stream-Auflösung korrigiert: die originale Sender-Adresse bleibt erhalten.
+          - Bei einem Fehler wird der alternative Resolve-Server mit frischer Sitzung erneut versucht.
+          - TV-Freigabe bleibt bei technischen Prüfungsfehlern erhalten.
+          - Die Diagnose-Erweiterungen aus 3.62 bleiben enthalten.
+          - TV und Mobile: Version 3.63 / Build 183.
+          EOF
+
+          if gh release view v3.63 >/dev/null 2>&1; then
+            gh release upload v3.63 /tmp/streamy363/Streamy2-TV-3.63.apk /tmp/streamy363/Streamy2-Mobile-3.63.apk --clobber
+          else
+            gh release create v3.63               /tmp/streamy363/Streamy2-TV-3.63.apk               /tmp/streamy363/Streamy2-Mobile-3.63.apk               --target main               --title "Streamy 2 3.63 — Live Extra Stabilität"               --notes-file /tmp/streamy363/notes.md               --latest
+          fi
