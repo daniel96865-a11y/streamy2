@@ -80,8 +80,9 @@ final class VlcEngine implements LiveEngine {
         if (this.lib == null || this.player == null) {
             ArrayList arrayList = new ArrayList();
             arrayList.add("--aout=opensles");
-            arrayList.add("--network-caching=2500");
-            arrayList.add("--live-caching=2500");
+            int cacheMs = new Prefs(this.ctx).bufferMs();
+            arrayList.add("--network-caching=" + cacheMs);
+            arrayList.add("--live-caching=" + cacheMs);
             arrayList.add("--http-reconnect");
             arrayList.add("--drop-late-frames");
             arrayList.add("--skip-frames");
@@ -150,7 +151,7 @@ final class VlcEngine implements LiveEngine {
                 applyVideoScale();
                 Media media = new Media(this.lib, Uri.parse(str));
                 media.setHWDecoderEnabled(z, false);
-                int i = Tv.isTv(this.ctx) ? 2800 : 2200;
+                int i = new Prefs(this.ctx).bufferMs();
                 media.addOption(":network-caching=" + i);
                 media.addOption(":live-caching=" + i);
                 media.addOption(":http-reconnect");

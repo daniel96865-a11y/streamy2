@@ -45,6 +45,14 @@ final class OkPlay {
     }
 
     static String postJson(String str, String str2, String signature) {
+        return postJson(str, str2, signature, 20);
+    }
+
+    static String postJsonFast(String str, String str2, String signature) {
+        return postJson(str, str2, signature, 7);
+    }
+
+    private static String postJson(String str, String str2, String signature, int timeoutSeconds) {
         try {
             Request.Builder rb = new Request.Builder().url(str)
                 .header(HttpHeaders.USER_AGENT, "MediaHubMX/2")
@@ -56,7 +64,7 @@ final class OkPlay {
             if (signature != null && !signature.isEmpty()) {
                 rb.header("mediahubmx-signature", signature);
             }
-            try (Response execute = client().newBuilder().connectTimeout(8L, TimeUnit.SECONDS).readTimeout(15L, TimeUnit.SECONDS).callTimeout(20L, TimeUnit.SECONDS).retryOnConnectionFailure(true).build().newCall(rb.post(RequestBody.create(str2, JSON)).build()).execute()) {
+            try (Response execute = client().newBuilder().connectTimeout(Math.min(8, timeoutSeconds), TimeUnit.SECONDS).readTimeout(Math.min(15, timeoutSeconds), TimeUnit.SECONDS).callTimeout(timeoutSeconds, TimeUnit.SECONDS).retryOnConnectionFailure(true).build().newCall(rb.post(RequestBody.create(str2, JSON)).build()).execute()) {
                 if (!execute.isSuccessful()) {
                     if (execute != null) {
                         execute.close();
