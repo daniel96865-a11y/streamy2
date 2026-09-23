@@ -1,0 +1,107 @@
+name: Publish Streamy 2 3.66
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.66.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.66 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy366
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10767220880/zip > /tmp/streamy366/artifact.zip
+          unzip -q /tmp/streamy366/artifact.zip -d /tmp/streamy366/artifact
+          test -f /tmp/streamy366/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy366/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy366/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.66:refs/remotes/origin/publish/3.66
+          git show origin/publish/3.66:.release-3.66/tv.patch.zst > /tmp/streamy366/tv.patch.zst
+          git show origin/publish/3.66:.release-3.66/mobile.patch.zst > /tmp/streamy366/mobile.patch.zst
+          echo '228bcb007d8f623c4434d81aa65fa33d87a259807052d767bae00e255e8346f5  /tmp/streamy366/tv.patch.zst' | sha256sum -c -
+          echo 'b8e4330aac21e2e7955d85189ba6555e22dea4127b4f0472f83d8a766ad54f24  /tmp/streamy366/mobile.patch.zst' | sha256sum -c -
+          zstd -q -d --patch-from=/tmp/streamy366/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy366/tv.patch.zst -o /tmp/streamy366/Streamy2-TV-3.66.apk
+          zstd -q -d --patch-from=/tmp/streamy366/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy366/mobile.patch.zst -o /tmp/streamy366/Streamy2-Mobile-3.66.apk
+          echo 'b80c896c87b4187cdf62c483bbfd03b3dd6e132889631818467a9a2a2d7feb8f  /tmp/streamy366/Streamy2-TV-3.66.apk' | sha256sum -c -
+          echo 'b68f956583fe913280e0db8654ad10871d3814751295ac9a0772c2018e1103dc  /tmp/streamy366/Streamy2-Mobile-3.66.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy366/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy366/Streamy2-TV-3.66.apk | grep -q "package: name='app.streamy2' versionCode='186' versionName='3.66'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy366/Streamy2-Mobile-3.66.apk | grep -q "package: name='app.streamy2.mobile' versionCode='186' versionName='3.66'"
+          for apk in /tmp/streamy366/Streamy2-TV-3.66.apk /tmp/streamy366/Streamy2-Mobile-3.66.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy366/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy366/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy366/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy366/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy366/Streamy2-TV-3.66.apk docs/downloads/
+          cp /tmp/streamy366/Streamy2-Mobile-3.66.apk docs/downloads/
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":186,"versionName":"3.66","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.66.apk","changelog":"3.66 korrigiert den Live-Player: längere Start- und Pufferzeiten, erneute Vavoo-Signaturversuche und automatische Tonspurwahl ohne erzwungenes Stereo."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":186,"versionName":"3.66","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.66.apk","changelog":"3.66 korrigiert den Live-Player: längere Start- und Pufferzeiten, erneute Vavoo-Signaturversuche und automatische Tonspurwahl ohne erzwungenes Stereo."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.66.apk docs/downloads/Streamy2-Mobile-3.66.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.66 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy366/notes.md <<'EOF'
+          Streamy 2 3.66 — Live-Player Korrektur
+
+          - Der Live-Player wartet wieder länger, bevor er automatisch zu VLC wechselt.
+          - Vavoo versucht den vorherigen Anmelde- und Resolve-Weg erneut; langsame Anfragen bleiben aktiv.
+          - Die automatische Tonspurwahl erzwingt kein Stereo mehr; die VLC-Pufferstufen sind konservativer.
+          - TV und Mobile: Version 3.66 / Build 186, mit der bisherigen Release-Signatur.
+          EOF
+          gh release create v3.66 \
+            /tmp/streamy366/Streamy2-TV-3.66.apk \
+            /tmp/streamy366/Streamy2-Mobile-3.66.apk \
+            --target main \
+            --title 'Streamy 2 3.66 — Live-Player Korrektur' \
+            --notes-file /tmp/streamy366/notes.md \
+            --latest
