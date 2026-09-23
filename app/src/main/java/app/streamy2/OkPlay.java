@@ -27,6 +27,7 @@ import org.json.JSONObject;
 
 /* loaded from: classes.dex */
 final class OkPlay {
+    static volatile String diagnosticDns = "DNS: noch nicht geprüft";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private static volatile OkHttpClient client;
 
@@ -83,11 +84,18 @@ final class OkPlay {
 
     private static List<InetAddress> lookupWithFallback(String hostname) throws UnknownHostException {
         try {
-            return Dns.SYSTEM.lookup(hostname);
+            List<InetAddress> system = Dns.SYSTEM.lookup(hostname);
+            diagnosticDns = "DNS: System OK · " + hostname;
+            return system;
         } catch (UnknownHostException systemError) {
+            diagnosticDns = "DNS: System fehlgeschlagen · " + hostname;
             if (!isLiveExtraHost(hostname)) throw systemError;
             List<InetAddress> fallback = dohLookup(hostname);
-            if (fallback != null && !fallback.isEmpty()) return fallback;
+            if (fallback != null && !fallback.isEmpty()) {
+                diagnosticDns = "DNS: Fallback OK · " + hostname + " · " + fallback.size() + " IP";
+                return fallback;
+            }
+            diagnosticDns = "DNS: System + Fallback fehlgeschlagen · " + hostname;
             throw systemError;
         }
     }
@@ -137,6 +145,10 @@ final class OkPlay {
             }
             if (connection != null) connection.disconnect();
         }
+    }
+
+    static String diagnosticDns() {
+        return diagnosticDns == null || diagnosticDns.isEmpty() ? "DNS: —" : diagnosticDns;
     }
 
     static synchronized OkHttpClient client() {
