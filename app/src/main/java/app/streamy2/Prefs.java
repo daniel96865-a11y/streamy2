@@ -377,10 +377,10 @@ public class Prefs {
     public int bufferMs() {
         String buffer = buffer();
         switch (buffer) {
-            case "low": return 800;
+            case "low": return 1500;
             case "max": return 8000;
             case "high": return 4000;
-            default: return 1800;
+            default: return 2500;
         }
     }
 

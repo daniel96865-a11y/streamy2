@@ -79,6 +79,7 @@ final class VlcEngine implements LiveEngine {
     void prepare() {
         if (this.lib == null || this.player == null) {
             ArrayList arrayList = new ArrayList();
+            arrayList.add("--aout=opensles");
             int cacheMs = new Prefs(this.ctx).bufferMs();
             arrayList.add("--network-caching=" + cacheMs);
             arrayList.add("--live-caching=" + cacheMs);
