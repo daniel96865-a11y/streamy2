@@ -628,6 +628,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         bindFold(R.id.headPlay, R.id.bodyPlay, R.id.chevPlay);
         bindFold(R.id.headEpg, R.id.bodyEpg, R.id.chevEpg);
         bindFold(R.id.headLook, R.id.bodyLook, R.id.chevLook);
+        installSettingsFocusEffects();
         buildAccentRow();
         this.search.addTextChangedListener(new TextWatcher() { // from class: app.streamy2.MainActivity.3
             @Override // android.text.TextWatcher
@@ -2021,6 +2022,23 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.epg24, epgIntervalHours == 24, accent);
     }
 
+    private void installSettingsFocusEffects() {
+        int[] ids = new int[]{R.id.headAccount, R.id.headPlay, R.id.headEpg, R.id.headLook};
+        for (int id : ids) {
+            final View card = findViewById(id);
+            if (card == null) continue;
+            card.setOnFocusChangeListener((view, focused) -> {
+                float scale = focused && Tv.isTv(MainActivity.this) ? 1.025f : 1.0f;
+                view.animate().scaleX(scale).scaleY(scale).setDuration(100L).start();
+                if (Build.VERSION.SDK_INT >= 21) {
+                    view.setElevation(focused
+                            ? 10f * getResources().getDisplayMetrics().density
+                            : 0f);
+                }
+            });
+        }
+    }
+
     private void bindFold(int i, final int i2, final int i3) {
         final View findViewById = findViewById(i);
         final View findViewById2 = findViewById(i2);
@@ -2054,13 +2072,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void setFold(int i, int i2, boolean z) {
-        View findViewById = findViewById(i);
-        TextView textView = (TextView) findViewById(i2);
-        if (findViewById != null) {
-            findViewById.setVisibility(z ? 0 : 8);
+        View body = findViewById(i);
+        TextView chevron = (TextView) findViewById(i2);
+        if (body != null) {
+            body.setVisibility(z ? View.VISIBLE : View.GONE);
         }
-        if (textView != null) {
-            textView.setText(z ? "▲" : "▼");
+        if (chevron != null) {
+            chevron.setText(z ? "⌃" : "›");
+        }
+        int headId = 0;
+        if (i == R.id.bodyAccount) headId = R.id.headAccount;
+        else if (i == R.id.bodyPlay) headId = R.id.headPlay;
+        else if (i == R.id.bodyEpg) headId = R.id.headEpg;
+        else if (i == R.id.bodyLook) headId = R.id.headLook;
+        if (headId != 0) {
+            View head = findViewById(headId);
+            if (head != null) head.setSelected(z);
         }
         relinkFolds();
     }
