@@ -1,0 +1,107 @@
+name: Publish Streamy 2 3.65
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.65.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.65 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy365
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10765718600/zip > /tmp/streamy365/artifact.zip
+          unzip -q /tmp/streamy365/artifact.zip -d /tmp/streamy365/artifact
+          test -f /tmp/streamy365/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy365/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy365/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.65:refs/remotes/origin/publish/3.65
+          git show origin/publish/3.65:.release-3.65/tv.patch.zst > /tmp/streamy365/tv.patch.zst
+          git show origin/publish/3.65:.release-3.65/mobile.patch.zst > /tmp/streamy365/mobile.patch.zst
+          echo 'a9de0223ffa87c2d86514c5da4fdc528c871b3096a965c6e984dadbe202b2546  /tmp/streamy365/tv.patch.zst' | sha256sum -c -
+          echo '5d5ad66275517edefbbceca8db946d596215bba69f2c799358c73321108afec7  /tmp/streamy365/mobile.patch.zst' | sha256sum -c -
+          zstd -q -d --patch-from=/tmp/streamy365/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy365/tv.patch.zst -o /tmp/streamy365/Streamy2-TV-3.65.apk
+          zstd -q -d --patch-from=/tmp/streamy365/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy365/mobile.patch.zst -o /tmp/streamy365/Streamy2-Mobile-3.65.apk
+          echo 'bfc2b4df257864efdcdf9e61854e27379577b6949ee92279d7937a6f0c459b24  /tmp/streamy365/Streamy2-TV-3.65.apk' | sha256sum -c -
+          echo '2119f044b299cd2d565b22b334a5375ded8ec3a25df05ff47763f6ce0d0e39b3  /tmp/streamy365/Streamy2-Mobile-3.65.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy365/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy365/Streamy2-TV-3.65.apk | grep -q "package: name='app.streamy2' versionCode='185' versionName='3.65'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy365/Streamy2-Mobile-3.65.apk | grep -q "package: name='app.streamy2.mobile' versionCode='185' versionName='3.65'"
+          for apk in /tmp/streamy365/Streamy2-TV-3.65.apk /tmp/streamy365/Streamy2-Mobile-3.65.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy365/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy365/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy365/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy365/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy365/Streamy2-TV-3.65.apk docs/downloads/
+          cp /tmp/streamy365/Streamy2-Mobile-3.65.apk docs/downloads/
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":185,"versionName":"3.65","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.65.apk","changelog":"Neu in 3.65: Live-Extra-Resolve mit Signaturerneuerung und genauerer Fehlermeldung; automatischer Stereo-Ton und zuverlässigere VLC-Tonausgabe."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":185,"versionName":"3.65","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.65.apk","changelog":"Neu in 3.65: Live-Extra-Resolve mit Signaturerneuerung und genauerer Fehlermeldung; automatischer Stereo-Ton und zuverlässigere VLC-Tonausgabe."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.65.apk docs/downloads/Streamy2-Mobile-3.65.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.65 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy365/notes.md <<'EOF'
+          Streamy 2 3.65 — Live Extra und Ton
+
+          - Live Extra erneuert eine abgewiesene Signatur und prüft die zweite Quelle mit klarer Fehlermeldung.
+          - Langsame Resolve-Anfragen bleiben aktiv, während der Player den Fortschritt anzeigt.
+          - Automatischer Ton bevorzugt eine kompatible Stereo-Spur; VLC verwendet die Geräte-Tonausgabe.
+          - TV und Mobile: Version 3.65 / Build 185, mit der bisherigen Release-Signatur.
+          EOF
+          gh release create v3.65 \
+            /tmp/streamy365/Streamy2-TV-3.65.apk \
+            /tmp/streamy365/Streamy2-Mobile-3.65.apk \
+            --target main \
+            --title 'Streamy 2 3.65 — Live Extra und Ton' \
+            --notes-file /tmp/streamy365/notes.md \
+            --latest
