@@ -377,10 +377,10 @@ public class Prefs {
     public int bufferMs() {
         String buffer = buffer();
         switch (buffer) {
-            case "low": return DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
-            case "max": return 15000;
-            case "high": return 8000;
-            default: return 5000;
+            case "low": return 800;
+            case "max": return 8000;
+            case "high": return 4000;
+            default: return 1800;
         }
     }
 

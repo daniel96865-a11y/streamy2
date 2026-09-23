@@ -159,46 +159,45 @@ final class ExtraLiveSource {
         final String channelUrl = str;
         final String[] resolveHosts = {"https://vavoo.to", "https://kool.to"};
 
+        // A failed resolve used to perform four sequential requests, including
+        // repeated authentication. Keep one bounded attempt per mirror.
         for (String host : resolveHosts) {
-            for (int attempt = 0; attempt < 2; attempt++) {
-                try {
-                    if (attempt > 0) invalidateSig();
-                    String sigNow = signature();
-                    diagnosticAuthHost = host;
-                    diagnosticStage = (sigNow == null || sigNow.isEmpty())
-                            ? "Resolve: keine Signatur"
-                            : "Resolve: Anfrage " + (attempt + 1);
+            try {
+                String sigNow = signature();
+                diagnosticAuthHost = host;
+                diagnosticStage = (sigNow == null || sigNow.isEmpty())
+                        ? "Resolve: keine Signatur"
+                        : "Resolve: Anfrage";
 
-                    if (sigNow == null || sigNow.isEmpty()) continue;
+                if (sigNow == null || sigNow.isEmpty()) break;
 
-                    JSONObject payload = new JSONObject();
-                    payload.put("language", "de");
-                    payload.put("region", "DE");
-                    payload.put("url", channelUrl);
-                    payload.put("clientVersion", "3.0.2");
+                JSONObject payload = new JSONObject();
+                payload.put("language", "de");
+                payload.put("region", "DE");
+                payload.put("url", channelUrl);
+                payload.put("clientVersion", "3.0.2");
 
-                    String response = OkPlay.postJson(
-                            host + "/mediahubmx-resolve.json",
-                            payload.toString(),
-                            sigNow);
-                    String resolved = parseResolve(response);
-                    if (resolved != null && !resolved.isEmpty()) {
-                        activeHost = host;
-                        diagnosticStage = "Resolve: URL erhalten";
-                        lastError = "";
-                        try {
-                            diagnosticResolveHost = new URL(resolved).getHost();
-                        } catch (Throwable ignored) {
-                            diagnosticResolveHost = "";
-                        }
-                        return resolved;
+                String response = OkPlay.postJsonFast(
+                        host + "/mediahubmx-resolve.json",
+                        payload.toString(),
+                        sigNow);
+                String resolved = parseResolve(response);
+                if (resolved != null && !resolved.isEmpty()) {
+                    activeHost = host;
+                    diagnosticStage = "Resolve: URL erhalten";
+                    lastError = "";
+                    try {
+                        diagnosticResolveHost = new URL(resolved).getHost();
+                    } catch (Throwable ignored) {
+                        diagnosticResolveHost = "";
                     }
-
-                    diagnosticStage = "Resolve: fehlgeschlagen";
-                    lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
-                } catch (Throwable ignored) {
-                    diagnosticStage = "Resolve: Ausnahme";
+                    return resolved;
                 }
+
+                diagnosticStage = "Resolve: fehlgeschlagen";
+                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
+            } catch (Throwable ignored) {
+                diagnosticStage = "Resolve: Ausnahme";
             }
         }
         return null;
