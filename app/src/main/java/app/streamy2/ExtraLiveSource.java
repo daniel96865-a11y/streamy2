@@ -62,7 +62,7 @@ final class ExtraLiveSource {
             // Network refreshes must never block the whole tab for tens of seconds.
             List<Models.Channel> fetchGermany = readCache(file);
             if (fetchGermany == null || fetchGermany.isEmpty()) {
-                fetchGermany = fetchGermany();
+                fetchGermany = fetchGermanyFast();
                 if (fetchGermany != null && !fetchGermany.isEmpty()) {
                     writeCache(file, fetchGermany);
                 }
@@ -260,7 +260,7 @@ final class ExtraLiveSource {
         String[][] strArr = {new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv", "Germany"}, new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}, new String[]{"https://kool.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv", "Germany"}, new String[]{"https://vavoo.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv", "Germany"}, new String[]{"https://www.vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}};
         for (int i = 0; i < 5; i++) {
             String[] strArr2 = strArr[i];
-            List<Models.Channel> fetchPage = fetchPage(strArr2[0], strArr2[1], strArr2[2], strArr2[3]);
+            List<Models.Channel> fetchPage = fetchPage(strArr2[0], strArr2[1], strArr2[2], strArr2[3], 20);
             if (!fetchPage.isEmpty()) {
                 activeHost = strArr2[0];
                 lastError = "";
@@ -268,8 +268,27 @@ final class ExtraLiveSource {
             }
         }
         if (lastError == null || lastError.isEmpty()) {
-            lastError = "Live-Extra-Katalog leer — Host/Signatur prüfen.";
+            lastError = "Live Extra momentan nicht erreichbar.";
         }
+        return new ArrayList();
+    }
+
+    private static List<Models.Channel> fetchGermanyFast() {
+        String[][] fastHosts = {
+                new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv", "Germany"},
+                new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}
+        };
+        long deadline = System.currentTimeMillis() + 9000L;
+        for (String[] host : fastHosts) {
+            if (System.currentTimeMillis() >= deadline) break;
+            List<Models.Channel> firstPage = fetchPage(host[0], host[1], host[2], host[3], 1);
+            if (!firstPage.isEmpty()) {
+                activeHost = host[0];
+                lastError = "";
+                return firstPage;
+            }
+        }
+        lastError = "Live Extra momentan nicht erreichbar. Gespeicherte Sender werden verwendet, sobald vorhanden.";
         return new ArrayList();
     }
 
@@ -280,7 +299,7 @@ final class ExtraLiveSource {
     /* JADX WARN: Type inference failed for: r15v3 */
     /* JADX WARN: Type inference failed for: r15v4, types: [int] */
     /* JADX WARN: Type inference failed for: r15v6 */
-    private static List<Models.Channel> fetchPage(String str, String str2, String str3, String str4) {
+    private static List<Models.Channel> fetchPage(String str, String str2, String str3, String str4, int maxPages) {
         JSONObject jSONObject;
         JSONArray optJSONArray;
         int optInt;
@@ -296,7 +315,7 @@ final class ExtraLiveSource {
         boolean z = false;
         int i = 0;
         int i2 = 0;
-        while (i < 20) {
+        while (i < Math.max(1, maxPages)) {
             try {
                 JSONObject jSONObject2 = new JSONObject();
                 jSONObject2.put("group", str4);
