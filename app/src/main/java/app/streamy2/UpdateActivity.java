@@ -26,7 +26,6 @@ import androidx.core.content.FileProvider;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -339,11 +338,6 @@ public final class UpdateActivity extends Activity {
                 : PackageManager.GET_SIGNATURES;
     }
 
-    private static final String STREAMY_CERT_LEGACY =
-            "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f";
-    private static final String STREAMY_CERT_ROTATED =
-            "9d7f061b552e04c4e257f59df209c0860d5fc095aa1fc25e782480a5b46761ce";
-
     static boolean signingCertsMatch(PackageInfo installed, PackageInfo archive) {
         Set<String> installedCerts = certKeys(installed);
         Set<String> archiveCerts = certKeys(archive);
@@ -353,12 +347,7 @@ public final class UpdateActivity extends Activity {
         for (String key : archiveCerts) {
             if (installedCerts.contains(key)) return true;
         }
-        // Streamy 2 intentionally rotates from the historical release certificate
-        // to the current certificate. Android validates the proof-of-rotation in the
-        // APK; this check only prevents our pre-install validation from rejecting the
-        // same legitimate old -> new transition before Android gets to verify it.
-        return installedCerts.contains(STREAMY_CERT_LEGACY)
-                && archiveCerts.contains(STREAMY_CERT_ROTATED);
+        return false;
     }
 
     private static Set<String> certKeys(PackageInfo info) {
@@ -376,15 +365,7 @@ public final class UpdateActivity extends Activity {
         }
         if (signatures == null) return keys;
         for (Signature signature : signatures) {
-            if (signature == null) continue;
-            try {
-                byte[] digest = MessageDigest.getInstance("SHA-256").digest(signature.toByteArray());
-                StringBuilder hex = new StringBuilder(digest.length * 2);
-                for (byte value : digest) hex.append(String.format("%02x", value & 0xff));
-                keys.add(hex.toString());
-            } catch (Exception ignored) {
-                keys.add(Arrays.toString(signature.toByteArray()));
-            }
+            if (signature != null) keys.add(Arrays.toString(signature.toByteArray()));
         }
         return keys;
     }
