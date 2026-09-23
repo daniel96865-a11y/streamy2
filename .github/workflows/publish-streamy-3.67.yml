@@ -1,0 +1,113 @@
+name: Publish Streamy 2 3.67
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.67.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.67 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy367
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10769890845/zip > /tmp/streamy367/artifact.zip
+          unzip -q /tmp/streamy367/artifact.zip -d /tmp/streamy367/artifact
+          test -f /tmp/streamy367/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy367/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy367/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.67:refs/remotes/origin/publish/3.67
+
+          git ls-tree -r --name-only origin/publish/3.67 '.release-3.67/tv' | sort | while read -r p; do git show "origin/publish/3.67:$p"; done | tr -d '\n\r' | base64 -d > /tmp/streamy367/tv.patch.zst
+          git ls-tree -r --name-only origin/publish/3.67 '.release-3.67/mobile' | sort | while read -r p; do git show "origin/publish/3.67:$p"; done | tr -d '\n\r' | base64 -d > /tmp/streamy367/mobile.patch.zst
+
+          echo 'f47b44f9d19c605975fa27af7c53f9b5ffa81d56f48b3e7d3570a487d922d168  /tmp/streamy367/tv.patch.zst' | sha256sum -c -
+          echo '2459481a732d585588561bae0715907aea2d531ddcd5aff1a2cd60ac4f24eabd  /tmp/streamy367/mobile.patch.zst' | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy367/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy367/tv.patch.zst -o /tmp/streamy367/Streamy2-TV-3.67.apk
+          zstd -q -d --patch-from=/tmp/streamy367/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy367/mobile.patch.zst -o /tmp/streamy367/Streamy2-Mobile-3.67.apk
+
+          echo '7e103b1836016d415f35dcde153980f1a257746ea04c25b4ec8383ff36aa4eb4  /tmp/streamy367/Streamy2-TV-3.67.apk' | sha256sum -c -
+          echo 'bb7ab35276f0deab7f61f30eedcc69485eaecff133064689314d90000520a7af  /tmp/streamy367/Streamy2-Mobile-3.67.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy367/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy367/Streamy2-TV-3.67.apk | grep -q "package: name='app.streamy2' versionCode='187' versionName='3.67'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy367/Streamy2-Mobile-3.67.apk | grep -q "package: name='app.streamy2.mobile' versionCode='187' versionName='3.67'"
+          for apk in /tmp/streamy367/Streamy2-TV-3.67.apk /tmp/streamy367/Streamy2-Mobile-3.67.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy367/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy367/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy367/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy367/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy367/Streamy2-TV-3.67.apk docs/downloads/
+          cp /tmp/streamy367/Streamy2-Mobile-3.67.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":187,"versionName":"3.67","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.67.apk","changelog":"3.67 behebt fehlenden Ton bei vorhandener Audiospur: erkannte Audio-Tracks werden beim Start automatisch aktiviert; auch eingeschränkt unterstützte Tonspuren werden berücksichtigt."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":187,"versionName":"3.67","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.67.apk","changelog":"3.67 behebt fehlenden Ton bei vorhandener Audiospur: erkannte Audio-Tracks werden beim Start automatisch aktiviert; auch eingeschränkt unterstützte Tonspuren werden berücksichtigt."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.67.apk docs/downloads/Streamy2-Mobile-3.67.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.67 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy367/notes.md <<'EOF'
+          Streamy 2 3.67 — automatische Tonspurwahl
+
+          - Behebt Sender, bei denen eine Audiospur erkannt wurde, aber nicht automatisch aktiv war.
+          - Die vorhandene Tonspur wird beim Bereit-Zustand des Players erneut automatisch ausgewählt.
+          - Auch von Media3 nur eingeschränkt unterstützte, aber abspielbare Audiospuren werden berücksichtigt.
+          - TV und Mobile: Version 3.67 / Build 187, mit derselben Release-Signatur wie 3.66.
+          EOF
+
+          if gh release view v3.67 >/dev/null 2>&1; then
+            gh release upload v3.67 /tmp/streamy367/Streamy2-TV-3.67.apk /tmp/streamy367/Streamy2-Mobile-3.67.apk --clobber
+          else
+            gh release create v3.67               /tmp/streamy367/Streamy2-TV-3.67.apk               /tmp/streamy367/Streamy2-Mobile-3.67.apk               --target main               --title 'Streamy 2 3.67 — automatische Tonspurwahl'               --notes-file /tmp/streamy367/notes.md               --latest
+          fi
