@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p /tmp/streamy356
-          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10742197584/zip > /tmp/streamy356/artifact.zip
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10743491738/zip > /tmp/streamy356/artifact.zip
           unzip -q /tmp/streamy356/artifact.zip -d /tmp/streamy356/artifact
           test -f /tmp/streamy356/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
           test -f /tmp/streamy356/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
@@ -40,14 +40,14 @@ jobs:
           git show origin/publish/3.56:.release-3.56/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy356/tv.patch.zst
           git show origin/publish/3.56:.release-3.56/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy356/mobile.patch.zst
 
-          echo "7c59cd5222e40f0d483e254c5766f0105fcefadd9caa3e09bb648c07eabbb24e  /tmp/streamy356/tv.patch.zst" | sha256sum -c -
-          echo "e69766232a71ed812d0b33b69442b67eacec9ee1c10c8d8b105a8211ade84f58  /tmp/streamy356/mobile.patch.zst" | sha256sum -c -
+          echo "1f20801c19171bf33db26de36ed7eeb72bce5d5f58dc851c73e1445dc8693c5d  /tmp/streamy356/tv.patch.zst" | sha256sum -c -
+          echo "765caecbe41ba9a59ebba63730a57272af184590bcb9c697212f4266ae92a521  /tmp/streamy356/mobile.patch.zst" | sha256sum -c -
 
           zstd -q -d --patch-from=/tmp/streamy356/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy356/tv.patch.zst -o /tmp/streamy356/Streamy2-TV-3.56.apk
           zstd -q -d --patch-from=/tmp/streamy356/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy356/mobile.patch.zst -o /tmp/streamy356/Streamy2-Mobile-3.56.apk
 
-          echo "ad02bc4a27dce1b9dd3a48d58dea936b4d6cf0e942291c8ca2d00c87731afe12  /tmp/streamy356/Streamy2-TV-3.56.apk" | sha256sum -c -
-          echo "084ab935baf33aaf122c7ff1652f70d80f806622e7114769d4cbfff628a3b62a  /tmp/streamy356/Streamy2-Mobile-3.56.apk" | sha256sum -c -
+          echo "470110e24876721275e5b3de608072000372ca9ac6cd5c453fee55a3351539e8  /tmp/streamy356/Streamy2-TV-3.56.apk" | sha256sum -c -
+          echo "be5800cad71f2697546bf5bcd62f71089e213c06a7626ddcd35a284330025298  /tmp/streamy356/Streamy2-Mobile-3.56.apk" | sha256sum -c -
 
       - name: Verify version package and signer
         shell: bash
