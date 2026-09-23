@@ -3801,9 +3801,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         final boolean hadLiveCache = liveCache.exists() && liveCache.length() >= 8L;
         try {
             ExtraLiveSource.merge(catalogFinal, liveCache);
-            if (hadLiveCache) {
-                IO.execute(() -> ExtraLiveSource.refreshCache(liveCache));
-            }
+            IO.execute(() -> ExtraLiveSource.refreshCache(liveCache));
             try {
                 this.guide.apply(catalogFinal.live);
             } catch (Throwable unused) {
