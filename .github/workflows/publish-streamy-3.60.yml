@@ -1,0 +1,115 @@
+name: Publish Streamy 2 3.60
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.60.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.60 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy360
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10759073877/zip > /tmp/streamy360/artifact.zip
+          unzip -q /tmp/streamy360/artifact.zip -d /tmp/streamy360/artifact
+          test -f /tmp/streamy360/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy360/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy360/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.60 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.60:refs/remotes/origin/publish/3.60
+          git show origin/publish/3.60:.release-3.60/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy360/tv.patch.zst
+          git show origin/publish/3.60:.release-3.60/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy360/mobile.patch.zst
+
+          echo "4effd88bc7b200cc7c82cf466a2f94bf4bed460afa312313759b8fba9513414b  /tmp/streamy360/tv.patch.zst" | sha256sum -c -
+          echo "e2eb38b3efe6217cea0b17d09834568cf93a8e9ad010794e74437d96384a661d  /tmp/streamy360/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy360/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy360/tv.patch.zst -o /tmp/streamy360/Streamy2-TV-3.60.apk
+          zstd -q -d --patch-from=/tmp/streamy360/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy360/mobile.patch.zst -o /tmp/streamy360/Streamy2-Mobile-3.60.apk
+
+          echo "73c530fe85986c4bc8b8b05b736c1cb4f925ff9fa94bf1c402e07ad620153bfe  /tmp/streamy360/Streamy2-TV-3.60.apk" | sha256sum -c -
+          echo "a69721a05268a47a8f360f181706925401d3c4e3040e18a4a8c13bcfd8b4ada5  /tmp/streamy360/Streamy2-Mobile-3.60.apk" | sha256sum -c -
+
+      - name: Verify version package and Streamy signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy360/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy360/Streamy2-TV-3.60.apk | tee /tmp/streamy360/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='180' versionName='3.60'" /tmp/streamy360/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy360/Streamy2-Mobile-3.60.apk | tee /tmp/streamy360/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='180' versionName='3.60'" /tmp/streamy360/mobile.badging
+
+          for apk in /tmp/streamy360/Streamy2-TV-3.60.apk /tmp/streamy360/Streamy2-Mobile-3.60.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy360/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy360/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy360/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy360/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy360/Streamy2-TV-3.60.apk docs/downloads/
+          cp /tmp/streamy360/Streamy2-Mobile-3.60.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":180,"versionName":"3.60","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.60.apk","changelog":"Neu in 3.60: Live Extra zeigt den zuletzt erfolgreichen Senderkatalog sofort aus dem Cache. Die Netzwerk-Aktualisierung läuft anschließend im Hintergrund und blockiert den Bereich nicht mehr. Der DNS-Fallback bleibt erhalten."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":180,"versionName":"3.60","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.60.apk","changelog":"Neu in 3.60: Live Extra zeigt den zuletzt erfolgreichen Senderkatalog sofort aus dem Cache. Die Netzwerk-Aktualisierung läuft anschließend im Hintergrund und blockiert den Bereich nicht mehr. Der DNS-Fallback bleibt erhalten."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.60.apk docs/downloads/Streamy2-Mobile-3.60.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.60 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy360/notes.md <<'EOF'
+          Streamy 2 3.60 — Live Extra schneller verfügbar
+
+          - Behebt DNS-Auflösungsfehler bei finalen Live-Extra-Stream-Hosts.
+          - Android-System-DNS bleibt der Standard.
+          - Der zusätzliche DNS-Fallback greift nur bei den betroffenen Live-Extra-Hosts.
+          - TV und Mobile, Version 3.60 / Build 180.
+          EOF
+
+          if gh release view v3.60 >/dev/null 2>&1; then
+            gh release upload v3.60 /tmp/streamy360/Streamy2-TV-3.60.apk /tmp/streamy360/Streamy2-Mobile-3.60.apk --clobber
+          else
+            gh release create v3.60               /tmp/streamy360/Streamy2-TV-3.60.apk               /tmp/streamy360/Streamy2-Mobile-3.60.apk               --target main               --title "Streamy 2 3.60 — Live Extra schneller verfügbar"               --notes-file /tmp/streamy360/notes.md               --latest
+          fi
