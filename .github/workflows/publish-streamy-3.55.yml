@@ -1,0 +1,107 @@
+name: Publish Streamy 2 3.55
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.55.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download successful 3.55 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy355
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10732174884/zip > /tmp/streamy355/artifact.zip
+          unzip -q /tmp/streamy355/artifact.zip -d /tmp/streamy355/artifact
+          test -f /tmp/streamy355/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy355/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy355/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.55 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.55:refs/remotes/origin/publish/3.55
+          git show origin/publish/3.55:.release-3.55/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy355/tv.patch.zst
+          git show origin/publish/3.55:.release-3.55/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy355/mobile.patch.zst
+
+          echo "3842d25260ce94a9379ddfb465b38c6d3331d04f94a21be05f8e20749c30e96b  /tmp/streamy355/tv.patch.zst" | sha256sum -c -
+          echo "a08295799007410d8f88ff78d4c9c98666adb2f20f7301c246424bfcb50fc65e  /tmp/streamy355/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy355/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy355/tv.patch.zst -o /tmp/streamy355/Streamy2-TV-3.55.apk
+          zstd -q -d --patch-from=/tmp/streamy355/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy355/mobile.patch.zst -o /tmp/streamy355/Streamy2-Mobile-3.55.apk
+
+          echo "cf080d2240af0d6c07033ba45df6823dfdecabade4934e2e43f8cf161ad98f64  /tmp/streamy355/Streamy2-TV-3.55.apk" | sha256sum -c -
+          echo "4d03b71c37b4b61035e3aa939c1cc56eeacfa93c7b6cf2243e1bf6ed75cf4767  /tmp/streamy355/Streamy2-Mobile-3.55.apk" | sha256sum -c -
+
+      - name: Verify APK signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy355/artifact/build-tools-export/apksigner.jar
+          for apk in /tmp/streamy355/Streamy2-TV-3.55.apk /tmp/streamy355/Streamy2-Mobile-3.55.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/verify.txt
+            grep -qi "9d7f061b552e04c4e257f59df209c0860d5fc095aa1fc25e782480a5b46761ce" /tmp/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy355/Streamy2-TV-3.55.apk docs/downloads/
+          cp /tmp/streamy355/Streamy2-Mobile-3.55.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":175,"versionName":"3.55","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.55.apk","changelog":"Neu in 3.55: TV-PIN-Freigabe besser per Fernbedienung bedienbar, deutlich sichtbarer Fokus in den Player-Optionen und eine kompaktere Aktualisieren-Schaltfläche bei Media Extra."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":175,"versionName":"3.55","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.55.apk","changelog":"Neu in 3.55: TV-PIN-Freigabe besser per Fernbedienung bedienbar, deutlich sichtbarer Fokus in den Player-Optionen und eine kompaktere Aktualisieren-Schaltfläche bei Media Extra."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.55.apk docs/downloads/Streamy2-Mobile-3.55.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.55 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy355/notes.md <<'EOF'
+          Streamy 2 3.55
+
+          - TV: Freigabecode/PIN lässt sich zuverlässig mit der Fernbedienung anwählen und eingeben.
+          - Player: Fokus in den Optionen ist deutlich sichtbar.
+          - Player: Fokusbeschriftung wurde vergrößert und klarer dargestellt.
+          - Media Extra: Aktualisieren-Schaltfläche ist kompakter und passt besser zum restlichen Design.
+          - TV- und Mobile-Version, Build 175.
+          EOF
+
+          if gh release view v3.55 >/dev/null 2>&1; then
+            gh release upload v3.55 /tmp/streamy355/Streamy2-TV-3.55.apk /tmp/streamy355/Streamy2-Mobile-3.55.apk --clobber
+          else
+            gh release create v3.55               /tmp/streamy355/Streamy2-TV-3.55.apk               /tmp/streamy355/Streamy2-Mobile-3.55.apk               --target main               --title "Streamy 2 3.55 — TV-Fokus & Bedienung"               --notes-file /tmp/streamy355/notes.md               --latest
+          fi
