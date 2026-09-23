@@ -705,70 +705,6 @@
                 <LinearLayout
                     android:orientation="vertical"
                     android:background="@drawable/bg_card"
-                    android:padding="16dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp">
-                    <LinearLayout
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content">
-                        <ImageView
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_settings_icon"
-                            android:padding="9dp"
-                            android:src="@drawable/ic_player_info"
-                            android:tint="@color/accent"
-                            android:contentDescription="@null"/>
-                        <LinearLayout
-                            android:orientation="vertical"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp">
-                            <TextView
-                                android:textSize="16sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/fg"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Zusatzfunktionen"/>
-                            <TextView
-                                android:textSize="11sp"
-                                android:textColor="@color/muted"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="Extra Live, Media Extra und Freigaben"/>
-                        </LinearLayout>
-                    </LinearLayout>
-                    <TextView
-                        android:id="@+id/accessStatus"
-                        android:textSize="12sp"
-                        android:textColor="@color/muted"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Freigabecode erforderlich."/>
-                    <TextView
-                        android:id="@+id/btnAccessUnlock"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/accent_fg"
-                        android:gravity="center"
-                        android:background="@drawable/bg_btn"
-                        android:focusable="true"
-                        android:clickable="true"
-                        android:layout_width="match_parent"
-                        android:layout_height="46dp"
-                        android:layout_marginTop="12dp"
-                        android:text="Freigabecode eingeben"/>
-                </LinearLayout>
-                <LinearLayout
-                    android:orientation="vertical"
-                    android:background="@drawable/bg_card"
                     android:padding="12dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -1535,6 +1471,70 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"/>
                     </LinearLayout>
+                </LinearLayout>
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:background="@drawable/bg_card"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+                    <LinearLayout
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_player_info"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Zusatzfunktionen"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Extra Live, Media Extra und Freigaben"/>
+                        </LinearLayout>
+                    </LinearLayout>
+                    <TextView
+                        android:id="@+id/accessStatus"
+                        android:textSize="12sp"
+                        android:textColor="@color/muted"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Freigabecode erforderlich."/>
+                    <TextView
+                        android:id="@+id/btnAccessUnlock"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/accent_fg"
+                        android:gravity="center"
+                        android:background="@drawable/bg_btn"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:layout_width="match_parent"
+                        android:layout_height="46dp"
+                        android:layout_marginTop="12dp"
+                        android:text="Freigabecode eingeben"/>
                 </LinearLayout>
                 <LinearLayout
                     android:orientation="vertical"
