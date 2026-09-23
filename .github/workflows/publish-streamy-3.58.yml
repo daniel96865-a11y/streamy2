@@ -1,0 +1,117 @@
+name: Publish Streamy 2 3.58
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.58.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.58 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy358
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10747201402/zip > /tmp/streamy358/artifact.zip
+          unzip -q /tmp/streamy358/artifact.zip -d /tmp/streamy358/artifact
+          test -f /tmp/streamy358/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy358/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy358/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.58 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.58:refs/remotes/origin/publish/3.58
+          git show origin/publish/3.58:.release-3.58/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy358/tv.patch.zst
+          git show origin/publish/3.58:.release-3.58/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy358/mobile.patch.zst
+
+          echo "08eeaefc5bb13c3a7529fbf297484969290141ffbde81641223fb7fa483f9d88  /tmp/streamy358/tv.patch.zst" | sha256sum -c -
+          echo "f72d5d945df0dceca5d7f1b30d38f2eb84b38ba84789e1ebfd165152f22ee1ac  /tmp/streamy358/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy358/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy358/tv.patch.zst -o /tmp/streamy358/Streamy2-TV-3.58.apk
+          zstd -q -d --patch-from=/tmp/streamy358/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy358/mobile.patch.zst -o /tmp/streamy358/Streamy2-Mobile-3.58.apk
+
+          echo "c0a225dc4fc5f810db531e383744a6e0107055f59c6d8647c3aeacd03f4d9ef0  /tmp/streamy358/Streamy2-TV-3.58.apk" | sha256sum -c -
+          echo "219d334126907022963fc172d45ab3b14c9a8ded5ccd1391115c8415560defa9  /tmp/streamy358/Streamy2-Mobile-3.58.apk" | sha256sum -c -
+
+      - name: Verify version package and Streamy signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy358/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy358/Streamy2-TV-3.58.apk | tee /tmp/streamy358/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='178' versionName='3.58'" /tmp/streamy358/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy358/Streamy2-Mobile-3.58.apk | tee /tmp/streamy358/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='178' versionName='3.58'" /tmp/streamy358/mobile.badging
+
+          for apk in /tmp/streamy358/Streamy2-TV-3.58.apk /tmp/streamy358/Streamy2-Mobile-3.58.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy358/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy358/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy358/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy358/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy358/Streamy2-TV-3.58.apk docs/downloads/
+          cp /tmp/streamy358/Streamy2-Mobile-3.58.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":178,"versionName":"3.58","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.58.apk","changelog":"Neu in 3.58: Live Extra wurde auf den aktuellen Auth-/Resolve-Ablauf angepasst. Neue Ping-Identität, VYPN-Fallback, aktualisierte Client-Version und IP-gebundene Signatur sollen die zuletzt ausgefallenen Streams wieder korrekt auflösen."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":178,"versionName":"3.58","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.58.apk","changelog":"Neu in 3.58: Live Extra wurde auf den aktuellen Auth-/Resolve-Ablauf angepasst. Neue Ping-Identität, VYPN-Fallback, aktualisierte Client-Version und IP-gebundene Signatur sollen die zuletzt ausgefallenen Streams wieder korrekt auflösen."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.58.apk docs/downloads/Streamy2-Mobile-3.58.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.58 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy358/notes.md <<'EOF'
+          Streamy 2 3.58 — Live Extra Auth-Fix
+
+          - Live Extra auf den aktuell funktionierenden Ping-/Auth-Ablauf angepasst.
+          - Zusätzlicher VYPN-Ping-Fallback.
+          - Katalog und Resolve auf clientVersion 3.0.2 aktualisiert.
+          - addonSig wird an die öffentliche IP des Geräts angepasst.
+          - Resolve-Header und Netzwerk-Retries robuster gemacht.
+          - TV und Mobile mit derselben Streamy-2-Signatur wie 3.57.
+          EOF
+
+          if gh release view v3.58 >/dev/null 2>&1; then
+            gh release upload v3.58 /tmp/streamy358/Streamy2-TV-3.58.apk /tmp/streamy358/Streamy2-Mobile-3.58.apk --clobber
+          else
+            gh release create v3.58               /tmp/streamy358/Streamy2-TV-3.58.apk               /tmp/streamy358/Streamy2-Mobile-3.58.apk               --target main               --title "Streamy 2 3.58 — Live Extra Auth-Fix"               --notes-file /tmp/streamy358/notes.md               --latest
+          fi
