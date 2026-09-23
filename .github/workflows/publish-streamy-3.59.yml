@@ -40,14 +40,14 @@ jobs:
           git show origin/publish/3.59:.release-3.59/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy359/tv.patch.zst
           git show origin/publish/3.59:.release-3.59/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy359/mobile.patch.zst
 
-          echo "830b14c3662dd2d5cedeb81bd3e315a1ffa0608d0decd133e134ac27e27df9c4  /tmp/streamy359/tv.patch.zst" | sha256sum -c -
-          echo "ec04c90cc77a14e6b9e0bcb268ef0d87ebb0d7e100f44eb4c65e37a0d5fea108  /tmp/streamy359/mobile.patch.zst" | sha256sum -c -
+          echo "2b4a8c9cbaf84a7980b3650abc369c2e14daef9c262fef4ae9d4708236a7986b  /tmp/streamy359/tv.patch.zst" | sha256sum -c -
+          echo "5f04afd8c9a56bc8a24e421cbbda61bbd70f940d4bba36449ce038956adf8dca  /tmp/streamy359/mobile.patch.zst" | sha256sum -c -
 
           zstd -q -d --patch-from=/tmp/streamy359/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy359/tv.patch.zst -o /tmp/streamy359/Streamy2-TV-3.59.apk
           zstd -q -d --patch-from=/tmp/streamy359/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy359/mobile.patch.zst -o /tmp/streamy359/Streamy2-Mobile-3.59.apk
 
-          echo "b7d1bcac7678805d343f85f8f731c26f9c4d0aefa69d6ae390129dfbada876e8  /tmp/streamy359/Streamy2-TV-3.59.apk" | sha256sum -c -
-          echo "92afe1bbc5ae731e0f97cfe41bcbccf8c08751954a01376143e4262a4ecefaa4  /tmp/streamy359/Streamy2-Mobile-3.59.apk" | sha256sum -c -
+          echo "0540d112697bdadcb0279ec44ed7f21d44732c844c4212ec23645ea3aafa80a1  /tmp/streamy359/Streamy2-TV-3.59.apk" | sha256sum -c -
+          echo "c143295c5fbbda9d41f96590832873dd526a74474c843901446ba0a679608c5c  /tmp/streamy359/Streamy2-Mobile-3.59.apk" | sha256sum -c -
 
       - name: Verify version package and Streamy signer
         shell: bash
