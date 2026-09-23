@@ -1,0 +1,118 @@
+name: Publish Streamy 2 3.56
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.56.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.56 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy356
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10742197584/zip > /tmp/streamy356/artifact.zip
+          unzip -q /tmp/streamy356/artifact.zip -d /tmp/streamy356/artifact
+          test -f /tmp/streamy356/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy356/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy356/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.56 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.56:refs/remotes/origin/publish/3.56
+          git show origin/publish/3.56:.release-3.56/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy356/tv.patch.zst
+          git show origin/publish/3.56:.release-3.56/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy356/mobile.patch.zst
+
+          echo "7c59cd5222e40f0d483e254c5766f0105fcefadd9caa3e09bb648c07eabbb24e  /tmp/streamy356/tv.patch.zst" | sha256sum -c -
+          echo "e69766232a71ed812d0b33b69442b67eacec9ee1c10c8d8b105a8211ade84f58  /tmp/streamy356/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy356/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy356/tv.patch.zst -o /tmp/streamy356/Streamy2-TV-3.56.apk
+          zstd -q -d --patch-from=/tmp/streamy356/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy356/mobile.patch.zst -o /tmp/streamy356/Streamy2-Mobile-3.56.apk
+
+          echo "ad02bc4a27dce1b9dd3a48d58dea936b4d6cf0e942291c8ca2d00c87731afe12  /tmp/streamy356/Streamy2-TV-3.56.apk" | sha256sum -c -
+          echo "084ab935baf33aaf122c7ff1652f70d80f806622e7114769d4cbfff628a3b62a  /tmp/streamy356/Streamy2-Mobile-3.56.apk" | sha256sum -c -
+
+      - name: Verify version package and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy356/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy356/Streamy2-TV-3.56.apk | tee /tmp/streamy356/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='176' versionName='3.56'" /tmp/streamy356/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy356/Streamy2-Mobile-3.56.apk | tee /tmp/streamy356/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='176' versionName='3.56'" /tmp/streamy356/mobile.badging
+
+          for apk in /tmp/streamy356/Streamy2-TV-3.56.apk /tmp/streamy356/Streamy2-Mobile-3.56.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy356/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy356/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy356/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy356/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy356/Streamy2-TV-3.56.apk docs/downloads/
+          cp /tmp/streamy356/Streamy2-Mobile-3.56.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":176,"versionName":"3.56","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.56.apk","changelog":"Neu in 3.56: Der Einstellungsbereich wurde moderner und übersichtlicher gestaltet. Kategorien erscheinen als größere Karten mit Icons und Beschreibungen; der TV-Fokus ist deutlich sichtbarer. Wiedergabelisten & Geräte, Player & Wiedergabe, Live TV & EPG, Design & Oberfläche sowie Daten & Updates sind klarer gegliedert."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":176,"versionName":"3.56","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.56.apk","changelog":"Neu in 3.56: Der Einstellungsbereich wurde moderner und übersichtlicher gestaltet. Kategorien erscheinen als größere Karten mit Icons und Beschreibungen; der TV-Fokus ist deutlich sichtbarer. Wiedergabelisten & Geräte, Player & Wiedergabe, Live TV & EPG, Design & Oberfläche sowie Daten & Updates sind klarer gegliedert."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.56.apk docs/downloads/Streamy2-Mobile-3.56.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git commit -m "Publish Streamy 2 3.56 updater APKs"
+          git push origin HEAD:main
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy356/notes.md <<'EOF'
+          Streamy 2 3.56 – Moderner Einstellungsbereich
+
+          - Neuer, moderner Kopfbereich in den Einstellungen.
+          - Größere Kategorien-Karten mit Icons und kurzen Beschreibungen.
+          - Deutlich sichtbarer Fokus für die TV-Fernbedienung.
+          - Wiedergabelisten & Geräte, Player & Wiedergabe, Live TV & EPG und Design & Oberfläche klarer gegliedert.
+          - Zusatzfunktionen sowie Daten & Updates optisch aufgeräumt.
+          - Bestehende Funktionen bleiben erhalten.
+          - TV und Mobile mit derselben Streamy-2-Release-Signatur wie 3.55.
+          EOF
+
+          if gh release view v3.56 >/dev/null 2>&1; then
+            gh release upload v3.56 /tmp/streamy356/Streamy2-TV-3.56.apk /tmp/streamy356/Streamy2-Mobile-3.56.apk --clobber
+          else
+            gh release create v3.56               /tmp/streamy356/Streamy2-TV-3.56.apk               /tmp/streamy356/Streamy2-Mobile-3.56.apk               --target main               --title "Streamy 2 3.56 — Moderner Einstellungsbereich"               --notes-file /tmp/streamy356/notes.md               --latest
+          fi
