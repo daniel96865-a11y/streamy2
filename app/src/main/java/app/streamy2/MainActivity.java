@@ -1796,6 +1796,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.tab = 0;
             this.catId = "all";
         }
+        relinkFolds();
     }
 
     private void showAccessDialog() {
@@ -1803,10 +1804,24 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             updateAccessUi();
             return;
         }
+        final boolean tv = Tv.isTv(this);
         final EditText input = new EditText(this);
+        input.setId(View.generateViewId());
         input.setSingleLine(true);
         input.setHint("8-stelliger PIN");
         input.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        input.setSelectAllOnFocus(true);
+        if (tv) {
+            input.setShowSoftInputOnFocus(false);
+            input.setFocusable(true);
+            input.setFocusableInTouchMode(true);
+            input.setBackgroundResource(R.drawable.bg_search);
+            input.setTextColor(getColor(R.color.fg));
+            input.setHintTextColor(getColor(R.color.muted));
+            int pad = Math.round(16f * getResources().getDisplayMetrics().density);
+            input.setPadding(pad, 0, pad, 0);
+            input.setMinHeight(Math.round(48f * getResources().getDisplayMetrics().density));
+        }
         final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Freigabecode")
                 .setMessage("Gib den erhaltenen Zahlen-PIN ein. Ein gültiger PIN schaltet die Zusatzfunktionen dauerhaft auf diesem Gerät frei.")
@@ -1814,36 +1829,88 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 .setNegativeButton("Abbrechen", null)
                 .setPositiveButton("Prüfen", null)
                 .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
-            final String pin = input.getText() == null ? "" : input.getText().toString().trim();
-            if (!pin.matches("\\d{6,12}")) {
-                input.setError("Bitte einen gültigen Zahlen-PIN eingeben.");
-                return;
-            }
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
-            if (this.accessStatus != null) {
-                this.accessStatus.setText("Freigabecode wird geprüft…");
-            }
-            FeatureAccess.redeemInWebView(MainActivity.this, pin, result -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (result.ok) {
-                    dialog.dismiss();
-                    updateAccessUi();
-                    UI.removeCallbacks(accessValidationTick);
-                    UI.postDelayed(accessValidationTick, 60000L);
-                    Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
-                    loadExtraLive();
-                    loadKino();
-                    paintTabs();
-                    renderList();
-                } else {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
-                    if (this.accessStatus != null) this.accessStatus.setText(result.message);
-                    input.setError(result.message);
+        if (tv) {
+            dialog.setOnKeyListener((ignored, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                int digit = accessDigitForKey(keyCode);
+                if (digit >= 0) {
+                    input.requestFocus();
+                    input.getText().append(String.valueOf(digit));
+                    input.setSelection(input.length());
+                    return true;
                 }
+                if (keyCode == KeyEvent.KEYCODE_DEL && input.length() > 0) {
+                    input.getText().delete(input.length() - 1, input.length());
+                    return true;
+                }
+                return false;
             });
-        }));
+        }
+        dialog.setOnShowListener(ignored -> {
+            final View positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            final View negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (tv) {
+                if (positive != null) {
+                    positive.setFocusable(true);
+                    positive.setBackgroundResource(R.drawable.bg_btn);
+                    positive.setNextFocusUpId(input.getId());
+                }
+                if (negative != null) {
+                    negative.setFocusable(true);
+                    negative.setBackgroundResource(R.drawable.bg_btn_sec);
+                    negative.setNextFocusUpId(input.getId());
+                }
+                input.setNextFocusDownId(android.R.id.button1);
+                input.post(() -> {
+                    input.requestFocus();
+                    input.setSelection(input.length());
+                });
+            }
+            if (positive != null) {
+                positive.setOnClickListener(view -> {
+                    final String pin = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (!pin.matches("\\d{6,12}")) {
+                        input.setError("Bitte einen gültigen Zahlen-PIN eingeben.");
+                        input.requestFocus();
+                        return;
+                    }
+                    positive.setEnabled(false);
+                    if (this.accessStatus != null) {
+                        this.accessStatus.setText("Freigabecode wird geprüft…");
+                    }
+                    FeatureAccess.redeemInWebView(MainActivity.this, pin, result -> {
+                        if (isFinishing() || isDestroyed()) return;
+                        if (result.ok) {
+                            dialog.dismiss();
+                            updateAccessUi();
+                            UI.removeCallbacks(accessValidationTick);
+                            UI.postDelayed(accessValidationTick, 60000L);
+                            Toast.makeText(MainActivity.this, "Freigabe erfolgreich", Toast.LENGTH_SHORT).show();
+                            loadExtraLive();
+                            loadKino();
+                            paintTabs();
+                            renderList();
+                        } else {
+                            positive.setEnabled(true);
+                            if (this.accessStatus != null) this.accessStatus.setText(result.message);
+                            input.setError(result.message);
+                            if (tv) input.requestFocus();
+                        }
+                    });
+                });
+            }
+        });
         dialog.show();
+    }
+
+    private static int accessDigitForKey(int keyCode) {
+        if (keyCode >= KeyEvent.KEYCODE_0 && keyCode <= KeyEvent.KEYCODE_9) {
+            return keyCode - KeyEvent.KEYCODE_0;
+        }
+        if (keyCode >= KeyEvent.KEYCODE_NUMPAD_0 && keyCode <= KeyEvent.KEYCODE_NUMPAD_9) {
+            return keyCode - KeyEvent.KEYCODE_NUMPAD_0;
+        }
+        return -1;
     }
 
     private void setBuffer(String str) {
@@ -2007,12 +2074,26 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         View findViewById6 = findViewById(R.id.headPlay);
         View findViewById7 = findViewById(R.id.headEpg);
         View findViewById8 = findViewById(R.id.headLook);
+        View accessUnlock = this.btnAccessUnlock;
+        boolean accessFocusable = accessUnlock != null
+                && accessUnlock.getVisibility() == View.VISIBLE
+                && accessUnlock.isEnabled();
         if (findViewById5 != null) {
-            findViewById5.setNextFocusDownId(open(findViewById) ? R.id.inName : R.id.headPlay);
+            findViewById5.setNextFocusDownId(open(findViewById)
+                    ? R.id.inName
+                    : (accessFocusable ? R.id.btnAccessUnlock : R.id.headPlay));
+        }
+        if (accessUnlock != null) {
+            accessUnlock.setNextFocusUpId(R.id.headAccount);
+            accessUnlock.setNextFocusDownId(R.id.headPlay);
+        }
+        View getPin = findViewById(R.id.btnGetPin);
+        if (getPin != null) {
+            getPin.setNextFocusDownId(accessFocusable ? R.id.btnAccessUnlock : R.id.headPlay);
         }
         if (findViewById6 != null) {
             findViewById6.setNextFocusDownId(open(findViewById2) ? R.id.fmtHls : R.id.headEpg);
-            findViewById6.setNextFocusUpId(R.id.headAccount);
+            findViewById6.setNextFocusUpId(accessFocusable ? R.id.btnAccessUnlock : R.id.headAccount);
         }
         if (findViewById7 != null) {
             findViewById7.setNextFocusDownId(open(findViewById3) ? R.id.epg6 : R.id.headLook);
