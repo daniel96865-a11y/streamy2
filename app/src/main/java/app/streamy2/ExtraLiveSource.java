@@ -147,45 +147,58 @@ final class ExtraLiveSource {
     }
 
     static String resolve(String str) {
-        String parseResolve = null;
         diagnosticStage = "Resolve: Start";
         diagnosticResolveHost = "";
-        if (str != null && !str.isEmpty()) {
-            if (!isPlayUrl(str) && str.startsWith("http")) {
-                return playable(str);
-            }
-            String replace = str.replace("https://vavoo.to", "https://kool.to").replace("vavoo-iptv", "kool-iptv");
-            String replace2 = str.replace("https://kool.to", "https://vavoo.to").replace("kool-iptv", "vavoo-iptv");
-            String[][] strArr = {new String[]{"https://kool.to", replace}, new String[]{"https://kool.to", replace2}, new String[]{"https://vavoo.to", replace2}};
-            for (int i = 0; i < 3; i++) {
-                String[] strArr2 = strArr[i];
+        if (str == null || str.isEmpty()) return null;
+        if (!isPlayUrl(str) && str.startsWith("http")) {
+            return playable(str);
+        }
+
+        // Keep the original channel URL unchanged. Only the resolve endpoint
+        // is switched between mirrors.
+        final String channelUrl = str;
+        final String[] resolveHosts = {"https://vavoo.to", "https://kool.to"};
+
+        for (String host : resolveHosts) {
+            for (int attempt = 0; attempt < 2; attempt++) {
                 try {
-                    JSONObject jSONObject = new JSONObject();
-                    jSONObject.put("language", "de");
-                    jSONObject.put("region", "DE");
-                    jSONObject.put("url", strArr2[1]);
-                    jSONObject.put("clientVersion", "3.0.2");
-                    String sig = signature();
-                    diagnosticAuthHost = strArr2[0];
-                    diagnosticStage = (sig == null || sig.isEmpty()) ? "Resolve: keine Signatur" : "Resolve: Anfrage";
-                    parseResolve = parseResolve(OkPlay.postJson(strArr2[0] + "/mediahubmx-resolve.json", jSONObject.toString(), sig));
-                    if (parseResolve == null) {
-                        diagnosticStage = "Resolve: fehlgeschlagen";
-                        lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
+                    if (attempt > 0) invalidateSig();
+                    String sigNow = signature();
+                    diagnosticAuthHost = host;
+                    diagnosticStage = (sigNow == null || sigNow.isEmpty())
+                            ? "Resolve: keine Signatur"
+                            : "Resolve: Anfrage " + (attempt + 1);
+
+                    if (sigNow == null || sigNow.isEmpty()) continue;
+
+                    JSONObject payload = new JSONObject();
+                    payload.put("language", "de");
+                    payload.put("region", "DE");
+                    payload.put("url", channelUrl);
+                    payload.put("clientVersion", "3.0.2");
+
+                    String response = OkPlay.postJson(
+                            host + "/mediahubmx-resolve.json",
+                            payload.toString(),
+                            sigNow);
+                    String resolved = parseResolve(response);
+                    if (resolved != null && !resolved.isEmpty()) {
+                        activeHost = host;
+                        diagnosticStage = "Resolve: URL erhalten";
+                        lastError = "";
+                        try {
+                            diagnosticResolveHost = new URL(resolved).getHost();
+                        } catch (Throwable ignored) {
+                            diagnosticResolveHost = "";
+                        }
+                        return resolved;
                     }
-                } catch (Exception unused) {
+
+                    diagnosticStage = "Resolve: fehlgeschlagen";
+                    lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
+                } catch (Throwable ignored) {
+                    diagnosticStage = "Resolve: Ausnahme";
                 }
-                if (parseResolve != null) {
-                    activeHost = strArr2[0];
-                    diagnosticStage = "Resolve: URL erhalten";
-                    try {
-                        diagnosticResolveHost = new URL(parseResolve).getHost();
-                    } catch (Throwable ignored) {
-                        diagnosticResolveHost = "";
-                    }
-                    return parseResolve;
-                }
-                continue;
             }
         }
         return null;
