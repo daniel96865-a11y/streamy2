@@ -1,0 +1,119 @@
+name: Publish Streamy 2 3.61
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.61.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.61 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy361
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10761204347/zip > /tmp/streamy361/artifact.zip
+          unzip -q /tmp/streamy361/artifact.zip -d /tmp/streamy361/artifact
+          test -f /tmp/streamy361/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy361/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy361/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct signed 3.61 APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.61:refs/remotes/origin/publish/3.61
+          git show origin/publish/3.61:.release-3.61/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy361/tv.patch.zst
+          git show origin/publish/3.61:.release-3.61/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy361/mobile.patch.zst
+
+          echo "5574591ee75f38754bf367b00b7185432937f77879ed448d293fd4b6f3945f05  /tmp/streamy361/tv.patch.zst" | sha256sum -c -
+          echo "414b125ae8c474ebf5b9be523e932c174deb9bd657ec2cfe7c31bbfc01313c9a  /tmp/streamy361/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy361/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy361/tv.patch.zst -o /tmp/streamy361/Streamy2-TV-3.61.apk
+          zstd -q -d --patch-from=/tmp/streamy361/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy361/mobile.patch.zst -o /tmp/streamy361/Streamy2-Mobile-3.61.apk
+
+          echo "ae3feed4985831de6b43047b91af09325565ef9475cbac70d37b86f05f02f626  /tmp/streamy361/Streamy2-TV-3.61.apk" | sha256sum -c -
+          echo "0b8ea0a98252c84bdc14229a1e2e4f7d31e20e4e4c25ae98f3b28e9977418e63  /tmp/streamy361/Streamy2-Mobile-3.61.apk" | sha256sum -c -
+
+      - name: Verify version package and Streamy signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy361/artifact/build-tools-export/apksigner.jar
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy361/Streamy2-TV-3.61.apk | tee /tmp/streamy361/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='181' versionName='3.61'" /tmp/streamy361/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy361/Streamy2-Mobile-3.61.apk | tee /tmp/streamy361/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='181' versionName='3.61'" /tmp/streamy361/mobile.badging
+
+          for apk in /tmp/streamy361/Streamy2-TV-3.61.apk /tmp/streamy361/Streamy2-Mobile-3.61.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy361/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy361/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy361/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy361/verify.txt
+          done
+
+      - name: Publish downloads and update feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy361/Streamy2-TV-3.61.apk docs/downloads/
+          cp /tmp/streamy361/Streamy2-Mobile-3.61.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":181,"versionName":"3.61","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.61.apk","changelog":"Neu in 3.61: Live Extra blockiert TV und Handy nicht mehr minutenlang. Ohne vorhandenen Cache wird nur kurz geladen und die erste brauchbare Senderseite sofort angezeigt; die vollständige Aktualisierung läuft anschließend im Hintergrund. Bei einer nicht erreichbaren Quelle erscheint eine klare Meldung statt Endlosladen."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":181,"versionName":"3.61","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.61.apk","changelog":"Neu in 3.61: Live Extra blockiert TV und Handy nicht mehr minutenlang. Ohne vorhandenen Cache wird nur kurz geladen und die erste brauchbare Senderseite sofort angezeigt; die vollständige Aktualisierung läuft anschließend im Hintergrund. Bei einer nicht erreichbaren Quelle erscheint eine klare Meldung statt Endlosladen."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.61.apk docs/downloads/Streamy2-Mobile-3.61.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Streamy 2 3.61 updater APKs"
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy361/notes.md <<'EOF'
+          Streamy 2 3.61 — Live Extra Stabilität
+
+          - Live Extra blockiert die Oberfläche nicht mehr minutenlang.
+          - Ohne Cache wird nur kurz geladen.
+          - Die erste brauchbare Senderseite wird sofort angezeigt.
+          - Die vollständige Katalog-Aktualisierung läuft im Hintergrund.
+          - Bei nicht erreichbarer Quelle erscheint eine klare Meldung statt Endlosladen.
+          - TV und Mobile mit derselben Streamy-2-Release-Signatur wie bisher.
+          EOF
+
+          if gh release view v3.61 >/dev/null 2>&1; then
+            gh release upload v3.61 /tmp/streamy361/Streamy2-TV-3.61.apk /tmp/streamy361/Streamy2-Mobile-3.61.apk --clobber
+          else
+            gh release create v3.61               /tmp/streamy361/Streamy2-TV-3.61.apk               /tmp/streamy361/Streamy2-Mobile-3.61.apk               --target main               --title "Streamy 2 3.61 — Live Extra Stabilität"               --notes-file /tmp/streamy361/notes.md               --latest
+          fi
