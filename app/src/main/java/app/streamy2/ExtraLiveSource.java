@@ -35,6 +35,9 @@ final class ExtraLiveSource {
     private static final String VYPN_PACKAGE = "net.vypn.app";
     private static final String VYPN_VERSION = "1.4.1";
     static volatile String lastError = "";
+    static volatile String diagnosticStage = "Leerlauf";
+    static volatile String diagnosticResolveHost = "";
+    static volatile String diagnosticAuthHost = "";
     static final String EPG_URL = "https://epg.pw/xmltv/epg_DE.xml.gz";
     /** Network-first DE XMLTV sources (reachable). Cache is only for offline reuse after a successful pull. */
     static final String[] EPG_URLS = {
@@ -60,14 +63,17 @@ final class ExtraLiveSource {
         try {
             // Show a previously successful Live-Extra catalogue immediately.
             // Network refreshes must never block the whole tab for tens of seconds.
+            diagnosticStage = "Katalog: Cache prüfen";
             List<Models.Channel> fetchGermany = readCache(file);
             if (fetchGermany == null || fetchGermany.isEmpty()) {
+                diagnosticStage = "Katalog: Online-Erstabfrage";
                 fetchGermany = fetchGermanyFast();
                 if (fetchGermany != null && !fetchGermany.isEmpty()) {
                     writeCache(file, fetchGermany);
                 }
             } else {
                 lastError = "";
+                diagnosticStage = "Katalog: Cache bereit";
             }
             if (fetchGermany != null && !fetchGermany.isEmpty()) {
                 Iterator<Models.Category> it = catalog.liveCats.iterator();
@@ -106,9 +112,11 @@ final class ExtraLiveSource {
 
     static boolean refreshCache(File file) {
         try {
+            diagnosticStage = "Katalog: Hintergrund-Aktualisierung";
             List<Models.Channel> fresh = fetchGermany();
             if (fresh != null && !fresh.isEmpty()) {
                 writeCache(file, fresh);
+                diagnosticStage = "Katalog: Hintergrund aktuell";
                 return true;
             }
         } catch (Throwable unused) {
@@ -140,6 +148,8 @@ final class ExtraLiveSource {
 
     static String resolve(String str) {
         String parseResolve = null;
+        diagnosticStage = "Resolve: Start";
+        diagnosticResolveHost = "";
         if (str != null && !str.isEmpty()) {
             if (!isPlayUrl(str) && str.startsWith("http")) {
                 return playable(str);
@@ -156,14 +166,23 @@ final class ExtraLiveSource {
                     jSONObject.put("url", strArr2[1]);
                     jSONObject.put("clientVersion", "3.0.2");
                     String sig = signature();
+                    diagnosticAuthHost = strArr2[0];
+                    diagnosticStage = (sig == null || sig.isEmpty()) ? "Resolve: keine Signatur" : "Resolve: Anfrage";
                     parseResolve = parseResolve(OkPlay.postJson(strArr2[0] + "/mediahubmx-resolve.json", jSONObject.toString(), sig));
                     if (parseResolve == null) {
+                        diagnosticStage = "Resolve: fehlgeschlagen";
                         lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
                     }
                 } catch (Exception unused) {
                 }
                 if (parseResolve != null) {
                     activeHost = strArr2[0];
+                    diagnosticStage = "Resolve: URL erhalten";
+                    try {
+                        diagnosticResolveHost = new URL(parseResolve).getHost();
+                    } catch (Throwable ignored) {
+                        diagnosticResolveHost = "";
+                    }
                     return parseResolve;
                 }
                 continue;
@@ -407,12 +426,16 @@ final class ExtraLiveSource {
 
     private static String signature() {
         String empty = "";
+        diagnosticStage = "Auth: Signatur prüfen";
         if (sig != null && System.currentTimeMillis() - sigAt < 300000L) {
+            diagnosticStage = "Auth: Cache-Signatur";
             return sig;
         }
         String pingBody = pingBody();
         for (String endpoint : PINGS) {
             try {
+                diagnosticAuthHost = endpoint;
+                diagnosticStage = "Auth: Ping";
                 String response = post(endpoint, pingBody, false);
                 if (response != null && !response.isEmpty()) {
                     JSONObject obj = new JSONObject(response);
@@ -427,6 +450,7 @@ final class ExtraLiveSource {
                         sig = candidate;
                         sigAt = System.currentTimeMillis();
                         lastError = "";
+                        diagnosticStage = "Auth: OK";
                         return sig;
                     }
                 }
@@ -434,9 +458,29 @@ final class ExtraLiveSource {
             }
         }
         if (sig == null || sig.isEmpty()) {
+            diagnosticStage = "Auth: fehlgeschlagen";
             lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur).";
         }
         return sig == null ? "" : sig;
+    }
+
+    static String diagnosticSummary() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(diagnosticStage == null || diagnosticStage.isEmpty() ? "—" : diagnosticStage);
+        if (diagnosticAuthHost != null && !diagnosticAuthHost.isEmpty()) {
+            try {
+                String host = new URL(diagnosticAuthHost).getHost();
+                if (host != null && !host.isEmpty()) sb.append(" · Auth ").append(host);
+            } catch (Throwable ignored) {
+            }
+        }
+        if (diagnosticResolveHost != null && !diagnosticResolveHost.isEmpty()) {
+            sb.append(" · Ziel ").append(diagnosticResolveHost);
+        }
+        if (lastError != null && !lastError.isEmpty()) {
+            sb.append(" · ").append(lastError);
+        }
+        return sb.toString();
     }
 
     private static String pingBody() {

@@ -882,6 +882,8 @@ public class PlayerActivity extends AppCompatActivity {
                     + "\nlibVLC: " + (libOk ? "ja" : "nein")
                     + "\nLocalHls: " + hls
                     + "\nHost: " + host
+                    + "\nLive Extra: " + (isExtraLivePlayback() ? ExtraLiveSource.diagnosticSummary() : "—")
+                    + "\nLive-Extra-DNS: " + (isExtraLivePlayback() ? OkPlay.diagnosticDns() : "—")
                     + "\nExo-Fehler: " + exo
                     + "\nVLC-Fehler: " + vlc;
             PlaybackDiagnostics.show(this, msg);
