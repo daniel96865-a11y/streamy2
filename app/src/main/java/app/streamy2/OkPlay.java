@@ -3,13 +3,27 @@ package app.streamy2;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.okhttp.OkHttpDataSource;
 import com.google.common.net.HttpHeaders;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import okhttp3.Dns;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /* loaded from: classes.dex */
 final class OkPlay {
@@ -60,9 +74,75 @@ final class OkPlay {
         }
     }
 
+    private static boolean isLiveExtraHost(String hostname) {
+        if (hostname == null) return false;
+        String h = hostname.toLowerCase();
+        return h.equals("ngolpdkyoctjcddxshli469r.org")
+                || h.endsWith(".ngolpdkyoctjcddxshli469r.org");
+    }
+
+    private static List<InetAddress> lookupWithFallback(String hostname) throws UnknownHostException {
+        try {
+            return Dns.SYSTEM.lookup(hostname);
+        } catch (UnknownHostException systemError) {
+            if (!isLiveExtraHost(hostname)) throw systemError;
+            List<InetAddress> fallback = dohLookup(hostname);
+            if (fallback != null && !fallback.isEmpty()) return fallback;
+            throw systemError;
+        }
+    }
+
+    private static List<InetAddress> dohLookup(String hostname) {
+        HttpURLConnection connection = null;
+        BufferedReader reader = null;
+        try {
+            String q = URLEncoder.encode(hostname, "UTF-8");
+            URL url = new URL("https://1.1.1.1/dns-query?name=" + q + "&type=A");
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setInstanceFollowRedirects(true);
+            connection.setConnectTimeout(4500);
+            connection.setReadTimeout(4500);
+            connection.setRequestProperty(HttpHeaders.ACCEPT, "application/dns-json");
+            connection.setRequestProperty(HttpHeaders.USER_AGENT, "Streamy2/3.59");
+            int code = connection.getResponseCode();
+            if (code < 200 || code >= 300) return null;
+
+            InputStream in = connection.getInputStream();
+            if (in == null) return null;
+            reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+            StringBuilder body = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) body.append(line);
+
+            JSONObject json = new JSONObject(body.toString());
+            JSONArray answers = json.optJSONArray("Answer");
+            if (answers == null) return null;
+
+            ArrayList<InetAddress> out = new ArrayList<>();
+            for (int i = 0; i < answers.length(); i++) {
+                JSONObject answer = answers.optJSONObject(i);
+                if (answer == null || answer.optInt("type", 0) != 1) continue;
+                String ip = answer.optString("data", "").trim();
+                if (ip.matches("\\d{1,3}(?:\\.\\d{1,3}){3}")) {
+                    out.add(InetAddress.getByName(ip));
+                }
+            }
+            return out;
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            try {
+                if (reader != null) reader.close();
+            } catch (Exception ignored) {
+            }
+            if (connection != null) connection.disconnect();
+        }
+    }
+
     static synchronized OkHttpClient client() {
         if (client == null) {
             client = new OkHttpClient.Builder()
+                    .dns(OkPlay::lookupWithFallback)
                     .connectTimeout(15, TimeUnit.SECONDS)
                     .readTimeout(20, TimeUnit.SECONDS)
                     .build();
