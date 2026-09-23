@@ -125,6 +125,23 @@ public class PlayerRegressionTest {
         assertEquals("Beendet", call("playbackStateLabel", new Class[]{int.class}, androidx.media3.common.Player.STATE_ENDED));
     }
 
+    @Test public void slowExtraResolveDoesNotCancelPendingPlayback() throws Exception {
+        field("resolving", true);
+        TextView error = new TextView(RuntimeEnvironment.getApplication());
+        field("errorView", error);
+        call("lambda$playCurrent$17", new Class[]{});
+        assertTrue((Boolean) field("resolving"));
+        assertTrue(error.getText().toString().contains("weiter geprüft"));
+    }
+
+    @Test public void vlcBufferChoicesKeepNormalAtTwoAndHalfSeconds() {
+        Prefs prefs = new Prefs(RuntimeEnvironment.getApplication());
+        prefs.setBuffer("low"); assertEquals(1500, prefs.bufferMs());
+        prefs.setBuffer("normal"); assertEquals(2500, prefs.bufferMs());
+        prefs.setBuffer("high"); assertEquals(4000, prefs.bufferMs());
+        prefs.setBuffer("max"); assertEquals(8000, prefs.bufferMs());
+    }
+
     @Test public void applyResizeSupportsAllThreeModes() throws Exception {
         startActivity();
         new Prefs(RuntimeEnvironment.getApplication()).setResize("zoom");

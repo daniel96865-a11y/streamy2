@@ -173,22 +173,30 @@ public class PlayerActivity extends AppCompatActivity {
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
                 }
-                if (PlayerActivity.this.freezeTicks == 7
+                if (PlayerActivity.this.freezeTicks == 12
                         && PlayerActivity.this.liveMode
                         && !PlayerActivity.this.catchup
                         && !PlayerActivity.this.isExtraLivePlayback()
                         && "auto".equals(PlayerActivity.this.playerPref())) {
-                    PlayerActivity.this.lastFallbackReason = "Streamy Player länger als 7 s im Puffer";
+                    // Match the longer start gate used by the Streamy 3 player.
+                    // Switching engines too early causes avoidable black frames on slow IPTV feeds.
+                    PlayerActivity.this.lastFallbackReason = "Streamy Player länger als 12 s im Puffer";
                     if (PlayerActivity.this.switchToVlc()) {
                         PlayerActivity.this.freezeTicks = 0;
                         PlayerActivity.UI.postDelayed(this, 1000L);
                         return;
                     }
                 }
+                if (PlayerActivity.this.freezeTicks == 8 && PlayerActivity.this.liveMode && !PlayerActivity.this.catchup) {
+                    try {
+                        PlayerActivity.this.player.seekToDefaultPosition();
+                    } catch (Throwable unused) {
+                    }
+                }
             } else {
                 PlayerActivity.this.freezeTicks = 0;
             }
-            if (PlayerActivity.this.freezeTicks >= 12) {
+            if (PlayerActivity.this.freezeTicks >= 18) {
                 PlayerActivity.this.freezeTicks = 0;
                 PlayerActivity.this.recoverStuck();
             }
@@ -554,7 +562,7 @@ public class PlayerActivity extends AppCompatActivity {
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
         DefaultTrackSelector defaultTrackSelector = new DefaultTrackSelector(this);
         String audioMode = new Prefs(this).audioMode();
-        int maxAudioChannels = "surround".equals(audioMode) ? 8 : 2;
+        int maxAudioChannels = "stereo".equals(audioMode) ? 2 : 8;
         DefaultTrackSelector.Parameters.Builder exceedAudioConstraintsIfNecessary = defaultTrackSelector.buildUponParameters().setMaxAudioChannelCount(maxAudioChannels).setAllowAudioMixedMimeTypeAdaptiveness(true).setAllowAudioMixedSampleRateAdaptiveness(true).setAllowAudioMixedChannelCountAdaptiveness(true).setExceedRendererCapabilitiesIfNecessary(true).setExceedAudioConstraintsIfNecessary(true);
         if ("surround".equals(audioMode)) {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG);
@@ -2311,18 +2319,17 @@ public class PlayerActivity extends AppCompatActivity {
             if (selectedFormat != null) break;
         }
 
-        if ("stereo".equals(mode) || "auto".equals(mode)) {
-            String selectedMime = selectedFormat == null || selectedFormat.sampleMimeType == null
-                    ? "" : selectedFormat.sampleMimeType.toLowerCase(Locale.US);
-            if (selectedFormat != null && (selectedFormat.channelCount <= 0 || selectedFormat.channelCount <= 2)
-                    && (selectedMime.contains("aac") || selectedMime.contains("mpeg")
-                    || selectedMime.contains("opus"))) {
+        if ("stereo".equals(mode)) {
+            if (selectedFormat != null && (selectedFormat.channelCount <= 0 || selectedFormat.channelCount <= 2)) {
                 return;
             }
             AudioPick stereo = bestAudioTrack(tracks, selectedFormat, true);
-            if (stereo != null && (stereo.group != selectedGroup || stereo.index != selectedIndex)) {
-                applyAudioPick(stereo);
-            }
+            if (stereo != null) applyAudioPick(stereo);
+            return;
+        }
+
+        boolean preferSurround = "surround".equals(mode);
+        if (!preferSurround && selectedFormat != null) {
             return;
         }
 
@@ -2371,15 +2378,10 @@ public class PlayerActivity extends AppCompatActivity {
                 int score = sameLanguage ? 10000 : 0;
                 score += Math.min(channels, 8) * 100;
                 String mime = format.sampleMimeType == null ? "" : format.sampleMimeType.toLowerCase(Locale.US);
-                if (stereoOnly) {
-                    if (mime.contains("aac")) score += 50;
-                    else if (mime.contains("mpeg") || mime.contains("opus")) score += 40;
-                } else {
-                    if (mime.contains("eac3") || mime.contains("e-ac3")) score += 40;
-                    else if (mime.contains("ac3")) score += 30;
-                    else if (mime.contains("dts")) score += 20;
-                    else if (mime.contains("aac")) score += 10;
-                }
+                if (mime.contains("eac3") || mime.contains("e-ac3")) score += 40;
+                else if (mime.contains("ac3")) score += 30;
+                else if (mime.contains("dts")) score += 20;
+                else if (mime.contains("aac")) score += 10;
 
                 if (best == null || score > best.score) {
                     best = new AudioPick(group, i, format, score);
