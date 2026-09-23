@@ -1,0 +1,94 @@
+name: Repair Streamy 2 3.55 Signature
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/repair-streamy-3.55-signature.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download corrected 3.55 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy355sig
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10733881907/zip > /tmp/streamy355sig/artifact.zip
+          unzip -q /tmp/streamy355sig/artifact.zip -d /tmp/streamy355sig/artifact
+          test -f /tmp/streamy355sig/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy355sig/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy355sig/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct TV and Mobile with existing Streamy signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.55:refs/remotes/origin/publish/3.55
+          git show origin/publish/3.55:.release-3.55/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy355sig/tv.patch.zst
+          git show origin/publish/3.55:.release-3.55/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy355sig/mobile.patch.zst
+
+          echo "11851530babb70bc42f7f22b453c294204348adbed1224c9a06daa3996250fb6  /tmp/streamy355sig/tv.patch.zst" | sha256sum -c -
+          echo "4a39785908979e959a0fa8e895693a43e6ed55d98d41acda1649bc2718d3dba9  /tmp/streamy355sig/mobile.patch.zst" | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy355sig/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy355sig/tv.patch.zst -o /tmp/streamy355sig/Streamy2-TV-3.55.apk
+          zstd -q -d --patch-from=/tmp/streamy355sig/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy355sig/mobile.patch.zst -o /tmp/streamy355sig/Streamy2-Mobile-3.55.apk
+
+          echo "b5f63e3f209ef1010bf1a7e34b150036d7fd965e44f535bed771c68c8fc1f937  /tmp/streamy355sig/Streamy2-TV-3.55.apk" | sha256sum -c -
+          echo "dbdadf30abd5a30bb635ef5503688eeeb043a9ae64a14b6bd8d95f1dad31c8e3  /tmp/streamy355sig/Streamy2-Mobile-3.55.apk" | sha256sum -c -
+
+      - name: Verify version, package and signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR=/tmp/streamy355sig/artifact/build-tools-export/apksigner.jar
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy355sig/Streamy2-TV-3.55.apk | tee /tmp/streamy355sig/tv.badging
+          grep -q "package: name='app.streamy2' versionCode='175' versionName='3.55'" /tmp/streamy355sig/tv.badging
+
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy355sig/Streamy2-Mobile-3.55.apk | tee /tmp/streamy355sig/mobile.badging
+          grep -q "package: name='app.streamy2.mobile' versionCode='175' versionName='3.55'" /tmp/streamy355sig/mobile.badging
+
+          for apk in /tmp/streamy355sig/Streamy2-TV-3.55.apk /tmp/streamy355sig/Streamy2-Mobile-3.55.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" | tee /tmp/streamy355sig/verify.txt
+            grep -qi "Verified using v2 scheme.*true" /tmp/streamy355sig/verify.txt
+            grep -qi "Verified using v3 scheme.*true" /tmp/streamy355sig/verify.txt
+            grep -qi "3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f" /tmp/streamy355sig/verify.txt
+          done
+
+      - name: Replace updater APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy355sig/Streamy2-TV-3.55.apk docs/downloads/Streamy2-TV-3.55.apk
+          cp /tmp/streamy355sig/Streamy2-Mobile-3.55.apk docs/downloads/Streamy2-Mobile-3.55.apk
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/Streamy2-TV-3.55.apk docs/downloads/Streamy2-Mobile-3.55.apk
+          if ! git diff --cached --quiet; then
+            git commit -m "Repair Streamy 2 3.55 update signature"
+            git push origin HEAD:main
+          fi
+
+      - name: Replace GitHub release APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload v3.55             /tmp/streamy355sig/Streamy2-TV-3.55.apk             /tmp/streamy355sig/Streamy2-Mobile-3.55.apk             --clobber
