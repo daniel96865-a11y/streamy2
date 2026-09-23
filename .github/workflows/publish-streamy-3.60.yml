@@ -37,8 +37,8 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin publish/3.60:refs/remotes/origin/publish/3.60
-          git show origin/publish/3.60:.release-3.60/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy360/tv.patch.zst
-          git show origin/publish/3.60:.release-3.60/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy360/mobile.patch.zst
+          git ls-tree -r --name-only origin/publish/3.60 '.release-3.60/tv' | sort | while read -r p; do git show "origin/publish/3.60:$p"; done | tr -d '\n\r' | base64 -d > /tmp/streamy360/tv.patch.zst
+          git ls-tree -r --name-only origin/publish/3.60 '.release-3.60/mobile' | sort | while read -r p; do git show "origin/publish/3.60:$p"; done | tr -d '\n\r' | base64 -d > /tmp/streamy360/mobile.patch.zst
 
           echo "4effd88bc7b200cc7c82cf466a2f94bf4bed460afa312313759b8fba9513414b  /tmp/streamy360/tv.patch.zst" | sha256sum -c -
           echo "e2eb38b3efe6217cea0b17d09834568cf93a8e9ad010794e74437d96384a661d  /tmp/streamy360/mobile.patch.zst" | sha256sum -c -
