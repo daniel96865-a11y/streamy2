@@ -3797,8 +3797,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.catalog = catalog;
         }
         final Models.Catalog catalogFinal = catalog;
+        final File liveCache = extraLiveListCache();
+        final boolean hadLiveCache = liveCache.exists() && liveCache.length() >= 8L;
         try {
-            ExtraLiveSource.merge(catalogFinal, extraLiveListCache());
+            ExtraLiveSource.merge(catalogFinal, liveCache);
+            if (hadLiveCache) {
+                IO.execute(() -> ExtraLiveSource.refreshCache(liveCache));
+            }
             try {
                 this.guide.apply(catalogFinal.live);
             } catch (Throwable unused) {

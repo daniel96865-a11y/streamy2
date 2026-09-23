@@ -58,11 +58,16 @@ final class ExtraLiveSource {
             return;
         }
         try {
-            List<Models.Channel> fetchGermany = fetchGermany();
-            if (fetchGermany.isEmpty()) {
-                fetchGermany = readCache(file);
+            // Show a previously successful Live-Extra catalogue immediately.
+            // Network refreshes must never block the whole tab for tens of seconds.
+            List<Models.Channel> fetchGermany = readCache(file);
+            if (fetchGermany == null || fetchGermany.isEmpty()) {
+                fetchGermany = fetchGermany();
+                if (fetchGermany != null && !fetchGermany.isEmpty()) {
+                    writeCache(file, fetchGermany);
+                }
             } else {
-                writeCache(file, fetchGermany);
+                lastError = "";
             }
             if (fetchGermany != null && !fetchGermany.isEmpty()) {
                 Iterator<Models.Category> it = catalog.liveCats.iterator();
@@ -97,6 +102,18 @@ final class ExtraLiveSource {
             }
         } catch (Exception unused) {
         }
+    }
+
+    static boolean refreshCache(File file) {
+        try {
+            List<Models.Channel> fresh = fetchGermany();
+            if (fresh != null && !fresh.isEmpty()) {
+                writeCache(file, fresh);
+                return true;
+            }
+        } catch (Throwable unused) {
+        }
+        return false;
     }
 
     static String toPlay(String str) {
