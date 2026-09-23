@@ -52,6 +52,43 @@ final class OkPlay {
         return postJson(str, str2, signature, 7);
     }
 
+    static final class ResolveResponse {
+        final String body;
+        final int status;
+        final String failure;
+
+        ResolveResponse(String body, int status, String failure) {
+            this.body = body;
+            this.status = status;
+            this.failure = failure;
+        }
+    }
+
+    static ResolveResponse postResolve(String url, String json, String signature) {
+        try {
+            Request request = new Request.Builder().url(url)
+                    .header(HttpHeaders.USER_AGENT, "MediaHubMX/2")
+                    .header(HttpHeaders.ACCEPT, "*/*")
+                    .header(HttpHeaders.ACCEPT_LANGUAGE, "de")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                    .header("mediahubmx-signature", signature)
+                    .post(RequestBody.create(json, JSON)).build();
+            try (Response response = client().newBuilder()
+                    .connectTimeout(7, TimeUnit.SECONDS)
+                    .readTimeout(12, TimeUnit.SECONDS)
+                    .callTimeout(12, TimeUnit.SECONDS)
+                    .build().newCall(request).execute()) {
+                ResponseBody body = response.body();
+                return new ResolveResponse(response.isSuccessful() && body != null ? body.string() : null,
+                        response.code(), response.isSuccessful() ? "" : "HTTP " + response.code());
+            }
+        } catch (Exception error) {
+            // Never include response bodies or signed stream URLs in diagnostics.
+            return new ResolveResponse(null, 0, error instanceof java.net.SocketTimeoutException
+                    || error instanceof java.io.InterruptedIOException ? "Zeitüberschreitung" : "Netzwerkfehler");
+        }
+    }
+
     private static String postJson(String str, String str2, String signature, int timeoutSeconds) {
         try {
             Request.Builder rb = new Request.Builder().url(str)

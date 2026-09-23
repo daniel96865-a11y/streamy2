@@ -157,10 +157,11 @@ final class ExtraLiveSource {
         // Keep the original channel URL unchanged. Only the resolve endpoint
         // is switched between mirrors.
         final String channelUrl = str;
-        final String[] resolveHosts = {"https://vavoo.to", "https://kool.to"};
+        final String[] resolveHosts = str.startsWith("https://kool.to/")
+                ? new String[]{"https://kool.to", "https://vavoo.to"}
+                : new String[]{"https://vavoo.to", "https://kool.to"};
 
-        // A failed resolve used to perform four sequential requests, including
-        // repeated authentication. Keep one bounded attempt per mirror.
+        String failure = "Resolve ohne Stream-URL";
         for (String host : resolveHosts) {
             try {
                 String sigNow = signature();
@@ -169,7 +170,10 @@ final class ExtraLiveSource {
                         ? "Resolve: keine Signatur"
                         : "Resolve: Anfrage";
 
-                if (sigNow == null || sigNow.isEmpty()) break;
+                if (sigNow == null || sigNow.isEmpty()) {
+                    lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur).";
+                    return null;
+                }
 
                 JSONObject payload = new JSONObject();
                 payload.put("language", "de");
@@ -177,11 +181,19 @@ final class ExtraLiveSource {
                 payload.put("url", channelUrl);
                 payload.put("clientVersion", "3.0.2");
 
-                String response = OkPlay.postJsonFast(
-                        host + "/mediahubmx-resolve.json",
-                        payload.toString(),
-                        sigNow);
-                String resolved = parseResolve(response);
+                OkPlay.ResolveResponse response = OkPlay.postResolve(
+                        host + "/mediahubmx-resolve.json", payload.toString(), sigNow);
+                // A cached signature can be rejected before its five-minute TTL expires.
+                // Refresh it only for authentication errors, then try this mirror once more.
+                if (response.status == 401 || response.status == 403) {
+                    invalidateSig();
+                    String freshSig = signature();
+                    if (freshSig != null && !freshSig.isEmpty()) {
+                        response = OkPlay.postResolve(host + "/mediahubmx-resolve.json",
+                                payload.toString(), freshSig);
+                    }
+                }
+                String resolved = parseResolve(response.body);
                 if (resolved != null && !resolved.isEmpty()) {
                     activeHost = host;
                     diagnosticStage = "Resolve: URL erhalten";
@@ -195,9 +207,11 @@ final class ExtraLiveSource {
                 }
 
                 diagnosticStage = "Resolve: fehlgeschlagen";
-                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
+                failure = response.failure.isEmpty() ? "Resolve ohne Stream-URL" : response.failure;
+                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (" + failure + ")";
             } catch (Throwable ignored) {
                 diagnosticStage = "Resolve: Ausnahme";
+                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (" + failure + ")";
             }
         }
         return null;
