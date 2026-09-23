@@ -312,10 +312,13 @@
         <TextView
             android:id="@+id/playerFocusCaption"
             android:layout_width="wrap_content"
-            android:layout_height="16dp"
-            android:layout_marginTop="4dp"
-            android:textColor="@android:color/white"
-            android:textSize="9sp"
+            android:layout_height="22dp"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:textColor="@color/accent"
+            android:textSize="12sp"
             android:textStyle="bold" />
     </LinearLayout>
 

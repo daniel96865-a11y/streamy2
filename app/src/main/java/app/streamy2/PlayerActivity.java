@@ -2785,12 +2785,45 @@ public class PlayerActivity extends AppCompatActivity {
             if (control == null) continue;
             control.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                 @Override public void onFocusChange(View view, boolean focused) {
-                    view.animate().scaleX(focused ? 1.04f : 1.0f).scaleY(focused ? 1.04f : 1.0f).setDuration(90L).start();
-                    if (caption != null) caption.setText(focused ? String.valueOf(view.getContentDescription()) : "");
+                    float scale = focused && Tv.isTv(PlayerActivity.this) ? 1.14f : (focused ? 1.06f : 1.0f);
+                    view.animate().scaleX(scale).scaleY(scale).setDuration(90L).start();
+                    if (Build.VERSION.SDK_INT >= 21) {
+                        view.setElevation(focused ? 12f * getResources().getDisplayMetrics().density : 0f);
+                    }
+                    if (caption != null) {
+                        caption.setText(focused ? String.valueOf(view.getContentDescription()) : "");
+                        caption.setAlpha(focused ? 1.0f : 0.75f);
+                    }
                     if (focused) scheduleHide();
                 }
             });
         }
+    }
+
+    private void showPlayerDialog(final AlertDialog dialog, final int initialPosition) {
+        dialog.setOnShowListener(ignored -> {
+            if (!Tv.isTv(this)) return;
+            final android.widget.ListView list = dialog.getListView();
+            if (list != null) {
+                list.setSelector(R.drawable.bg_player_dialog_item);
+                list.setFocusable(true);
+                list.setFocusableInTouchMode(false);
+                list.setDrawSelectorOnTop(false);
+                list.post(() -> {
+                    if (list.getCount() > 0) {
+                        int position = Math.max(0, Math.min(initialPosition, list.getCount() - 1));
+                        list.setSelection(position);
+                    }
+                    list.requestFocus();
+                });
+            }
+            final View negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (negative != null) {
+                negative.setFocusable(true);
+                negative.setBackgroundResource(R.drawable.bg_btn_sec);
+            }
+        });
+        dialog.show();
     }
 
     private void showPlayerOptions() {
@@ -2803,9 +2836,9 @@ public class PlayerActivity extends AppCompatActivity {
         items.add("Stream-Info");
         items.add(this.audioOnly ? "Video anzeigen" : "Nur Audio");
         if (this.liveMode) items.add("Programm");
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Optionen")
-                .setItems(items.toArray(new String[0]), (dialog, which) -> {
+                .setItems(items.toArray(new String[0]), (itemDialog, which) -> {
                     String selected = items.get(which);
                     if (selected.equals("Untertitel")) showTrackOptions(C.TRACK_TYPE_TEXT);
                     else if (selected.equals("Audiospur")) showTrackOptions(C.TRACK_TYPE_AUDIO);
@@ -2817,7 +2850,8 @@ public class PlayerActivity extends AppCompatActivity {
                     else if (selected.equals("Programm")) openEpg();
                 })
                 .setNegativeButton("Schließen", null)
-                .show();
+                .create();
+        showPlayerDialog(dialog, 0);
     }
 
     private void showTrackOptions(final int trackType) {
@@ -2863,9 +2897,9 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         final int checked = selectedIndex;
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(trackType == C.TRACK_TYPE_TEXT ? "Untertitel" : "Audiospur")
-                .setSingleChoiceItems(labels.toArray(new String[0]), checked, (dialog, which) -> {
+                .setSingleChoiceItems(labels.toArray(new String[0]), checked, (itemDialog, which) -> {
                     androidx.media3.common.TrackSelectionParameters.Builder params = exo.getTrackSelectionParameters().buildUpon()
                             .clearOverridesOfType(trackType);
                     Tracks.Group group = groups.get(which);
@@ -2877,10 +2911,11 @@ public class PlayerActivity extends AppCompatActivity {
                                 .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), track));
                     }
                     exo.setTrackSelectionParameters(params.build());
-                    dialog.dismiss();
+                    itemDialog.dismiss();
                 })
                 .setNegativeButton("Schließen", null)
-                .show();
+                .create();
+        showPlayerDialog(dialog, checked < 0 ? 0 : checked);
     }
 
     private static String languageLabel(String language) {
@@ -2905,22 +2940,23 @@ public class PlayerActivity extends AppCompatActivity {
         float current = exo.getPlaybackParameters().speed;
         int checked = 2;
         for (int i = 0; i < values.length; i++) if (Math.abs(current - values[i]) < 0.01f) checked = i;
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Wiedergabegeschwindigkeit")
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                .setSingleChoiceItems(labels, checked, (itemDialog, which) -> {
                     exo.setPlaybackParameters(new PlaybackParameters(values[which]));
-                    dialog.dismiss();
+                    itemDialog.dismiss();
                 })
                 .setNegativeButton("Schließen", null)
-                .show();
+                .create();
+        showPlayerDialog(dialog, checked);
     }
 
     private void showSleepTimer() {
         final int[] minutes = new int[]{0, 15, 30, 45, 60, 90};
         final String[] labels = new String[]{"Aus", "15 Minuten", "30 Minuten", "45 Minuten", "60 Minuten", "90 Minuten"};
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Sleep-Timer")
-                .setItems(labels, (dialog, which) -> {
+                .setItems(labels, (itemDialog, which) -> {
                     if (this.sleepTimer != null) UI.removeCallbacks(this.sleepTimer);
                     this.sleepTimer = null;
                     if (minutes[which] > 0) {
@@ -2934,7 +2970,8 @@ public class PlayerActivity extends AppCompatActivity {
                     }
                 })
                 .setNegativeButton("Schließen", null)
-                .show();
+                .create();
+        showPlayerDialog(dialog, 0);
     }
 
     private void toggleAudioOnly() {
@@ -2961,15 +2998,16 @@ public class PlayerActivity extends AppCompatActivity {
         final String[] labels = new String[]{"Anpassen", "Füllen", "Strecken"};
         String current = new Prefs(this).resize();
         int checked = "zoom".equals(current) ? 1 : ("stretch".equals(current) ? 2 : 0);
-        new AlertDialog.Builder(this)
+        final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Video-Skalierung")
-                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                .setSingleChoiceItems(labels, checked, (itemDialog, which) -> {
                     new Prefs(this).setResize(values[which]);
                     applyResize();
-                    dialog.dismiss();
+                    itemDialog.dismiss();
                 })
                 .setNegativeButton("Schließen", null)
-                .show();
+                .create();
+        showPlayerDialog(dialog, checked);
     }
 
     private void cyclePlayer() {
