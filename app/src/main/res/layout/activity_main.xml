@@ -402,14 +402,27 @@
                 android:layout_height="48dp"
                 android:src="@drawable/ic_back"
                 android:contentDescription="Zurück"/>
-            <TextView
-                android:textSize="22sp"
-                android:textStyle="bold"
-                android:textColor="@color/fg"
+            <LinearLayout
+                android:orientation="vertical"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="Einstellungen"
-                android:layout_weight="1"/>
+                android:layout_weight="1"
+                android:paddingStart="4dp">
+                <TextView
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/fg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Einstellungen"/>
+                <TextView
+                    android:textSize="12sp"
+                    android:textColor="@color/muted"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:text="Streamy 2 anpassen und verwalten"/>
+            </LinearLayout>
         </LinearLayout>
         <ScrollView
             android:focusable="false"
@@ -432,48 +445,64 @@
                     <LinearLayout
                         android:gravity="center_vertical"
                         android:id="@+id/headAccount"
-                        android:background="@drawable/bg_row"
-                        android:paddingTop="8dp"
-                        android:paddingBottom="8dp"
+                        android:background="@drawable/bg_settings_category"
+                        android:paddingTop="10dp"
+                        android:paddingBottom="10dp"
                         android:focusable="true"
                         android:nextFocusDown="@+id/headPlay"
                         android:clickable="true"
                         android:descendantFocusability="blocksDescendants"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:minHeight="56dp"
+                        android:minHeight="72dp"
                         android:paddingStart="12dp"
-                        android:paddingEnd="12dp">
+                        android:paddingEnd="14dp">
+                        <ImageView
+                            android:layout_width="42dp"
+                            android:layout_height="42dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_gear"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1">
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
                             <TextView
                                 android:textSize="16sp"
                                 android:textStyle="bold"
                                 android:textColor="@color/fg"
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text="Konto"/>
+                                android:text="Wiedergabelisten &amp; Geräte"/>
                             <TextView
-                                android:textSize="12sp"
+                                android:textSize="11sp"
                                 android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Konten, Zugangsdaten und TV-Kopplung"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/accent"
                                 android:ellipsize="end"
                                 android:id="@+id/accHint"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="2dp"
-                                android:text="Playlist einklappen"
+                                android:text="Nicht verbunden"
                                 android:singleLine="true"/>
                         </LinearLayout>
                         <TextView
-                            android:textSize="14sp"
+                            android:textSize="16sp"
                             android:textColor="@color/muted"
                             android:id="@+id/chevAccount"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="▼"/>
+                            android:text="›"/>
                     </LinearLayout>
                     <LinearLayout
                         android:orientation="vertical"
@@ -680,13 +709,41 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp">
-                    <TextView
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg"
+                    <LinearLayout
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Zusatzfunktionen"/>
+                        android:layout_height="wrap_content">
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_player_info"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Zusatzfunktionen"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Extra Live, Media Extra und Freigaben"/>
+                        </LinearLayout>
+                    </LinearLayout>
                     <TextView
                         android:id="@+id/accessStatus"
                         android:textSize="12sp"
@@ -719,31 +776,52 @@
                     <LinearLayout
                         android:gravity="center_vertical"
                         android:id="@+id/headPlay"
-                        android:background="@drawable/bg_row"
+                        android:background="@drawable/bg_settings_category"
                         android:focusable="true"
                         android:nextFocusUp="@+id/headAccount"
                         android:nextFocusDown="@+id/headEpg"
                         android:clickable="true"
                         android:descendantFocusability="blocksDescendants"
                         android:layout_width="match_parent"
-                        android:layout_height="56dp"
+                        android:layout_height="72dp"
                         android:paddingStart="12dp"
-                        android:paddingEnd="12dp">
-                        <TextView
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg"
+                        android:paddingEnd="14dp">
+                        <ImageView
+                            android:layout_width="42dp"
+                            android:layout_height="42dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_play"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:text="Player-Einstellungen"
-                            android:layout_weight="1"/>
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Player &amp; Wiedergabe"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Player, Audio, Skalierung und Verhalten"/>
+                        </LinearLayout>
                         <TextView
-                            android:textSize="14sp"
+                            android:textSize="16sp"
                             android:textColor="@color/muted"
                             android:id="@+id/chevPlay"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="▼"/>
+                            android:text="›"/>
                     </LinearLayout>
                     <LinearLayout
                         android:orientation="vertical"
@@ -1170,31 +1248,52 @@
                     <LinearLayout
                         android:gravity="center_vertical"
                         android:id="@+id/headEpg"
-                        android:background="@drawable/bg_row"
+                        android:background="@drawable/bg_settings_category"
                         android:focusable="true"
                         android:nextFocusUp="@+id/headPlay"
                         android:nextFocusDown="@+id/headLook"
                         android:clickable="true"
                         android:descendantFocusability="blocksDescendants"
                         android:layout_width="match_parent"
-                        android:layout_height="56dp"
+                        android:layout_height="72dp"
                         android:paddingStart="12dp"
-                        android:paddingEnd="12dp">
-                        <TextView
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg"
+                        android:paddingEnd="14dp">
+                        <ImageView
+                            android:layout_width="42dp"
+                            android:layout_height="42dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_player_grid"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:text="EPG"
-                            android:layout_weight="1"/>
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Live TV &amp; EPG"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Programmdaten, Aktualisierung und Catch-up"/>
+                        </LinearLayout>
                         <TextView
-                            android:textSize="14sp"
+                            android:textSize="16sp"
                             android:textColor="@color/muted"
                             android:id="@+id/chevEpg"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="▼"/>
+                            android:text="›"/>
                     </LinearLayout>
                     <LinearLayout
                         android:orientation="vertical"
@@ -1309,31 +1408,52 @@
                     <LinearLayout
                         android:gravity="center_vertical"
                         android:id="@+id/headLook"
-                        android:background="@drawable/bg_row"
+                        android:background="@drawable/bg_settings_category"
                         android:focusable="true"
                         android:nextFocusUp="@+id/headEpg"
                         android:nextFocusDown="@+id/btnCheckUpdate"
                         android:clickable="true"
                         android:descendantFocusability="blocksDescendants"
                         android:layout_width="match_parent"
-                        android:layout_height="56dp"
+                        android:layout_height="72dp"
                         android:paddingStart="12dp"
-                        android:paddingEnd="12dp">
-                        <TextView
-                            android:textSize="16sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg"
+                        android:paddingEnd="14dp">
+                        <ImageView
+                            android:layout_width="42dp"
+                            android:layout_height="42dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="10dp"
+                            android:src="@drawable/ic_player_tune"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:text="Darstellung"
-                            android:layout_weight="1"/>
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Design &amp; Oberfläche"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Farben, Raster und Darstellung"/>
+                        </LinearLayout>
                         <TextView
-                            android:textSize="14sp"
+                            android:textSize="16sp"
                             android:textColor="@color/muted"
                             android:id="@+id/chevLook"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="▼"/>
+                            android:text="›"/>
                     </LinearLayout>
                     <LinearLayout
                         android:orientation="vertical"
@@ -1424,13 +1544,41 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:layout_marginBottom="24dp">
-                    <TextView
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Über Streamy 2"/>
+                    <LinearLayout
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_settings_icon"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_up"
+                            android:tint="@color/accent"
+                            android:contentDescription="@null"/>
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp">
+                            <TextView
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/fg"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Daten &amp; Updates"/>
+                            <TextView
+                                android:textSize="11sp"
+                                android:textColor="@color/muted"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Version, Updates und App-Informationen"/>
+                        </LinearLayout>
+                    </LinearLayout>
                     <TextView
                         android:textSize="13sp"
                         android:textColor="@color/muted"
