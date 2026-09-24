@@ -21,6 +21,8 @@ actor ExtraLiveService {
     private var signatureValue: String?
     private var signatureDate: Date?
     private var activeHost = "https://kool.to"
+    private let clientID = "s2-ios-" + UUID().uuidString
+    private let clientStartedAt = Int(Date().timeIntervalSince1970 * 1000)
 
     private init() {}
 
