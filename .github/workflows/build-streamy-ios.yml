@@ -28,7 +28,17 @@ jobs:
 
       - name: Resolve Swift packages
         working-directory: ios
-        run: xcodebuild -project StreamyIOS.xcodeproj -scheme StreamyIOS -resolvePackageDependencies
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if xcodebuild -project StreamyIOS.xcodeproj -scheme StreamyIOS -resolvePackageDependencies; then
+              exit 0
+            fi
+            echo "Swift-Paketauflösung fehlgeschlagen (Versuch $attempt/3). Neuer Versuch …"
+            rm -rf ~/Library/Developer/Xcode/DerivedData/StreamyIOS-*
+            sleep 10
+          done
+          exit 1
 
       - name: Build iOS Simulator app
         working-directory: ios
