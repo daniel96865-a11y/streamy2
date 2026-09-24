@@ -16,7 +16,7 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String?
     @Published var playbackItem: PlaybackItem?
 
-    init(playlists: PlaylistStore = PlaylistStore(), prefs: PrefsStore = PrefsStore(), epg: EPGStore = EPGStore()) {
+    init(playlists: PlaylistStore, prefs: PrefsStore, epg: EPGStore) {
         self.playlists = playlists
         self.prefs = prefs
         self.epg = epg
@@ -60,7 +60,7 @@ final class AppState: ObservableObject {
                 if let epgURL { Task { await epg.refresh(from: epgURL) } }
             } else if let raw = source.m3uURL, let url = URL(string: raw) {
                 channels = try await M3UParser.load(url: url)
-                let names = Set(channels.compactMap(.categoryID)).sorted()
+                let names = Set(channels.compactMap(\.categoryID)).sorted()
                 liveCategories = names.map { Category(id: $0, name: $0) }
                 vodCategories = []
                 movies = []
@@ -100,7 +100,7 @@ final class AppState: ObservableObject {
     func play(episode: Episode, series: Series) {
         playbackItem = PlaybackItem(
             title: series.name,
-            subtitle: "S(episode.season) E(episode.episode) · (episode.title)",
+            subtitle: "S\(episode.season) E\(episode.episode) · \(episode.title)",
             url: episode.streamURL,
             logoURL: series.posterURL,
             isLive: false,
