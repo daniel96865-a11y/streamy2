@@ -1,0 +1,113 @@
+name: Publish Streamy 2 3.69
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.69.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.69 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy369
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10799881049/zip > /tmp/streamy369/artifact.zip
+          unzip -q /tmp/streamy369/artifact.zip -d /tmp/streamy369/artifact
+          test -f /tmp/streamy369/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy369/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy369/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.69:refs/remotes/origin/publish/3.69
+          git show origin/publish/3.69:.release-3.69/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy369/tv.patch.zst
+          git show origin/publish/3.69:.release-3.69/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy369/mobile.patch.zst
+
+          echo '247513cb6a776774ef09dedfda730fea0bcc60abd823928c40eb5b37f59f6ecd  /tmp/streamy369/tv.patch.zst' | sha256sum -c -
+          echo '00f67ba29bf2b16bba0f1b1c07b48d097dda1e983b5a1fcc886949700d148ca1  /tmp/streamy369/mobile.patch.zst' | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy369/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy369/tv.patch.zst -o /tmp/streamy369/Streamy2-TV-3.69.apk
+          zstd -q -d --patch-from=/tmp/streamy369/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy369/mobile.patch.zst -o /tmp/streamy369/Streamy2-Mobile-3.69.apk
+
+          echo 'b8aa941b24875eb7271f35bd556e23d24c3b2b8a8ada6e97cc3d2befcf2027b1  /tmp/streamy369/Streamy2-TV-3.69.apk' | sha256sum -c -
+          echo '8cae3981d7f7d819b29325e633a93a299b65163a75993c396b4bf76cf06bdc38  /tmp/streamy369/Streamy2-Mobile-3.69.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy369/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy369/Streamy2-TV-3.69.apk | grep -q "package: name='app.streamy2' versionCode='189' versionName='3.69'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy369/Streamy2-Mobile-3.69.apk | grep -q "package: name='app.streamy2.mobile' versionCode='189' versionName='3.69'"
+          for apk in /tmp/streamy369/Streamy2-TV-3.69.apk /tmp/streamy369/Streamy2-Mobile-3.69.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy369/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy369/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy369/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy369/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy369/Streamy2-TV-3.69.apk docs/downloads/
+          cp /tmp/streamy369/Streamy2-Mobile-3.69.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":189,"versionName":"3.69","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.69.apk","changelog":"3.69 verbessert die TV-Bedienung: Einstellungs-Karten werden beim Fokus nicht mehr vergrößert und dadurch nicht mehr am Bildschirmrand abgeschnitten. Im Player sind fokussierte Optionen mit der Fernbedienung deutlich sichtbar. Die Korrekturen aus 3.68 und der Audio-Fix bleiben enthalten."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":189,"versionName":"3.69","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.69.apk","changelog":"3.69 verbessert die TV-Bedienung: Einstellungs-Karten werden beim Fokus nicht mehr vergrößert und dadurch nicht mehr am Bildschirmrand abgeschnitten. Im Player sind fokussierte Optionen mit der Fernbedienung deutlich sichtbar. Die Korrekturen aus 3.68 und der Audio-Fix bleiben enthalten."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.69.apk docs/downloads/Streamy2-Mobile-3.69.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.69 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy369/notes.md <<'EOF'
+          Streamy 2 3.69 — TV-Fokus
+
+          - TV-Einstellungen: fokussierte Kategorien werden nicht mehr vergrößert und bleiben vollständig im Bild.
+          - Player-Optionen: der aktuelle D-Pad-Fokus ist deutlich sichtbar.
+          - Vavoo/Live-Extra-Hotfix aus 3.68 bleibt enthalten.
+          - Automatische Tonspurwahl aus 3.67 bleibt enthalten.
+          - TV und Mobile: Version 3.69 / Build 189, gleiche Release-Signatur wie 3.68.
+          EOF
+
+          if gh release view v3.69 >/dev/null 2>&1; then
+            gh release upload v3.69 /tmp/streamy369/Streamy2-TV-3.69.apk /tmp/streamy369/Streamy2-Mobile-3.69.apk --clobber
+          else
+            gh release create v3.69               /tmp/streamy369/Streamy2-TV-3.69.apk               /tmp/streamy369/Streamy2-Mobile-3.69.apk               --target main               --title 'Streamy 2 3.69 — TV-Fokus'               --notes-file /tmp/streamy369/notes.md               --latest
+          fi
