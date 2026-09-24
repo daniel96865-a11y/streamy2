@@ -18,6 +18,9 @@ final class PrefsStore: ObservableObject {
     @Published var streamFormat: StreamFormat {
         didSet { defaults.set(streamFormat.rawValue, forKey: "streamFormat") }
     }
+    @Published var extraLiveEnabled: Bool {
+        didSet { defaults.set(extraLiveEnabled, forKey: "extraLiveEnabled") }
+    }
     @Published var accentHex: String {
         didSet { defaults.set(accentHex, forKey: "accentHex") }
     }
@@ -40,6 +43,7 @@ final class PrefsStore: ObservableObject {
         bufferMode = BufferMode(rawValue: stored.string(forKey: "bufferMode") ?? "") ?? .normal
         audioMode = AudioMode(rawValue: stored.string(forKey: "audioMode") ?? "") ?? .automatic
         streamFormat = StreamFormat(rawValue: stored.string(forKey: "streamFormat") ?? "") ?? .hls
+        extraLiveEnabled = stored.object(forKey: "extraLiveEnabled") as? Bool ?? true
         accentHex = stored.string(forKey: "accentHex") ?? "#5B9DFF"
         hideTopBar = stored.bool(forKey: "hideTopBar")
         rememberLastChannel = stored.object(forKey: "rememberLastChannel") as? Bool ?? true
