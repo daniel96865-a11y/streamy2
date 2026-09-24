@@ -15,6 +15,31 @@ struct XtreamAPI {
         password = credentials.password
     }
 
+    func accountInfo() async throws -> XtreamAccountInfo {
+        var components = URLComponents(url: baseURL.appendingPathComponent("player_api.php"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "username", value: username),
+            URLQueryItem(name: "password", value: password)
+        ]
+        guard let url = components?.url else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("Streamy-iOS/0.1", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+            throw URLError(.badServerResponse)
+        }
+        let decoded = try JSONDecoder().decode(AccountResponseDTO.self, from: data)
+        let raw = decoded.userInfo
+        let expiresAt = raw.expDate.flatMap(Double.init).map { Date(timeIntervalSince1970: $0) }
+        return XtreamAccountInfo(
+            status: raw.status ?? "Unbekannt",
+            expiresAt: expiresAt,
+            activeConnections: raw.activeCons.flatMap(Int.init),
+            maxConnections: raw.maxConnections.flatMap(Int.init)
+        )
+    }
+
     func categories(kind: String) async throws -> [Category] {
         let action: String
         switch kind {
@@ -159,6 +184,28 @@ struct XtreamAPI {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+private struct AccountResponseDTO: Decodable {
+    let userInfo: AccountUserInfoDTO
+
+    enum CodingKeys: String, CodingKey {
+        case userInfo = "user_info"
+    }
+}
+
+private struct AccountUserInfoDTO: Decodable {
+    let status: String?
+    let expDate: String?
+    let activeCons: String?
+    let maxConnections: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case expDate = "exp_date"
+        case activeCons = "active_cons"
+        case maxConnections = "max_connections"
     }
 }
 

@@ -16,11 +16,24 @@ final class AppState: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var playbackItem: PlaybackItem?
+    @Published private(set) var favoriteChannelKeys: Set<String> = []
+    @Published private(set) var lastChannelKey: String?
+    @Published private(set) var accountInfo: XtreamAccountInfo?
+
+    private let favoritesStorageKey = "ios.favoriteChannels"
+    private let lastChannelStorageKey = "ios.lastChannel"
 
     init(playlists: PlaylistStore, prefs: PrefsStore, epg: EPGStore) {
         self.playlists = playlists
         self.prefs = prefs
         self.epg = epg
+        favoriteChannelKeys = Set(UserDefaults.standard.stringArray(forKey: favoritesStorageKey) ?? [])
+        lastChannelKey = UserDefaults.standard.string(forKey: lastChannelStorageKey)
+    }
+
+    var lastChannel: Channel? {
+        guard let key = lastChannelKey else { return nil }
+        return channels.first { channelKey($0) == key }
     }
 
     func reload() async {
@@ -31,6 +44,7 @@ final class AppState: ObservableObject {
             movies = []
             seriesCategories = []
             series = []
+            accountInfo = nil
             return
         }
 
@@ -56,6 +70,7 @@ final class AppState: ObservableObject {
                 movies = try await movieItems
                 seriesCategories = try await seriesCats
                 series = try await seriesItems
+                accountInfo = try? await api.accountInfo()
 
                 let epgURL = source.epgURL.flatMap(URL.init(string:)) ?? api.xmltvURL()
                 if let epgURL { Task { await epg.refresh(from: epgURL) } }
@@ -67,6 +82,7 @@ final class AppState: ObservableObject {
                 movies = []
                 seriesCategories = []
                 series = []
+                accountInfo = nil
                 if let epgRaw = source.epgURL, let epgURL = URL(string: epgRaw) {
                     Task { await epg.refresh(from: epgURL) }
                 }
@@ -76,7 +92,26 @@ final class AppState: ObservableObject {
         }
     }
 
+    func isFavorite(_ channel: Channel) -> Bool {
+        favoriteChannelKeys.contains(channelKey(channel))
+    }
+
+    func toggleFavorite(_ channel: Channel) {
+        let key = channelKey(channel)
+        if favoriteChannelKeys.contains(key) {
+            favoriteChannelKeys.remove(key)
+        } else {
+            favoriteChannelKeys.insert(key)
+        }
+        UserDefaults.standard.set(Array(favoriteChannelKeys).sorted(), forKey: favoritesStorageKey)
+    }
+
     func play(channel: Channel) {
+        if prefs.rememberLastChannel {
+            let key = channelKey(channel)
+            lastChannelKey = key
+            UserDefaults.standard.set(key, forKey: lastChannelStorageKey)
+        }
         playbackItem = PlaybackItem(
             title: channel.name,
             subtitle: epg.now(for: channel)?.title,
@@ -127,5 +162,10 @@ final class AppState: ObservableObject {
         guard let source = playlists.selectedSource,
               let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)) else { return [] }
         return try await api.episodes(seriesID: series.id)
+    }
+
+    private func channelKey(_ channel: Channel) -> String {
+        let sourceID = playlists.selectedSource?.id.uuidString ?? "unknown"
+        return sourceID + "|" + channel.id
     }
 }
