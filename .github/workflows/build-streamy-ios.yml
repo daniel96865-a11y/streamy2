@@ -1,0 +1,36 @@
+name: Build Streamy iOS
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build-streamy-ios.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            ios
+            .github/workflows/build-streamy-ios.yml
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve Swift packages
+        working-directory: ios
+        run: xcodebuild -project StreamyIOS.xcodeproj -scheme StreamyIOS -resolvePackageDependencies
+
+      - name: Build iOS Simulator app
+        working-directory: ios
+        run: |
+          xcodebuild             -project StreamyIOS.xcodeproj             -scheme StreamyIOS             -sdk iphonesimulator             -destination 'generic/platform=iOS Simulator'             CODE_SIGNING_ALLOWED=NO             build
