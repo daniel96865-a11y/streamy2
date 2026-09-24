@@ -162,7 +162,8 @@ final class AppState: ObservableObject {
                         url: resolved,
                         logoURL: movie.posterURL,
                         isLive: false,
-                        channel: nil
+                        channel: nil,
+                        resumeKey: "movie:" + movie.id
                     )
                     errorMessage = nil
                 } catch {
@@ -179,7 +180,8 @@ final class AppState: ObservableObject {
             url: movie.streamURL,
             logoURL: movie.posterURL,
             isLive: false,
-            channel: nil
+            channel: nil,
+            resumeKey: "movie:" + movie.id
         )
     }
 
@@ -195,7 +197,8 @@ final class AppState: ObservableObject {
                         url: resolved,
                         logoURL: series.posterURL,
                         isLive: false,
-                        channel: nil
+                        channel: nil,
+                        resumeKey: "episode:" + episode.id
                     )
                     errorMessage = nil
                 } catch {
@@ -212,7 +215,8 @@ final class AppState: ObservableObject {
             url: episode.streamURL,
             logoURL: series.posterURL,
             isLive: false,
-            channel: nil
+            channel: nil,
+            resumeKey: "episode:" + episode.id
         )
     }
 
