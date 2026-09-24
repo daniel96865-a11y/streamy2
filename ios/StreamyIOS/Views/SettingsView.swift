@@ -65,6 +65,27 @@ struct SettingsView: View {
                         }
                     }
 
+                    Picker("Audio / Surround", selection: $prefs.audioMode) {
+                        ForEach(AudioMode.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+
+                    Picker("Puffer", selection: $prefs.bufferMode) {
+                        ForEach(BufferMode.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+
+                    Picker("Stream-Format", selection: $prefs.streamFormat) {
+                        ForEach(StreamFormat.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+                    .onChange(of: prefs.streamFormat) { _ in
+                        Task { await state.reload() }
+                    }
+
                     Picker("Bildmodus", selection: $prefs.resizeMode) {
                         ForEach(VideoResizeMode.allCases) { option in
                             Text(option.label).tag(option)
@@ -73,7 +94,7 @@ struct SettingsView: View {
 
                     Toggle("Letzten Sender merken", isOn: $prefs.rememberLastChannel)
 
-                    Text("Automatisch verwendet den Apple-Player und wechselt bei nicht unterstützten Formaten auf VLC.")
+                    Text("Auto nutzt den Apple-Player und fällt bei nicht unterstützten Formaten auf VLC zurück. Puffer, Audio-Ausgabe, HLS/TS und Bildmodus entsprechen den Streamy-Player-Einstellungen.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

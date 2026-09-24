@@ -44,7 +44,7 @@ final class AppState: ObservableObject {
                     throw URLError(.userAuthenticationRequired)
                 }
                 async let liveCats = api.categories(kind: "live")
-                async let liveItems = api.liveChannels()
+                async let liveItems = api.liveChannels(streamExtension: prefs.streamFormat.fileExtension)
                 async let movieCats = api.categories(kind: "vod")
                 async let movieItems = api.movies()
                 async let seriesCats = api.categories(kind: "series")
