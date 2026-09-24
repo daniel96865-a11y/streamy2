@@ -102,6 +102,7 @@ struct PlaybackItem: Identifiable, Hashable {
     let logoURL: URL?
     let isLive: Bool
     let channel: Channel?
+    let resumeKey: String? = nil
 }
 
 enum PlayerPreference: String, Codable, CaseIterable, Identifiable {
