@@ -506,56 +506,77 @@ final class ExtraLiveSource {
 
     private static String pingBody() {
         try {
-            JSONObject jSONObject = new JSONObject();
-            jSONObject.put("type", "Handset");
-            jSONObject.put("brand", "google");
-            jSONObject.put("model", "Pixel");
-            jSONObject.put("name", "streamy2");
-            jSONObject.put("uniqueId", "s2" + Build.ID);
-            JSONObject jSONObject2 = new JSONObject();
-            jSONObject2.put("name", "android");
-            jSONObject2.put("version", Build.VERSION.RELEASE);
-            JSONObject jSONObject3 = new JSONObject();
-            jSONObject3.put("platform", "android");
-            jSONObject3.put("version", "3.1.21");
-            jSONObject3.put("buildId", "289515000");
-            jSONObject3.put("engine", "hbc85");
-            JSONObject jSONObject4 = new JSONObject();
-            jSONObject4.put("package", "tv.vavoo.app");
-            jSONObject4.put("binary", "3.1.21");
-            jSONObject4.put("js", "3.1.21");
-            JSONObject jSONObject5 = new JSONObject();
-            jSONObject5.put("device", jSONObject);
-            jSONObject5.put("os", jSONObject2);
-            jSONObject5.put("app", jSONObject3);
-            jSONObject5.put("version", jSONObject4);
-            JSONObject jSONObject6 = new JSONObject();
-            jSONObject6.put("supported", new JSONArray().put("ss").put("openvpn"));
-            jSONObject6.put("engine", "ss");
-            jSONObject6.put("ssVersion", 1);
-            jSONObject6.put("enabled", true);
-            jSONObject6.put("autoServer", true);
-            jSONObject6.put("id", "de-fra");
-            JSONObject jSONObject7 = new JSONObject();
-            jSONObject7.put("token", "");
-            jSONObject7.put("reason", "app-blur");
-            jSONObject7.put("locale", "de");
-            jSONObject7.put("theme", "dark");
-            jSONObject7.put("metadata", jSONObject5);
-            jSONObject7.put("hasAddon", true);
-            jSONObject7.put("castConnected", false);
-            jSONObject7.put("package", "tv.vavoo.app");
-            jSONObject7.put("version", "3.1.21");
-            jSONObject7.put("process", "app");
-            jSONObject7.put("firstAppStart", 1743962904623L);
-            jSONObject7.put("lastAppStart", System.currentTimeMillis());
-            jSONObject7.put("adblockEnabled", true);
-            jSONObject7.put("proxy", jSONObject6);
-            JSONArray jSONArray = new JSONArray();
-            jSONArray.put("6e8a975e3cbf07d5de823a760d4c2547f86c1403105020adee5de67ac510999e");
-            jSONObject3.put("signatures", jSONArray);
-            jSONObject3.put("installer", "com.android.vending");
-            return jSONObject7.toString();
+            JSONObject device = new JSONObject();
+            device.put("type", "Handset");
+            device.put("brand", Build.BRAND == null ? "android" : Build.BRAND);
+            device.put("model", Build.MODEL == null ? "Android" : Build.MODEL);
+            device.put("name", "streamy2");
+            device.put("uniqueId", CLIENT_ID);
+
+            JSONObject os = new JSONObject();
+            os.put("name", "android");
+            os.put("version", Build.VERSION.RELEASE);
+            JSONArray abis = new JSONArray();
+            if (Build.SUPPORTED_ABIS != null) {
+                for (String abi : Build.SUPPORTED_ABIS) {
+                    if (abi != null && !abi.isEmpty()) abis.put(abi);
+                }
+            }
+            os.put("abis", abis);
+            os.put("host", "android");
+
+            JSONObject app = new JSONObject();
+            app.put("platform", "android");
+            app.put("version", "3.1.21");
+            app.put("buildId", "289515000");
+            app.put("engine", "hbc85");
+            app.put("installer", "com.android.vending");
+            app.put("signatures", new JSONArray()
+                    .put("6e8a975e3cbf07d5de823a760d4c2547f86c1403105020adee5de67ac510999e"));
+
+            JSONObject version = new JSONObject();
+            version.put("package", "tv.vavoo.app");
+            version.put("binary", "3.1.21");
+            version.put("js", "3.1.21");
+
+            JSONObject metadata = new JSONObject();
+            metadata.put("device", device);
+            metadata.put("os", os);
+            metadata.put("app", app);
+            metadata.put("version", version);
+
+            JSONObject proxy = new JSONObject();
+            proxy.put("supported", new JSONArray().put("ss"));
+            proxy.put("engine", "Mu");
+            proxy.put("enabled", false);
+            proxy.put("autoServer", true);
+
+            JSONObject iap = new JSONObject();
+            iap.put("supported", false);
+
+            long now = System.currentTimeMillis();
+            JSONObject body = new JSONObject();
+            body.put("token", "");
+            body.put("reason", "app-focus");
+            body.put("locale", "de");
+            body.put("theme", "dark");
+            body.put("metadata", metadata);
+            body.put("appFocusTime", 0);
+            body.put("playerActive", false);
+            body.put("playDuration", 0);
+            body.put("devMode", false);
+            body.put("hasAddon", true);
+            body.put("castConnected", false);
+            body.put("package", "tv.vavoo.app");
+            body.put("version", "3.1.21");
+            body.put("process", "app");
+            body.put("firstAppStart", CLIENT_STARTED_AT);
+            body.put("lastAppStart", now);
+            body.put("ipLocation", JSONObject.NULL);
+            body.put("adblockEnabled", true);
+            body.put("proxy", proxy);
+            body.put("iap", iap);
+            return body.toString();
         } catch (Exception unused) {
             return "{}";
         }
