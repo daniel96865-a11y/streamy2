@@ -17,7 +17,6 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
 
       - name: Download tested 3.70 unsigned build
         env:
