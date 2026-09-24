@@ -1,7 +1,6 @@
 package app.streamy2;
 
 import android.os.Build;
-import android.util.Base64;
 import androidx.media3.common.PlaybackException;
 import app.streamy2.Models;
 import com.google.common.net.HttpHeaders;
@@ -31,9 +30,9 @@ final class ExtraLiveSource {
     private static volatile String sig;
     private static volatile long sigAt;
     private static final String[] HOSTS = {"https://kool.to", "https://vavoo.to", "https://www.vavoo.to"};
-    private static final String[] PINGS = {"https://www.vavoo.tv/api/app/ping", "https://www.vypn.net/api/app/ping"};
-    private static final String VYPN_PACKAGE = "net.vypn.app";
-    private static final String VYPN_VERSION = "1.4.1";
+    private static final String[] PINGS = {"https://www.vavoo.tv/api/app/ping"};
+    private static final String CLIENT_ID = "s2-" + UUID.randomUUID();
+    private static final long CLIENT_STARTED_AT = System.currentTimeMillis();
     static volatile String lastError = "";
     static volatile String diagnosticStage = "Leerlauf";
     static volatile String diagnosticResolveHost = "";
