@@ -2028,11 +2028,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             final View card = findViewById(id);
             if (card == null) continue;
             card.setOnFocusChangeListener((view, focused) -> {
-                float scale = focused && Tv.isTv(MainActivity.this) ? 1.025f : 1.0f;
-                view.animate().scaleX(scale).scaleY(scale).setDuration(100L).start();
+                // Full-width settings cards must not grow on TV: scaling makes the
+                // focused card extend past the screen/ScrollView edges.
+                view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(80L).start();
                 if (Build.VERSION.SDK_INT >= 21) {
                     view.setElevation(focused
-                            ? 10f * getResources().getDisplayMetrics().density
+                            ? 6f * getResources().getDisplayMetrics().density
                             : 0f);
                 }
             });
