@@ -157,48 +157,61 @@ final class ExtraLiveSource {
         // Keep the original channel URL unchanged. Only the resolve endpoint
         // is switched between mirrors.
         final String channelUrl = str;
-        final String[] resolveHosts = {"https://vavoo.to", "https://kool.to"};
+        final String[] resolveHosts = str.startsWith("https://kool.to/")
+                ? new String[]{"https://kool.to", "https://vavoo.to"}
+                : new String[]{"https://vavoo.to", "https://kool.to"};
 
+        String failure = "Resolve ohne Stream-URL";
         for (String host : resolveHosts) {
-            for (int attempt = 0; attempt < 2; attempt++) {
-                try {
-                    if (attempt > 0) invalidateSig();
-                    String sigNow = signature();
-                    diagnosticAuthHost = host;
-                    diagnosticStage = (sigNow == null || sigNow.isEmpty())
-                            ? "Resolve: keine Signatur"
-                            : "Resolve: Anfrage " + (attempt + 1);
+            try {
+                String sigNow = signature();
+                diagnosticAuthHost = host;
+                diagnosticStage = (sigNow == null || sigNow.isEmpty())
+                        ? "Resolve: keine Signatur"
+                        : "Resolve: Anfrage";
 
-                    if (sigNow == null || sigNow.isEmpty()) continue;
-
-                    JSONObject payload = new JSONObject();
-                    payload.put("language", "de");
-                    payload.put("region", "DE");
-                    payload.put("url", channelUrl);
-                    payload.put("clientVersion", "3.0.2");
-
-                    String response = OkPlay.postJson(
-                            host + "/mediahubmx-resolve.json",
-                            payload.toString(),
-                            sigNow);
-                    String resolved = parseResolve(response);
-                    if (resolved != null && !resolved.isEmpty()) {
-                        activeHost = host;
-                        diagnosticStage = "Resolve: URL erhalten";
-                        lastError = "";
-                        try {
-                            diagnosticResolveHost = new URL(resolved).getHost();
-                        } catch (Throwable ignored) {
-                            diagnosticResolveHost = "";
-                        }
-                        return resolved;
-                    }
-
-                    diagnosticStage = "Resolve: fehlgeschlagen";
-                    lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (Resolve)";
-                } catch (Throwable ignored) {
-                    diagnosticStage = "Resolve: Ausnahme";
+                if (sigNow == null || sigNow.isEmpty()) {
+                    lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur).";
+                    return null;
                 }
+
+                JSONObject payload = new JSONObject();
+                payload.put("language", "de");
+                payload.put("region", "DE");
+                payload.put("url", channelUrl);
+                payload.put("clientVersion", "3.0.2");
+
+                OkPlay.ResolveResponse response = OkPlay.postResolve(
+                        host + "/mediahubmx-resolve.json", payload.toString(), sigNow);
+                // A cached signature can be rejected before its five-minute TTL expires.
+                // Refresh it only for authentication errors, then try this mirror once more.
+                if (response.status == 401 || response.status == 403) {
+                    invalidateSig();
+                    String freshSig = signature();
+                    if (freshSig != null && !freshSig.isEmpty()) {
+                        response = OkPlay.postResolve(host + "/mediahubmx-resolve.json",
+                                payload.toString(), freshSig);
+                    }
+                }
+                String resolved = parseResolve(response.body);
+                if (resolved != null && !resolved.isEmpty()) {
+                    activeHost = host;
+                    diagnosticStage = "Resolve: URL erhalten";
+                    lastError = "";
+                    try {
+                        diagnosticResolveHost = new URL(resolved).getHost();
+                    } catch (Throwable ignored) {
+                        diagnosticResolveHost = "";
+                    }
+                    return resolved;
+                }
+
+                diagnosticStage = "Resolve: fehlgeschlagen";
+                failure = response.failure.isEmpty() ? "Resolve ohne Stream-URL" : response.failure;
+                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (" + failure + ")";
+            } catch (Throwable ignored) {
+                diagnosticStage = "Resolve: Ausnahme";
+                lastError = "Live-Extra-Stream konnte nicht aufgelöst werden (" + failure + ")";
             }
         }
         return null;
@@ -440,7 +453,7 @@ final class ExtraLiveSource {
     private static String signature() {
         String empty = "";
         diagnosticStage = "Auth: Signatur prüfen";
-        if (sig != null && System.currentTimeMillis() - sigAt < 300000L) {
+        if (sig != null && System.currentTimeMillis() - sigAt < 480000L) {
             diagnosticStage = "Auth: Cache-Signatur";
             return sig;
         }
@@ -453,13 +466,10 @@ final class ExtraLiveSource {
                 if (response != null && !response.isEmpty()) {
                     JSONObject obj = new JSONObject(response);
                     String candidate = obj.optString("addonSig", empty);
-                    if (candidate.isEmpty()) candidate = obj.optString("mhub", empty);
                     if (candidate.isEmpty()) candidate = obj.optString("signed", empty);
                     if (!candidate.isEmpty()) {
-                        String publicIp = externalIp();
-                        if (publicIp != null && !publicIp.isEmpty()) {
-                            candidate = rewriteAddonSigIp(candidate, publicIp);
-                        }
+                        // The ping endpoint already returns the valid signed token.
+                        // Never rewrite its embedded data; doing so invalidates the signature.
                         sig = candidate;
                         sigAt = System.currentTimeMillis();
                         lastError = "";
@@ -470,10 +480,8 @@ final class ExtraLiveSource {
             } catch (Exception unused) {
             }
         }
-        if (sig == null || sig.isEmpty()) {
-            diagnosticStage = "Auth: fehlgeschlagen";
-            lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur).";
-        }
+        diagnosticStage = "Auth: fehlgeschlagen";
+        lastError = "Live-Extra-Anmeldung fehlgeschlagen (Ping/Signatur).";
         return sig == null ? "" : sig;
     }
 
@@ -498,143 +506,58 @@ final class ExtraLiveSource {
 
     private static String pingBody() {
         try {
-            long now = System.currentTimeMillis();
-
-            JSONObject device = new JSONObject();
-            device.put("type", "phone");
-            device.put("uniqueId", UUID.randomUUID().toString());
-
-            JSONObject os = new JSONObject();
-            os.put("name", "android");
-            os.put("version", "14");
-            os.put("abis", new JSONArray().put("arm64-v8a"));
-            os.put("host", "android");
-
-            JSONObject app = new JSONObject();
-            app.put("platform", "android");
-
-            JSONObject version = new JSONObject();
-            version.put("package", VYPN_PACKAGE);
-            version.put("binary", VYPN_VERSION);
-            version.put("js", VYPN_VERSION);
-
-            JSONObject metadata = new JSONObject();
-            metadata.put("device", device);
-            metadata.put("os", os);
-            metadata.put("app", app);
-            metadata.put("version", version);
-
-            JSONObject proxy = new JSONObject();
-            proxy.put("supported", new JSONArray().put("ss"));
-            proxy.put("engine", "Mu");
-            proxy.put("ssVersion", "2022");
-            proxy.put("enabled", false);
-            proxy.put("autoServer", true);
-            proxy.put("id", "");
-
-            JSONObject iap = new JSONObject();
-            iap.put("supported", false);
-            iap.put("error", "");
-
-            JSONObject body = new JSONObject();
-            body.put("token", "");
-            body.put("reason", "app-focus");
-            body.put("locale", "de");
-            body.put("theme", "dark");
-            body.put("metadata", metadata);
-            body.put("appFocusTime", 0);
-            body.put("playerActive", false);
-            body.put("playDuration", 0);
-            body.put("devMode", false);
-            body.put("hasAddon", true);
-            body.put("castConnected", false);
-            body.put("package", VYPN_PACKAGE);
-            body.put("version", VYPN_VERSION);
-            body.put("process", "app");
-            body.put("firstAppStart", now - 86400000L);
-            body.put("lastAppStart", now);
-            body.put("ipLocation", JSONObject.NULL);
-            body.put("adblockEnabled", true);
-            body.put("migrationApplied", false);
-            body.put("migrationTargetInstalled", false);
-            body.put("proxy", proxy);
-            body.put("iap", iap);
-            return body.toString();
+            JSONObject jSONObject = new JSONObject();
+            jSONObject.put("type", "Handset");
+            jSONObject.put("brand", "google");
+            jSONObject.put("model", "Pixel");
+            jSONObject.put("name", "streamy2");
+            jSONObject.put("uniqueId", "s2" + Build.ID);
+            JSONObject jSONObject2 = new JSONObject();
+            jSONObject2.put("name", "android");
+            jSONObject2.put("version", Build.VERSION.RELEASE);
+            JSONObject jSONObject3 = new JSONObject();
+            jSONObject3.put("platform", "android");
+            jSONObject3.put("version", "3.1.21");
+            jSONObject3.put("buildId", "289515000");
+            jSONObject3.put("engine", "hbc85");
+            JSONObject jSONObject4 = new JSONObject();
+            jSONObject4.put("package", "tv.vavoo.app");
+            jSONObject4.put("binary", "3.1.21");
+            jSONObject4.put("js", "3.1.21");
+            JSONObject jSONObject5 = new JSONObject();
+            jSONObject5.put("device", jSONObject);
+            jSONObject5.put("os", jSONObject2);
+            jSONObject5.put("app", jSONObject3);
+            jSONObject5.put("version", jSONObject4);
+            JSONObject jSONObject6 = new JSONObject();
+            jSONObject6.put("supported", new JSONArray().put("ss").put("openvpn"));
+            jSONObject6.put("engine", "ss");
+            jSONObject6.put("ssVersion", 1);
+            jSONObject6.put("enabled", true);
+            jSONObject6.put("autoServer", true);
+            jSONObject6.put("id", "de-fra");
+            JSONObject jSONObject7 = new JSONObject();
+            jSONObject7.put("token", "");
+            jSONObject7.put("reason", "app-blur");
+            jSONObject7.put("locale", "de");
+            jSONObject7.put("theme", "dark");
+            jSONObject7.put("metadata", jSONObject5);
+            jSONObject7.put("hasAddon", true);
+            jSONObject7.put("castConnected", false);
+            jSONObject7.put("package", "tv.vavoo.app");
+            jSONObject7.put("version", "3.1.21");
+            jSONObject7.put("process", "app");
+            jSONObject7.put("firstAppStart", 1743962904623L);
+            jSONObject7.put("lastAppStart", System.currentTimeMillis());
+            jSONObject7.put("adblockEnabled", true);
+            jSONObject7.put("proxy", jSONObject6);
+            JSONArray jSONArray = new JSONArray();
+            jSONArray.put("6e8a975e3cbf07d5de823a760d4c2547f86c1403105020adee5de67ac510999e");
+            jSONObject3.put("signatures", jSONArray);
+            jSONObject3.put("installer", "com.android.vending");
+            return jSONObject7.toString();
         } catch (Exception unused) {
             return "{}";
-        }
-    }
-
-    private static String externalIp() {
-        String[] urls = {
-                "https://api.ipify.org",
-                "https://v4.ident.me",
-                "https://checkip.amazonaws.com"
-        };
-        for (String url : urls) {
-            HttpURLConnection connection = null;
-            try {
-                connection = (HttpURLConnection) new URL(url).openConnection();
-                connection.setInstanceFollowRedirects(true);
-                connection.setConnectTimeout(3500);
-                connection.setReadTimeout(3500);
-                connection.setRequestProperty(HttpHeaders.USER_AGENT, "okhttp/4.11.0");
-                InputStream in = connection.getResponseCode() >= 400
-                        ? connection.getErrorStream() : connection.getInputStream();
-                if (in == null) continue;
-                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-                String value = reader.readLine();
-                reader.close();
-                if (value != null) {
-                    value = value.trim();
-                    if (!value.isEmpty() && value.length() <= 64) return value;
-                }
-            } catch (Exception unused) {
-            } finally {
-                if (connection != null) connection.disconnect();
-            }
-        }
-        return "";
-    }
-
-    private static String rewriteAddonSigIp(String signature, String publicIp) {
-        if (signature == null || signature.isEmpty() || publicIp == null || publicIp.isEmpty()) {
-            return signature;
-        }
-        try {
-            String padded = signature;
-            int mod = padded.length() % 4;
-            if (mod != 0) {
-                StringBuilder sb = new StringBuilder(padded);
-                for (int i = mod; i < 4; i++) sb.append('=');
-                padded = sb.toString();
-            }
-            byte[] decoded = Base64.decode(padded, Base64.DEFAULT);
-            JSONObject root = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
-            if (!root.has("data")) return signature;
-
-            String dataRaw = root.optString("data", "");
-            if (dataRaw.isEmpty()) return signature;
-            JSONObject data = new JSONObject(dataRaw);
-
-            JSONArray ips = data.optJSONArray("ips");
-            JSONArray merged = new JSONArray();
-            merged.put(publicIp);
-            if (ips != null) {
-                for (int i = 0; i < ips.length(); i++) {
-                    String ip = ips.optString(i, "");
-                    if (!ip.isEmpty() && !publicIp.equals(ip)) merged.put(ip);
-                }
-            }
-            data.put("ips", merged);
-            if (data.has("ip")) data.put("ip", publicIp);
-            root.put("data", data.toString());
-
-            return Base64.encodeToString(
-                    root.toString().getBytes(StandardCharsets.UTF_8),
-                    Base64.NO_WRAP);
-        } catch (Exception unused) {
-            return signature;
         }
     }
 
