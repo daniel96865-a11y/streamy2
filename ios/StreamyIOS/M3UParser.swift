@@ -44,9 +44,9 @@ enum M3UParser {
     }
 
     private static func attribute(_ key: String, in line: String) -> String? {
-        let token = key + "=""
+        let token = key + "=\""
         guard let start = line.range(of: token)?.upperBound,
-              let end = line[start...].firstIndex(of: """) else { return nil }
+              let end = line[start...].firstIndex(of: "\"") else { return nil }
         return String(line[start..<end])
     }
 }
