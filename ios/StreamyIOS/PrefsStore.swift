@@ -21,6 +21,9 @@ final class PrefsStore: ObservableObject {
     @Published var extraLiveEnabled: Bool {
         didSet { defaults.set(extraLiveEnabled, forKey: "extraLiveEnabled") }
     }
+    @Published var extraMediaEnabled: Bool {
+        didSet { defaults.set(extraMediaEnabled, forKey: "extraMediaEnabled") }
+    }
     @Published var accentHex: String {
         didSet { defaults.set(accentHex, forKey: "accentHex") }
     }
@@ -44,6 +47,7 @@ final class PrefsStore: ObservableObject {
         audioMode = AudioMode(rawValue: stored.string(forKey: "audioMode") ?? "") ?? .automatic
         streamFormat = StreamFormat(rawValue: stored.string(forKey: "streamFormat") ?? "") ?? .hls
         extraLiveEnabled = stored.object(forKey: "extraLiveEnabled") as? Bool ?? true
+        extraMediaEnabled = stored.object(forKey: "extraMediaEnabled") as? Bool ?? true
         accentHex = stored.string(forKey: "accentHex") ?? "#5B9DFF"
         hideTopBar = stored.bool(forKey: "hideTopBar")
         rememberLastChannel = stored.object(forKey: "rememberLastChannel") as? Bool ?? true
