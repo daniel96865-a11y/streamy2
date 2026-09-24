@@ -13,7 +13,7 @@ final class EPGStore: ObservableObject {
         defer { isLoading = false }
         do {
             let programs = try await XMLTVParser.load(url: url)
-            programsByChannel = Dictionary(grouping: programs, by: .channelID)
+            programsByChannel = Dictionary(grouping: programs, by: \.channelID)
                 .mapValues { $0.sorted { $0.start < $1.start } }
             lastRefresh = Date()
         } catch {
