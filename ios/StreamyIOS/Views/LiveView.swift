@@ -50,11 +50,20 @@ struct LiveView: View {
                     ProgressView("Sender werden geladen …")
                     Spacer()
                 } else if filtered.isEmpty {
-                    ContentUnavailableView(
-                        favoritesOnly ? "Noch keine Favoriten" : "Keine Sender gefunden",
-                        systemImage: favoritesOnly ? "star" : "tv",
-                        description: Text(favoritesOnly ? "Halte einen Sender gedrückt und füge ihn zu den Favoriten hinzu." : "Passe Suche oder Kategorie an.")
-                    )
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: favoritesOnly ? "star" : "tv")
+                            .font(.system(size: 34))
+                            .foregroundStyle(.secondary)
+                        Text(favoritesOnly ? "Noch keine Favoriten" : "Keine Sender gefunden")
+                            .font(.headline)
+                        Text(favoritesOnly ? "Halte einen Sender gedrückt und füge ihn zu den Favoriten hinzu." : "Passe Suche oder Kategorie an.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    Spacer()
                 } else {
                     List(filtered) { channel in
                         Button {
