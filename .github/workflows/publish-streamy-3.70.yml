@@ -1,0 +1,120 @@
+name: Publish Streamy 2 3.70
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/publish-streamy-3.70.yml
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download tested 3.70 unsigned build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/streamy370
+          gh api repos/${GITHUB_REPOSITORY}/actions/artifacts/10827470797/zip > /tmp/streamy370/artifact.zip
+          unzip -q /tmp/streamy370/artifact.zip -d /tmp/streamy370/artifact
+          test -f /tmp/streamy370/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk
+          test -f /tmp/streamy370/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk
+          test -f /tmp/streamy370/artifact/build-tools-export/apksigner.jar
+
+      - name: Reconstruct and verify signed APK bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin publish/3.70:refs/remotes/origin/publish/3.70
+          git show origin/publish/3.70:.release-3.70/tv.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy370/tv.patch.zst
+          git show origin/publish/3.70:.release-3.70/mobile.patch.b64 | tr -d '\n\r' | base64 -d > /tmp/streamy370/mobile.patch.zst
+
+          echo '865f6e5d34cc906e54306da39fa0ac9ce8c579d1d5636137ef57c320cf0817f3  /tmp/streamy370/tv.patch.zst' | sha256sum -c -
+          echo '4b1b32d1ea9b3f9f556d12f8c21b076399e168c56e9befa3cedabefd8b48fb95  /tmp/streamy370/mobile.patch.zst' | sha256sum -c -
+
+          zstd -q -d --patch-from=/tmp/streamy370/artifact/app/build/outputs/apk/tv/release/app-tv-release-unsigned.apk /tmp/streamy370/tv.patch.zst -o /tmp/streamy370/Streamy2-TV-3.70.apk
+          zstd -q -d --patch-from=/tmp/streamy370/artifact/app/build/outputs/apk/mobile/release/app-mobile-release-unsigned.apk /tmp/streamy370/mobile.patch.zst -o /tmp/streamy370/Streamy2-Mobile-3.70.apk
+
+          echo '2a123fcc169cdcbfd1a8e673b0f479939db4ec73e366124e46e9752cbdf478ef  /tmp/streamy370/Streamy2-TV-3.70.apk' | sha256sum -c -
+          echo '4b6c43f2013d607901d2c70841eb2f7e010e16936bffc9bb7dcacb7321ee1e91  /tmp/streamy370/Streamy2-Mobile-3.70.apk' | sha256sum -c -
+
+      - name: Verify package versions and installed-app signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS_DIR="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          JAR=/tmp/streamy370/artifact/build-tools-export/apksigner.jar
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy370/Streamy2-TV-3.70.apk | grep -q "package: name='app.streamy2' versionCode='190' versionName='3.70'"
+          "$BUILD_TOOLS_DIR/aapt" dump badging /tmp/streamy370/Streamy2-Mobile-3.70.apk | grep -q "package: name='app.streamy2.mobile' versionCode='190' versionName='3.70'"
+          for apk in /tmp/streamy370/Streamy2-TV-3.70.apk /tmp/streamy370/Streamy2-Mobile-3.70.apk; do
+            java -jar "$JAR" verify --verbose --print-certs "$apk" > /tmp/streamy370/verify.txt
+            grep -qi 'Verified using v2 scheme.*true' /tmp/streamy370/verify.txt
+            grep -qi 'Verified using v3 scheme.*true' /tmp/streamy370/verify.txt
+            grep -qi '3fc918ae654ba55e4ada86b8517f210fb148666982fd1a2d239495514b86a43f' /tmp/streamy370/verify.txt
+          done
+
+      - name: Publish downloads and updater feeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/downloads
+          cp /tmp/streamy370/Streamy2-TV-3.70.apk docs/downloads/
+          cp /tmp/streamy370/Streamy2-Mobile-3.70.apk docs/downloads/
+
+          cat > docs/streamy2-tv.json <<'EOF'
+          {"versionCode":190,"versionName":"3.70","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.70.apk","changelog":"3.70 erweitert Live Extra um eine Länder-Auswahl Deutsch/Polnisch. Polnische Live-Sender werden als eigener Bereich geladen; die bestehenden TV-Fokus-, Live-Extra- und Audio-Korrekturen bleiben enthalten."}
+          EOF
+          cp docs/streamy2-tv.json docs/streamy2-tv.txt
+
+          cat > docs/streamy2-mobile.json <<'EOF'
+          {"versionCode":190,"versionName":"3.70","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.70.apk","changelog":"3.70 erweitert Live Extra um eine Länder-Auswahl Deutsch/Polnisch. Polnische Live-Sender werden als eigener Bereich geladen; die bestehenden TV-Fokus-, Live-Extra- und Audio-Korrekturen bleiben enthalten."}
+          EOF
+          cp docs/streamy2-mobile.json docs/streamy2-mobile.txt
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/downloads/Streamy2-TV-3.70.apk docs/downloads/Streamy2-Mobile-3.70.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish Streamy 2 3.70 updater APKs'
+            git push origin HEAD:main
+          fi
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/streamy370/notes.md <<'EOF'
+          Streamy 2 3.70 — Live Extra Deutsch/Polnisch
+
+          - Live Extra: Auswahl zwischen Deutsch und Polnisch.
+          - Polnische Live-Sender werden getrennt von den deutschen Sendern geladen.
+          - Neue Live-Extra-Daten werden nach der Hintergrundaktualisierung direkt in der laufenden Sitzung übernommen.
+          - TV-Fokus-Korrekturen aus 3.69 bleiben enthalten.
+          - Live-Extra- und Audio-Korrekturen aus 3.68/3.67 bleiben enthalten.
+          - TV und Mobile: Version 3.70 / Build 190, gleiche Release-Signatur wie 3.69.
+          EOF
+
+          if gh release view v3.70 >/dev/null 2>&1; then
+            gh release upload v3.70 /tmp/streamy370/Streamy2-TV-3.70.apk /tmp/streamy370/Streamy2-Mobile-3.70.apk --clobber
+          else
+            gh release create v3.70 \
+              /tmp/streamy370/Streamy2-TV-3.70.apk \
+              /tmp/streamy370/Streamy2-Mobile-3.70.apk \
+              --target main \
+              --title 'Streamy 2 3.70 — Live Extra Deutsch/Polnisch' \
+              --notes-file /tmp/streamy370/notes.md \
+              --latest
+          fi
