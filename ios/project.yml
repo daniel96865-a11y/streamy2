@@ -1,0 +1,31 @@
+name: StreamyIOS
+options:
+  bundleIdPrefix: de.dgstudios
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  VLCKit:
+    url: https://github.com/videolan/vlckit.git
+    branch: master
+
+targets:
+  StreamyIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: StreamyIOS
+    dependencies:
+      - package: VLCKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.dgstudios.streamyios
+        PRODUCT_NAME: Streamy
+        SWIFT_VERSION: 5.0
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        INFOPLIST_FILE: StreamyIOS/Info.plist
+        DEVELOPMENT_TEAM: ""
+    scheme:
+      testTargets: []
