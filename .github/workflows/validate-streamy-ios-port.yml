@@ -1,0 +1,36 @@
+name: Validate Streamy iOS Port
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/validate-streamy-ios-port.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout iOS branch
+        uses: actions/checkout@v4
+        with:
+          ref: ios/streamy-full-port
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Resolve packages
+        working-directory: ios
+        run: xcodebuild -project StreamyIOS.xcodeproj -scheme StreamyIOS -resolvePackageDependencies
+
+      - name: Build simulator
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild             -project StreamyIOS.xcodeproj             -scheme StreamyIOS             -sdk iphonesimulator             -destination 'generic/platform=iOS Simulator'             CODE_SIGNING_ALLOWED=NO             build | tee /tmp/streamy-ios-build.log
