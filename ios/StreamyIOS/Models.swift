@@ -119,3 +119,47 @@ enum VideoResizeMode: String, Codable, CaseIterable, Identifiable {
         }
     }
 }
+
+
+enum BufferMode: String, Codable, CaseIterable, Identifiable {
+    case low, normal, high, max
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .low: return "Kurz"
+        case .normal: return "Normal"
+        case .high: return "Stabil"
+        case .max: return "Extra"
+        }
+    }
+
+    var milliseconds: Int {
+        switch self {
+        case .low: return 1500
+        case .normal: return 2500
+        case .high: return 4000
+        case .max: return 8000
+        }
+    }
+}
+
+enum AudioMode: String, Codable, CaseIterable, Identifiable {
+    case automatic, surround, stereo
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .automatic: return "Automatisch"
+        case .surround: return "Surround"
+        case .stereo: return "Stereo"
+        }
+    }
+}
+
+enum StreamFormat: String, Codable, CaseIterable, Identifiable {
+    case hls, ts
+    var id: String { rawValue }
+    var label: String { self == .hls ? "HLS" : "TS" }
+    var fileExtension: String { self == .hls ? "m3u8" : "ts" }
+}
