@@ -26,12 +26,12 @@ struct XtreamAPI {
         return values.map { Category(id: $0.categoryID, name: $0.categoryName) }
     }
 
-    func liveChannels(categoryID: String? = nil) async throws -> [Channel] {
+    func liveChannels(categoryID: String? = nil, streamExtension: String = "m3u8") async throws -> [Channel] {
         var extra: [URLQueryItem] = []
         if let categoryID { extra.append(URLQueryItem(name: "category_id", value: categoryID)) }
         let values: [LiveDTO] = try await request(action: "get_live_streams", extra: extra)
         return values.compactMap { dto in
-            guard let url = streamURL(section: "live", streamID: dto.streamID, extension: "m3u8") else { return nil }
+            guard let url = streamURL(section: "live", streamID: dto.streamID, extension: streamExtension) else { return nil }
             return Channel(
                 id: String(dto.streamID),
                 name: dto.name,
