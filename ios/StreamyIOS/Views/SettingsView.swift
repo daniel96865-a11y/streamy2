@@ -26,17 +26,24 @@ struct SettingsView: View {
                     }
 
                     ForEach(playlists.sources) { source in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(source.name)
-                                Text(source.kind == .xtream ? "Xtream Codes" : "M3U")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if playlists.selectedSourceID == source.id {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
+                        NavigationLink {
+                            PlaylistEditView(
+                                source: source,
+                                credentials: playlists.credentials(for: source)
+                            )
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(source.name)
+                                    Text(source.kind == .xtream ? "Xtream Codes" : "M3U")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if playlists.selectedSourceID == source.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                }
                             }
                         }
                     }
@@ -55,6 +62,19 @@ struct SettingsView: View {
                         Task { await state.reload() }
                     } label: {
                         Label("Inhalte aktualisieren", systemImage: "arrow.clockwise")
+                    }
+                }
+
+                if let account = state.accountInfo {
+                    Section("Xtream-Zugang") {
+                        LabeledContent("Status", value: account.status)
+                        LabeledContent("Ablaufdatum", value: account.expiryLabel)
+                        if let active = account.activeConnections {
+                            LabeledContent("Aktive Verbindungen", value: String(active))
+                        }
+                        if let maximum = account.maxConnections {
+                            LabeledContent("Max. Verbindungen", value: String(maximum))
+                        }
                     }
                 }
 
