@@ -87,7 +87,7 @@ private struct SeriesDetailView: View {
                         state.play(episode: episode, series: series)
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("S(episode.season) E(episode.episode) · (episode.title)")
+                            Text("S\(episode.season) E\(episode.episode) · \(episode.title)")
                                 .font(.headline)
                             if let plot = episode.plot {
                                 Text(plot).font(.caption).foregroundStyle(.secondary).lineLimit(2)
