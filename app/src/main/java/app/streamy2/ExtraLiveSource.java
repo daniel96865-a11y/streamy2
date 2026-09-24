@@ -27,6 +27,9 @@ import org.json.JSONObject;
 /* loaded from: classes.dex */
 final class ExtraLiveSource {
     static final String CAT_ID = "extra_live";
+    static final String CAT_ID_PL = "extra_live_pl";
+    private static final String CAT_NAME_DE = "Live Extra Deutschland";
+    private static final String CAT_NAME_PL = "Live Extra Polen";
     private static volatile String sig;
     private static volatile long sigAt;
     private static final String[] HOSTS = {"https://kool.to", "https://vavoo.to", "https://www.vavoo.to"};
@@ -61,66 +64,116 @@ final class ExtraLiveSource {
         }
         try {
             // Show a previously successful Live-Extra catalogue immediately.
-            // Network refreshes must never block the whole tab for tens of seconds.
+            // Old cache files contain only Germany and are migrated transparently.
             diagnosticStage = "Katalog: Cache prüfen";
-            List<Models.Channel> fetchGermany = readCache(file);
-            if (fetchGermany == null || fetchGermany.isEmpty()) {
+            List<Models.Channel> extraChannels = readCache(file);
+            if (extraChannels == null || extraChannels.isEmpty()) {
                 diagnosticStage = "Katalog: Online-Erstabfrage";
-                fetchGermany = fetchGermanyFast();
-                if (fetchGermany != null && !fetchGermany.isEmpty()) {
-                    writeCache(file, fetchGermany);
+                extraChannels = new ArrayList<>();
+
+                List<Models.Channel> germany = fetchGermanyFast();
+                if (germany != null && !germany.isEmpty()) {
+                    extraChannels.addAll(germany);
+                }
+
+                // Poland uses the same catalogue source and the host that just worked
+                // for Germany. One fast page keeps first launch responsive.
+                List<Models.Channel> poland = fetchPolandFast();
+                if (poland != null && !poland.isEmpty()) {
+                    extraChannels.addAll(poland);
+                }
+
+                if (!extraChannels.isEmpty()) {
+                    writeCache(file, extraChannels);
                 }
             } else {
                 lastError = "";
                 diagnosticStage = "Katalog: Cache bereit";
             }
-            if (fetchGermany != null && !fetchGermany.isEmpty()) {
-                Iterator<Models.Category> it = catalog.liveCats.iterator();
-                while (true) {
-                    if (it.hasNext()) {
-                        if (CAT_ID.equals(it.next().id)) {
-                            break;
-                        }
-                    } else {
-                        catalog.liveCats.add(0, new Models.Category(CAT_ID, "Live Extra Deutschland"));
-                        break;
-                    }
+
+            if (extraChannels == null || extraChannels.isEmpty()) {
+                return;
+            }
+
+            boolean hasGermany = false;
+            boolean hasPoland = false;
+            for (Models.Channel channel : extraChannels) {
+                if (channel == null) continue;
+                if (CAT_ID_PL.equals(channel.categoryId)) hasPoland = true;
+                else if (CAT_ID.equals(channel.categoryId)) hasGermany = true;
+            }
+
+            if (hasGermany) ensureCategory(catalog, CAT_ID, CAT_NAME_DE, 0);
+            if (hasPoland) ensureCategory(catalog, CAT_ID_PL, CAT_NAME_PL, hasGermany ? 1 : 0);
+
+            HashSet hashSet = new HashSet();
+            int size = 0;
+            for (Models.Channel channel : catalog.live) {
+                if (channel != null && channel.id != null) {
+                    hashSet.add(channel.id);
                 }
-                HashSet hashSet = new HashSet();
-                int size = 0;
-                for (Models.Channel channel : catalog.live) {
-                    if (channel != null && channel.id != null) {
-                        hashSet.add(channel.id);
-                    }
-                    if (channel != null && !channel.header && channel.number > size) {
-                        size = channel.number;
-                    }
+                if (channel != null && !channel.header && channel.number > size) {
+                    size = channel.number;
                 }
-                for (Models.Channel channel2 : fetchGermany) {
-                    if (channel2.id != null && !hashSet.contains(channel2.id)) {
-                        hashSet.add(channel2.id);
-                        size++;
-                        channel2.number = size;
-                        catalog.live.add(channel2);
-                    }
+            }
+            for (Models.Channel channel : extraChannels) {
+                if (channel != null && channel.id != null && !hashSet.contains(channel.id)) {
+                    hashSet.add(channel.id);
+                    size++;
+                    channel.number = size;
+                    catalog.live.add(channel);
                 }
             }
         } catch (Exception unused) {
         }
     }
 
+    private static void ensureCategory(Models.Catalog catalog, String id, String name, int preferredIndex) {
+        for (Models.Category category : catalog.liveCats) {
+            if (category != null && id.equals(category.id)) {
+                return;
+            }
+        }
+        int index = Math.max(0, Math.min(preferredIndex, catalog.liveCats.size()));
+        catalog.liveCats.add(index, new Models.Category(id, name));
+    }
+
     static boolean refreshCache(File file) {
         try {
             diagnosticStage = "Katalog: Hintergrund-Aktualisierung";
-            List<Models.Channel> fresh = fetchGermany();
-            if (fresh != null && !fresh.isEmpty()) {
-                writeCache(file, fresh);
+            List<Models.Channel> cached = readCache(file);
+            List<Models.Channel> germany = fetchGermany();
+            List<Models.Channel> poland = fetchPoland();
+
+            List<Models.Channel> combined = new ArrayList<>();
+            if (germany != null && !germany.isEmpty()) {
+                combined.addAll(germany);
+            } else {
+                addCachedCountry(combined, cached, CAT_ID);
+            }
+            if (poland != null && !poland.isEmpty()) {
+                combined.addAll(poland);
+            } else {
+                addCachedCountry(combined, cached, CAT_ID_PL);
+            }
+
+            if (!combined.isEmpty()) {
+                writeCache(file, combined);
                 diagnosticStage = "Katalog: Hintergrund aktuell";
-                return true;
+                return (germany != null && !germany.isEmpty()) || (poland != null && !poland.isEmpty());
             }
         } catch (Throwable unused) {
         }
         return false;
+    }
+
+    private static void addCachedCountry(List<Models.Channel> target, List<Models.Channel> cached, String categoryId) {
+        if (target == null || cached == null) return;
+        for (Models.Channel channel : cached) {
+            if (channel != null && categoryId.equals(channel.categoryId)) {
+                target.add(channel);
+            }
+        }
     }
 
     static String toPlay(String str) {
@@ -175,8 +228,10 @@ final class ExtraLiveSource {
                 }
 
                 JSONObject payload = new JSONObject();
-                payload.put("language", "de");
-                payload.put("region", "DE");
+                Models.Channel currentChannel = App.playing;
+                boolean polish = currentChannel != null && CAT_ID_PL.equals(currentChannel.categoryId);
+                payload.put("language", polish ? "pl" : "de");
+                payload.put("region", polish ? "PL" : "DE");
                 payload.put("url", channelUrl);
                 payload.put("clientVersion", "3.0.2");
 
@@ -301,14 +356,30 @@ final class ExtraLiveSource {
     }
 
     private static List<Models.Channel> fetchGermany() {
-        String[][] strArr = {new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv", "Germany"}, new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}, new String[]{"https://kool.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv", "Germany"}, new String[]{"https://vavoo.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv", "Germany"}, new String[]{"https://www.vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}};
-        for (int i = 0; i < 5; i++) {
-            String[] strArr2 = strArr[i];
-            List<Models.Channel> fetchPage = fetchPage(strArr2[0], strArr2[1], strArr2[2], strArr2[3], 20);
-            if (!fetchPage.isEmpty()) {
-                activeHost = strArr2[0];
+        return fetchCountry("Germany", "de", "DE", CAT_ID, CAT_NAME_DE);
+    }
+
+    private static List<Models.Channel> fetchPoland() {
+        return fetchCountry("Poland", "pl", "PL", CAT_ID_PL, CAT_NAME_PL);
+    }
+
+    private static List<Models.Channel> fetchCountry(
+            String country, String language, String region, String categoryId, String categoryName) {
+        String[][] hosts = {
+                new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv"},
+                new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv"},
+                new String[]{"https://kool.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv"},
+                new String[]{"https://vavoo.to", "/vto-cluster/mediahubmx-catalog.json", "vto-iptv"},
+                new String[]{"https://www.vavoo.to", "/mediahubmx-catalog.json", "iptv"}
+        };
+        for (String[] host : hosts) {
+            List<Models.Channel> channels = fetchPage(
+                    host[0], host[1], host[2], country, 20,
+                    language, region, categoryId, categoryName);
+            if (!channels.isEmpty()) {
+                activeHost = host[0];
                 lastError = "";
-                return fetchPage;
+                return channels;
             }
         }
         if (lastError == null || lastError.isEmpty()) {
@@ -319,13 +390,15 @@ final class ExtraLiveSource {
 
     private static List<Models.Channel> fetchGermanyFast() {
         String[][] fastHosts = {
-                new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv", "Germany"},
-                new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv", "Germany"}
+                new String[]{"https://kool.to", "/mediahubmx-catalog.json", "iptv"},
+                new String[]{"https://vavoo.to", "/mediahubmx-catalog.json", "iptv"}
         };
         long deadline = System.currentTimeMillis() + 9000L;
         for (String[] host : fastHosts) {
             if (System.currentTimeMillis() >= deadline) break;
-            List<Models.Channel> firstPage = fetchPage(host[0], host[1], host[2], host[3], 1);
+            List<Models.Channel> firstPage = fetchPage(
+                    host[0], host[1], host[2], "Germany", 1,
+                    "de", "DE", CAT_ID, CAT_NAME_DE);
             if (!firstPage.isEmpty()) {
                 activeHost = host[0];
                 lastError = "";
@@ -336,6 +409,20 @@ final class ExtraLiveSource {
         return new ArrayList();
     }
 
+    private static List<Models.Channel> fetchPolandFast() {
+        // Do not double the startup timeout. Reuse the mirror that worked for Germany
+        // and fetch only the first Polish page; the background refresh fills the rest.
+        String host = activeHost == null || activeHost.isEmpty() ? "https://kool.to" : activeHost;
+        List<Models.Channel> firstPage = fetchPage(
+                host, "/mediahubmx-catalog.json", "iptv", "Poland", 1,
+                "pl", "PL", CAT_ID_PL, CAT_NAME_PL);
+        if (!firstPage.isEmpty()) {
+            lastError = "";
+            return firstPage;
+        }
+        return new ArrayList();
+    }
+
     /* JADX WARN: Multi-variable type inference failed */
     /* JADX WARN: Type inference failed for: r10v11, types: [org.json.JSONArray] */
     /* JADX WARN: Type inference failed for: r10v13 */
@@ -343,7 +430,9 @@ final class ExtraLiveSource {
     /* JADX WARN: Type inference failed for: r15v3 */
     /* JADX WARN: Type inference failed for: r15v4, types: [int] */
     /* JADX WARN: Type inference failed for: r15v6 */
-    private static List<Models.Channel> fetchPage(String str, String str2, String str3, String str4, int maxPages) {
+    private static List<Models.Channel> fetchPage(
+            String str, String str2, String str3, String str4, int maxPages,
+            String language, String region, String categoryId, String categoryName) {
         JSONObject jSONObject;
         JSONArray optJSONArray;
         int optInt;
@@ -364,8 +453,8 @@ final class ExtraLiveSource {
                 JSONObject jSONObject2 = new JSONObject();
                 jSONObject2.put("group", str4);
                 JSONObject jSONObject3 = new JSONObject();
-                jSONObject3.put("language", "de");
-                jSONObject3.put("region", "DE");
+                jSONObject3.put("language", language);
+                jSONObject3.put("region", region);
                 jSONObject3.put("catalogId", str7);
                 jSONObject3.put(str9, str7);
                 jSONObject3.put("adult", z);
@@ -393,10 +482,10 @@ final class ExtraLiveSource {
                             Models.Channel channel = new Models.Channel();
                             set = hashSet;
                             obj = r10;
-                            channel.id = "extra_live:" + optString3;
+                            channel.id = categoryId + ":" + optString3;
                             channel.name = Text.clean(optString2);
-                            channel.categoryId = CAT_ID;
-                            channel.categoryName = "Live Extra Deutschland";
+                            channel.categoryId = categoryId;
+                            channel.categoryName = categoryName;
                             channel.logo = optJSONObject.optString("logo", "");
                             channel.extraLiveUrl = optString;
                             channel.hlsUrl = optString;
@@ -705,6 +794,8 @@ final class ExtraLiveSource {
                 jSONObject.put("id", channel.id);
                 jSONObject.put("name", channel.name);
                 jSONObject.put("url", channel.extraLiveUrl != null ? channel.extraLiveUrl : channel.hlsUrl);
+                jSONObject.put("categoryId", CAT_ID_PL.equals(channel.categoryId) ? CAT_ID_PL : CAT_ID);
+                jSONObject.put("categoryName", CAT_ID_PL.equals(channel.categoryId) ? CAT_NAME_PL : CAT_NAME_DE);
                 jSONArray.put(jSONObject);
             }
             byte[] bytes = jSONArray.toString().getBytes(StandardCharsets.UTF_8);
@@ -745,11 +836,15 @@ final class ExtraLiveSource {
                         String optString2 = optJSONObject.optString("name", "");
                         if (!optString.isEmpty() && !optString2.isEmpty() && !hashSet.contains(optString)) {
                             hashSet.add(optString);
+                            String categoryId = optJSONObject.optString("categoryId", CAT_ID);
+                            if (!CAT_ID_PL.equals(categoryId)) categoryId = CAT_ID;
+                            String categoryName = CAT_ID_PL.equals(categoryId) ? CAT_NAME_PL : CAT_NAME_DE;
+
                             Models.Channel channel = new Models.Channel();
-                            channel.id = optJSONObject.optString("id", "extra_live:" + optString);
+                            channel.id = optJSONObject.optString("id", categoryId + ":" + optString);
                             channel.name = optString2;
-                            channel.categoryId = CAT_ID;
-                            channel.categoryName = "Live Extra Deutschland";
+                            channel.categoryId = categoryId;
+                            channel.categoryName = categoryName;
                             channel.extraLiveUrl = optString;
                             channel.hlsUrl = optString;
                             arrayList.add(channel);
