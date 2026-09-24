@@ -16,8 +16,11 @@ final class PlayerSession: ObservableObject {
 
     let item: PlaybackItem
     let avPlayer: AVPlayer
+
     private let preference: PlayerPreference
     private let resizeMode: VideoResizeMode
+    private let bufferMode: BufferMode
+    private let audioMode: AudioMode
     private var statusObserver: NSKeyValueObservation?
 
     #if canImport(VLCKit)
@@ -28,7 +31,11 @@ final class PlayerSession: ObservableObject {
         self.item = item
         self.preference = prefs.playerPreference
         self.resizeMode = prefs.resizeMode
+        self.bufferMode = prefs.bufferMode
+        self.audioMode = prefs.audioMode
         self.avPlayer = AVPlayer(url: item.url)
+        configureAudioSession()
+        configureAVPlayerBuffer()
         configure()
     }
 
@@ -84,7 +91,10 @@ final class PlayerSession: ObservableObject {
         vlcPlayer.stop()
         #endif
         usingVLC = false
-        avPlayer.replaceCurrentItem(with: AVPlayerItem(url: item.url))
+        let newItem = AVPlayerItem(url: item.url)
+        newItem.preferredForwardBufferDuration = TimeInterval(bufferMode.milliseconds) / 1000.0
+        avPlayer.replaceCurrentItem(with: newItem)
+        configureAVPlayerBuffer()
         observeAV()
         play()
     }
@@ -103,6 +113,9 @@ final class PlayerSession: ObservableObject {
         if let selected = currentItem.currentMediaSelection.selectedMediaOption(in: group),
            let index = group.options.firstIndex(of: selected) {
             selectedAudioIndex = index
+        } else if let first = group.options.first {
+            currentItem.select(first, in: group)
+            selectedAudioIndex = 0
         }
     }
 
@@ -132,6 +145,36 @@ final class PlayerSession: ObservableObject {
         }
     }
 
+    private func configureAVPlayerBuffer() {
+        avPlayer.automaticallyWaitsToMinimizeStalling = bufferMode != .low
+        avPlayer.currentItem?.preferredForwardBufferDuration =
+            TimeInterval(bufferMode.milliseconds) / 1000.0
+    }
+
+    private func configureAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .moviePlayback, options: [.allowAirPlay])
+            try session.setActive(true)
+            switch audioMode {
+            case .stereo:
+                if session.maximumOutputNumberOfChannels >= 2 {
+                    try session.setPreferredOutputNumberOfChannels(2)
+                }
+            case .surround:
+                let maxChannels = session.maximumOutputNumberOfChannels
+                if maxChannels > 2 {
+                    try session.setPreferredOutputNumberOfChannels(maxChannels)
+                }
+            case .automatic:
+                break
+            }
+        } catch {
+            // Audio route capabilities vary by device/AirPlay/HDMI. Playback must
+            // continue even when a preferred channel count cannot be applied.
+        }
+    }
+
     private func observeAV() {
         guard let currentItem = avPlayer.currentItem else { return }
         statusObserver = currentItem.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
@@ -151,6 +194,10 @@ final class PlayerSession: ObservableObject {
         avPlayer.pause()
         usingVLC = true
         let media = VLCMedia(url: item.url)
+        media.addOption(":network-caching=\(bufferMode.milliseconds)")
+        if audioMode == .stereo {
+            media.addOption(":stereo-mode=stereo")
+        }
         vlcPlayer.media = media
         if let reason { errorMessage = "Apple Player: \(reason) · VLC-Fallback aktiv" }
         vlcPlayer.play()
