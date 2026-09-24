@@ -41,7 +41,7 @@ final class DeviceSyncService: NSObject, ObservableObject {
     }
 
     func connect(_ peer: MCPeerID) {
-        statusText = "Verbinde mit (peer.displayName) …"
+        statusText = "Verbinde mit \(peer.displayName) …"
         browser.invitePeer(peer, to: session, withContext: nil, timeout: 20)
     }
 
@@ -58,7 +58,7 @@ final class DeviceSyncService: NSObject, ObservableObject {
 extension DeviceSyncService: MCNearbyServiceAdvertiserDelegate {
     func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didReceiveInvitationFromPeer peerID: MCPeerID, withContext context: Data?, invitationHandler: @escaping (Bool, MCSession?) -> Void) {
         DispatchQueue.main.async {
-            self.statusText = "Verbindungsanfrage von (peerID.displayName)"
+            self.statusText = "Verbindungsanfrage von \(peerID.displayName)"
         }
         invitationHandler(true, session)
     }
@@ -89,8 +89,8 @@ extension DeviceSyncService: MCSessionDelegate {
         DispatchQueue.main.async {
             self.connectedPeers = session.connectedPeers
             switch state {
-            case .connected: self.statusText = "Verbunden mit (peerID.displayName)"
-            case .connecting: self.statusText = "Verbinde mit (peerID.displayName) …"
+            case .connected: self.statusText = "Verbunden mit \(peerID.displayName)"
+            case .connecting: self.statusText = "Verbinde mit \(peerID.displayName) …"
             case .notConnected: self.statusText = "Nicht verbunden"
             @unknown default: self.statusText = "Unbekannter Status"
             }
@@ -101,7 +101,7 @@ extension DeviceSyncService: MCSessionDelegate {
         guard let transfer = try? JSONDecoder().decode(PlaylistTransfer.self, from: data) else { return }
         DispatchQueue.main.async {
             self.receivedTransfer = transfer
-            self.statusText = "Wiedergabeliste von (peerID.displayName) empfangen"
+            self.statusText = "Wiedergabeliste von \(peerID.displayName) empfangen"
         }
     }
 
