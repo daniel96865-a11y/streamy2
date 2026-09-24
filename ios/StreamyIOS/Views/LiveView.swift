@@ -150,13 +150,24 @@ struct LiveView: View {
                 EPGChannelView(channel: channel)
             }
             .overlay(alignment: .bottom) {
-                if let error = state.errorMessage {
-                    Text(error)
+                VStack(spacing: 8) {
+                    if state.resolvingExtraLive {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Live Extra wird gestartet …")
+                        }
                         .font(.caption)
                         .padding(10)
                         .background(.ultraThinMaterial, in: Capsule())
-                        .padding()
+                    }
+                    if let error = state.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .padding(10)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
                 }
+                .padding()
             }
         }
     }
