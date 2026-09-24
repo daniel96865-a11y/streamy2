@@ -1,0 +1,28 @@
+name: Temporary bkcrack helper
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/temp-bkcrack.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download bkcrack
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o /tmp/bk.tar.gz https://github.com/kimci86/bkcrack/releases/download/v1.8.1/bkcrack-1.8.1-Linux-x86_64.tar.gz
+          mkdir -p /tmp/bk
+          tar -xzf /tmp/bk.tar.gz -C /tmp/bk
+          BIN="$(find /tmp/bk -type f -name bkcrack | head -1)"
+          test -n "$BIN"
+          cp "$BIN" /tmp/bkcrack
+          chmod +x /tmp/bkcrack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bkcrack-linux-x86_64
+          path: /tmp/bkcrack
+          retention-days: 1
