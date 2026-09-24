@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 @MainActor
 final class PlaylistStore: ObservableObject {
@@ -21,8 +22,8 @@ final class PlaylistStore: ObservableObject {
 
     func addXtream(name: String, baseURL: String, username: String, password: String, epgURL: String? = nil) {
         let source = PlaylistSource(name: name, kind: .xtream, baseURL: normalize(baseURL), epgURL: epgURL)
-        KeychainStore.save(username, for: "xtream.(source.id.uuidString).username")
-        KeychainStore.save(password, for: "xtream.(source.id.uuidString).password")
+        KeychainStore.save(username, for: "xtream.\(source.id.uuidString).username")
+        KeychainStore.save(password, for: "xtream.\(source.id.uuidString).password")
         sources.append(source)
         selectedSourceID = source.id
         save()
@@ -38,17 +39,17 @@ final class PlaylistStore: ObservableObject {
     func update(_ source: PlaylistSource, username: String? = nil, password: String? = nil) {
         guard let index = sources.firstIndex(where: { $0.id == source.id }) else { return }
         sources[index] = source
-        if let username { KeychainStore.save(username, for: "xtream.(source.id.uuidString).username") }
-        if let password { KeychainStore.save(password, for: "xtream.(source.id.uuidString).password") }
+        if let username { KeychainStore.save(username, for: "xtream.\(source.id.uuidString).username") }
+        if let password { KeychainStore.save(password, for: "xtream.\(source.id.uuidString).password") }
         save()
     }
 
     func delete(at offsets: IndexSet) {
-        for index in offsets {
-            let source = sources[index]
-            KeychainStore.delete("xtream.(source.id.uuidString).username")
-            KeychainStore.delete("xtream.(source.id.uuidString).password")
-            if selectedSourceID == source.id { selectedSourceID = nil }
+        let ids = offsets.compactMap { sources.indices.contains($0) ? sources[$0].id : nil }
+        for id in ids {
+            KeychainStore.delete("xtream.\(id.uuidString).username")
+            KeychainStore.delete("xtream.\(id.uuidString).password")
+            if selectedSourceID == id { selectedSourceID = nil }
         }
         sources.remove(atOffsets: offsets)
         if selectedSourceID == nil { selectedSourceID = sources.first?.id }
@@ -57,9 +58,31 @@ final class PlaylistStore: ObservableObject {
 
     func credentials(for source: PlaylistSource) -> (username: String, password: String)? {
         guard source.kind == .xtream,
-              let username = KeychainStore.load("xtream.(source.id.uuidString).username"),
-              let password = KeychainStore.load("xtream.(source.id.uuidString).password") else { return nil }
+              let username = KeychainStore.load("xtream.\(source.id.uuidString).username"),
+              let password = KeychainStore.load("xtream.\(source.id.uuidString).password") else { return nil }
         return (username, password)
+    }
+
+    func importTransfer(_ transfer: PlaylistTransfer) {
+        var source = transfer.source
+        if sources.contains(where: { $0.id == source.id }) {
+            source = PlaylistSource(
+                name: source.name,
+                kind: source.kind,
+                baseURL: source.baseURL,
+                m3uURL: source.m3uURL,
+                epgURL: source.epgURL
+            )
+        }
+        sources.append(source)
+        if let username = transfer.username {
+            KeychainStore.save(username, for: "xtream.\(source.id.uuidString).username")
+        }
+        if let password = transfer.password {
+            KeychainStore.save(password, for: "xtream.\(source.id.uuidString).password")
+        }
+        selectedSourceID = source.id
+        save()
     }
 
     private func normalize(_ raw: String) -> String {
