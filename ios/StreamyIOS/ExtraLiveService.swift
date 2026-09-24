@@ -314,7 +314,7 @@ actor ExtraLiveService {
                     "brand": "Apple",
                     "model": deviceName,
                     "name": "streamy",
-                    "uniqueId": "streamy-ios-" + UUID().uuidString
+                    "uniqueId": clientID
                 ],
                 "os": [
                     "name": "ios",
@@ -345,7 +345,7 @@ actor ExtraLiveService {
             "package": "tv.vavoo.app",
             "version": "3.1.21",
             "process": "app",
-            "firstAppStart": now,
+            "firstAppStart": clientStartedAt,
             "lastAppStart": now,
             "ipLocation": NSNull(),
             "adblockEnabled": true,
