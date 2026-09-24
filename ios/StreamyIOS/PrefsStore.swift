@@ -9,6 +9,15 @@ final class PrefsStore: ObservableObject {
     @Published var resizeMode: VideoResizeMode {
         didSet { defaults.set(resizeMode.rawValue, forKey: "resizeMode") }
     }
+    @Published var bufferMode: BufferMode {
+        didSet { defaults.set(bufferMode.rawValue, forKey: "bufferMode") }
+    }
+    @Published var audioMode: AudioMode {
+        didSet { defaults.set(audioMode.rawValue, forKey: "audioMode") }
+    }
+    @Published var streamFormat: StreamFormat {
+        didSet { defaults.set(streamFormat.rawValue, forKey: "streamFormat") }
+    }
     @Published var accentHex: String {
         didSet { defaults.set(accentHex, forKey: "accentHex") }
     }
@@ -28,6 +37,9 @@ final class PrefsStore: ObservableObject {
         let stored = UserDefaults.standard
         playerPreference = PlayerPreference(rawValue: stored.string(forKey: "playerPreference") ?? "") ?? .automatic
         resizeMode = VideoResizeMode(rawValue: stored.string(forKey: "resizeMode") ?? "") ?? .fit
+        bufferMode = BufferMode(rawValue: stored.string(forKey: "bufferMode") ?? "") ?? .normal
+        audioMode = AudioMode(rawValue: stored.string(forKey: "audioMode") ?? "") ?? .automatic
+        streamFormat = StreamFormat(rawValue: stored.string(forKey: "streamFormat") ?? "") ?? .hls
         accentHex = stored.string(forKey: "accentHex") ?? "#5B9DFF"
         hideTopBar = stored.bool(forKey: "hideTopBar")
         rememberLastChannel = stored.object(forKey: "rememberLastChannel") as? Bool ?? true
