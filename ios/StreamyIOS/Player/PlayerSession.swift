@@ -1,4 +1,5 @@
 import AVFoundation
+import Combine
 import AVKit
 import Foundation
 #if canImport(VLCKit)
