@@ -451,15 +451,14 @@ actor ExtraMediaService {
         guard let firstData = Data(base64Encoded: value, options: .ignoreUnknownCharacters),
               let firstString = String(data: firstData, encoding: .utf8) else { return nil }
 
-        var shiftedScalars = String.UnicodeScalarView()
+        var shifted = ""
         for scalar in firstString.unicodeScalars {
-            if let shifted = UnicodeScalar(max(0, Int(scalar.value) - 3)) {
-                shiftedScalars.append(shifted)
+            if let next = UnicodeScalar(max(0, Int(scalar.value) - 3)) {
+                shifted.unicodeScalars.append(next)
             } else {
-                shiftedScalars.append(scalar)
+                shifted.unicodeScalars.append(scalar)
             }
         }
-        let shifted = String(shiftedScalars)
         let reversed = String(shifted.reversed())
 
         guard let finalData = Data(base64Encoded: reversed, options: .ignoreUnknownCharacters),
@@ -607,8 +606,8 @@ actor ExtraMediaService {
     private func saveCache(movies: [Movie], series: [Series]) {
         let pages = seriesPagesByKey.map { SeriesPagesCache(key: $0.key, urls: $0.value.map(\.absoluteString)) }
         let cache = MediaCache(
-            movies: movies.map(CachedMovie.init),
-            series: series.map(CachedSeries.init),
+            movies: movies.map { CachedMovie($0) },
+            series: series.map { CachedSeries($0) },
             seriesPages: pages
         )
         guard let data = try? JSONEncoder().encode(cache) else { return }
