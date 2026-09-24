@@ -451,9 +451,15 @@ actor ExtraMediaService {
         guard let firstData = Data(base64Encoded: value, options: .ignoreUnknownCharacters),
               let firstString = String(data: firstData, encoding: .utf8) else { return nil }
 
-        let shifted = String(firstString.unicodeScalars.map { scalar in
-            UnicodeScalar(max(0, Int(scalar.value) - 3)) ?? scalar
-        })
+        var shiftedScalars = String.UnicodeScalarView()
+        for scalar in firstString.unicodeScalars {
+            if let shifted = UnicodeScalar(max(0, Int(scalar.value) - 3)) {
+                shiftedScalars.append(shifted)
+            } else {
+                shiftedScalars.append(scalar)
+            }
+        }
+        let shifted = String(shiftedScalars)
         let reversed = String(shifted.reversed())
 
         guard let finalData = Data(base64Encoded: reversed, options: .ignoreUnknownCharacters),
@@ -564,7 +570,8 @@ actor ExtraMediaService {
         if value.isEmpty || value.hasPrefix("about:") { return nil }
         if value.hasPrefix("//") { return URL(string: "https:" + value) }
         if let direct = URL(string: value), direct.scheme != nil { return direct }
-        return base?.appendingPathComponent(value.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+        guard let base else { return nil }
+        return URL(string: value, relativeTo: base)?.absoluteURL
     }
 
     private func clean(_ raw: String) -> String {
