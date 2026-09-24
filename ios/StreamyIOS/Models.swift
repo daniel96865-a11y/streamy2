@@ -72,7 +72,7 @@ struct Episode: Identifiable, Hashable {
     let plot: String?
 }
 
-struct EPGProgram: Identifiable, Hashable {
+struct EPGProgram: Identifiable, Hashable, Codable {
     let id: String
     let channelID: String
     let start: Date
@@ -80,6 +80,18 @@ struct EPGProgram: Identifiable, Hashable {
     let title: String
     let subtitle: String?
     let description: String?
+}
+
+struct XtreamAccountInfo: Hashable {
+    let status: String
+    let expiresAt: Date?
+    let activeConnections: Int?
+    let maxConnections: Int?
+
+    var expiryLabel: String {
+        guard let expiresAt else { return "Unbekannt" }
+        return expiresAt.formatted(date: .abbreviated, time: .omitted)
+    }
 }
 
 struct PlaybackItem: Identifiable, Hashable {
