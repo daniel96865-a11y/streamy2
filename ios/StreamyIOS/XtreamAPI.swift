@@ -91,12 +91,13 @@ struct XtreamAPI {
             let seasonNumber = Int(seasonKey) ?? 0
             for dto in list {
                 let ext = dto.containerExtension ?? "mp4"
-                guard let url = streamURL(section: "series", streamID: dto.id, extension: ext) else { continue }
+                guard let streamID = Int(dto.id),
+                      let url = streamURL(section: "series", streamID: streamID, extension: ext) else { continue }
                 output.append(Episode(
-                    id: String(dto.id),
+                    id: dto.id,
                     season: Int(dto.season ?? "") ?? seasonNumber,
                     episode: dto.episodeNum ?? 0,
-                    title: dto.title ?? "Episode (dto.episodeNum ?? 0)",
+                    title: dto.title ?? "Episode \(dto.episodeNum ?? 0)",
                     streamURL: url,
                     plot: dto.info?.plot
                 ))
@@ -139,7 +140,7 @@ struct XtreamAPI {
             .appendingPathComponent(section)
             .appendingPathComponent(username)
             .appendingPathComponent(password)
-            .appendingPathComponent("(streamID).(ext)")
+            .appendingPathComponent("\(streamID).\(ext)")
     }
 
     private func request<T: Decodable>(action: String, extra: [URLQueryItem] = []) async throws -> T {
@@ -231,7 +232,7 @@ private struct SeriesInfoDTO: Decodable {
 }
 
 private struct EpisodeDTO: Decodable {
-    let id: Int
+    let id: String
     let episodeNum: Int?
     let title: String?
     let containerExtension: String?
