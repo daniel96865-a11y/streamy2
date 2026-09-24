@@ -8,22 +8,20 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
     private var currentTitle = ""
     private var currentSubtitle = ""
     private var currentDescription = ""
-    private var currentElement = ""
     private var buffer = ""
 
     static func load(url: URL) async throws -> [EPGProgram] {
         let (data, _) = try await URLSession.shared.data(from: url)
-        let parser = XMLTVParser()
-        let xml = XMLParser(data: data)
-        xml.delegate = parser
-        guard xml.parse() else {
-            throw xml.parserError ?? URLError(.cannotParseResponse)
+        let parserDelegate = XMLTVParser()
+        let parser = XMLParser(data: data)
+        parser.delegate = parserDelegate
+        guard parser.parse() else {
+            throw parser.parserError ?? URLError(.cannotParseResponse)
         }
-        return parser.programs
+        return parserDelegate.programs
     }
 
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes: [String : String] = [:]) {
-        currentElement = elementName
         buffer = ""
         if elementName == "programme" {
             currentChannel = attributes["channel"] ?? ""
@@ -48,7 +46,7 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
         case "programme":
             if let start = currentStart, let stop = currentStop, !currentChannel.isEmpty {
                 programs.append(EPGProgram(
-                    id: "(currentChannel)-(Int(start.timeIntervalSince1970))",
+                    id: "\(currentChannel)-\(Int(start.timeIntervalSince1970))",
                     channelID: currentChannel,
                     start: start,
                     stop: stop,
@@ -64,13 +62,23 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
 
     private static func parseDate(_ raw: String?) -> Date? {
         guard let raw else { return nil }
-        let value = raw.split(separator: " ").first.map(String.init) ?? raw
+        let parts = raw.split(separator: " ")
+        let value = parts.first.map(String.init) ?? raw
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMddHHmmss"
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        if let date = formatter.date(from: value) { return date }
-        formatter.dateFormat = "yyyyMMddHHmm"
+        formatter.dateFormat = value.count >= 14 ? "yyyyMMddHHmmss" : "yyyyMMddHHmm"
+        if parts.count > 1 {
+            let zone = String(parts[1])
+            if zone.count == 5 {
+                let sign = zone.hasPrefix("-") ? -1 : 1
+                let digits = zone.dropFirst()
+                if let hours = Int(digits.prefix(2)), let minutes = Int(digits.suffix(2)) {
+                    formatter.timeZone = TimeZone(secondsFromGMT: sign * (hours * 3600 + minutes * 60))
+                }
+            }
+        } else {
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        }
         return formatter.date(from: value)
     }
 }
