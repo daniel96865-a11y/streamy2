@@ -89,26 +89,27 @@ final class PlayerSession: ObservableObject {
     }
 
     func refreshAudioOptions() {
-        guard !usingVLC, let asset = avPlayer.currentItem?.asset,
-              let group = asset.mediaSelectionGroup(forMediaCharacteristic: .audible) else {
+        guard !usingVLC,
+              let currentItem = avPlayer.currentItem,
+              let group = currentItem.asset.mediaSelectionGroup(forMediaCharacteristic: .audible) else {
             audioOptions = []
             return
         }
         audioOptions = group.options.enumerated().map { index, option in
             let name = option.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-            return name.isEmpty ? "Spur (index + 1)" : name
+            return name.isEmpty ? "Spur \(index + 1)" : name
         }
-        if let selected = avPlayer.currentItem?.currentMediaSelection.selectedMediaOption(in: group),
+        if let selected = currentItem.currentMediaSelection.selectedMediaOption(in: group),
            let index = group.options.firstIndex(of: selected) {
             selectedAudioIndex = index
         }
     }
 
     func selectAudio(index: Int) {
-        guard !usingVLC, let item = avPlayer.currentItem,
-              let group = item.asset.mediaSelectionGroup(forMediaCharacteristic: .audible),
+        guard !usingVLC, let currentItem = avPlayer.currentItem,
+              let group = currentItem.asset.mediaSelectionGroup(forMediaCharacteristic: .audible),
               group.options.indices.contains(index) else { return }
-        item.select(group.options[index], in: group)
+        currentItem.select(group.options[index], in: group)
         selectedAudioIndex = index
     }
 
@@ -132,12 +133,12 @@ final class PlayerSession: ObservableObject {
 
     private func observeAV() {
         guard let currentItem = avPlayer.currentItem else { return }
-        statusObserver = currentItem.observe(.status, options: [.new, .initial]) { [weak self] item, _ in
+        statusObserver = currentItem.observe(\.status, options: [.new, .initial]) { [weak self] observed, _ in
             Task { @MainActor in
                 guard let self else { return }
-                if item.status == .failed && self.preference == .automatic {
-                    self.switchToVLC(reason: item.error?.localizedDescription)
-                } else if item.status == .readyToPlay {
+                if observed.status == .failed && self.preference == .automatic {
+                    self.switchToVLC(reason: observed.error?.localizedDescription)
+                } else if observed.status == .readyToPlay {
                     self.refreshAudioOptions()
                 }
             }
@@ -150,7 +151,7 @@ final class PlayerSession: ObservableObject {
         usingVLC = true
         let media = VLCMedia(url: item.url)
         vlcPlayer.media = media
-        if let reason { errorMessage = "Apple Player: (reason) · VLC-Fallback aktiv" }
+        if let reason { errorMessage = "Apple Player: \(reason) · VLC-Fallback aktiv" }
         vlcPlayer.play()
         isPlaying = true
         #else
