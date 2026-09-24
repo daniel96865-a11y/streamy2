@@ -16,7 +16,6 @@ jobs:
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
-        with:
 
       - name: Download tested 3.70 unsigned build
         env:
