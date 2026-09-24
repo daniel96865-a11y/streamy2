@@ -1,6 +1,7 @@
 import SwiftUI
 
 @main
+@MainActor
 struct StreamyIOSApp: App {
     @StateObject private var playlists: PlaylistStore
     @StateObject private var prefs: PrefsStore
