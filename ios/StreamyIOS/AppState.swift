@@ -1,0 +1,130 @@
+import Foundation
+
+@MainActor
+final class AppState: ObservableObject {
+    let playlists: PlaylistStore
+    let prefs: PrefsStore
+    let epg: EPGStore
+
+    @Published var liveCategories: [Category] = []
+    @Published var channels: [Channel] = []
+    @Published var vodCategories: [Category] = []
+    @Published var movies: [Movie] = []
+    @Published var seriesCategories: [Category] = []
+    @Published var series: [Series] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    @Published var playbackItem: PlaybackItem?
+
+    init(playlists: PlaylistStore = PlaylistStore(), prefs: PrefsStore = PrefsStore(), epg: EPGStore = EPGStore()) {
+        self.playlists = playlists
+        self.prefs = prefs
+        self.epg = epg
+    }
+
+    func reload() async {
+        guard let source = playlists.selectedSource else {
+            liveCategories = []
+            channels = []
+            vodCategories = []
+            movies = []
+            seriesCategories = []
+            series = []
+            return
+        }
+
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            if source.kind == .xtream {
+                guard let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)) else {
+                    throw URLError(.userAuthenticationRequired)
+                }
+                async let liveCats = api.categories(kind: "live")
+                async let liveItems = api.liveChannels()
+                async let movieCats = api.categories(kind: "vod")
+                async let movieItems = api.movies()
+                async let seriesCats = api.categories(kind: "series")
+                async let seriesItems = api.series()
+
+                liveCategories = try await liveCats
+                channels = try await liveItems
+                vodCategories = try await movieCats
+                movies = try await movieItems
+                seriesCategories = try await seriesCats
+                series = try await seriesItems
+
+                let epgURL = source.epgURL.flatMap(URL.init(string:)) ?? api.xmltvURL()
+                if let epgURL { Task { await epg.refresh(from: epgURL) } }
+            } else if let raw = source.m3uURL, let url = URL(string: raw) {
+                channels = try await M3UParser.load(url: url)
+                let names = Set(channels.compactMap(.categoryID)).sorted()
+                liveCategories = names.map { Category(id: $0, name: $0) }
+                vodCategories = []
+                movies = []
+                seriesCategories = []
+                series = []
+                if let epgRaw = source.epgURL, let epgURL = URL(string: epgRaw) {
+                    Task { await epg.refresh(from: epgURL) }
+                }
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func play(channel: Channel) {
+        playbackItem = PlaybackItem(
+            title: channel.name,
+            subtitle: epg.now(for: channel)?.title,
+            url: channel.streamURL,
+            logoURL: channel.logoURL,
+            isLive: true,
+            channel: channel
+        )
+    }
+
+    func play(movie: Movie) {
+        playbackItem = PlaybackItem(
+            title: movie.name,
+            subtitle: movie.plot,
+            url: movie.streamURL,
+            logoURL: movie.posterURL,
+            isLive: false,
+            channel: nil
+        )
+    }
+
+    func play(episode: Episode, series: Series) {
+        playbackItem = PlaybackItem(
+            title: series.name,
+            subtitle: "S(episode.season) E(episode.episode) · (episode.title)",
+            url: episode.streamURL,
+            logoURL: series.posterURL,
+            isLive: false,
+            channel: nil
+        )
+    }
+
+    func catchup(channel: Channel, program: EPGProgram) {
+        guard let source = playlists.selectedSource,
+              let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)),
+              let url = api.catchupURL(channel: channel, program: program) else { return }
+        playbackItem = PlaybackItem(
+            title: channel.name,
+            subtitle: program.title,
+            url: url,
+            logoURL: channel.logoURL,
+            isLive: false,
+            channel: channel
+        )
+    }
+
+    func episodes(for series: Series) async throws -> [Episode] {
+        guard let source = playlists.selectedSource,
+              let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)) else { return [] }
+        return try await api.episodes(seriesID: series.id)
+    }
+}
