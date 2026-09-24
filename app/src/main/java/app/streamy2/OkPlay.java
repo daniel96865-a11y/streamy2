@@ -68,7 +68,9 @@ final class OkPlay {
         try {
             Request request = new Request.Builder().url(url)
                     .header(HttpHeaders.USER_AGENT, "MediaHubMX/2")
-                    .header(HttpHeaders.ACCEPT, "*/*")
+                    .header(HttpHeaders.ORIGIN, "https://vavoo.to")
+                    .header(HttpHeaders.REFERER, "https://vavoo.to/")
+                    .header(HttpHeaders.ACCEPT, "application/json")
                     .header(HttpHeaders.ACCEPT_LANGUAGE, "de")
                     .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
                     .header("mediahubmx-signature", signature)
