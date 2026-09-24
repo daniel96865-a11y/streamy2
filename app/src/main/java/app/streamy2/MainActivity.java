@@ -2286,7 +2286,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         TextView textView3 = this.chipCat;
         if (textView3 != null) {
-            textView3.setVisibility(this.tab == 4 ? 8 : 0);
+            // Live Extra now uses this chip as the country selector (Deutsch / Polnisch).
+            textView3.setVisibility(0);
         }
     }
 
@@ -2336,9 +2337,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             int i2 = this.tab;
             str = "Nichts gefunden.";
             if (i2 == 0 || i2 == 4) {
-                if (i2 == 4) {
-                    this.catId = "extra_live";
-                }
                 List<Models.Channel> filterLive = filterLive();
                 this.adapter.setChannels(filterLive);
                 TextView textView2 = this.empty;
@@ -2347,7 +2345,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 textView2.setVisibility(i);
                 this.empty.setText(this.tab == 4 ? "Live Extra wird geladen…" : "Nichts gefunden.");
-                this.chipCat.setText(this.tab == 4 ? "Live Extra Deutschland" : catName(this.catalog != null ? this.catalog.liveCats : null, this.catId));
+                if (this.tab == 4) {
+                    this.chipCat.setText(ExtraLiveSource.CAT_ID_PL.equals(this.catId) ? "Polnisch" : "Deutsch");
+                } else {
+                    this.chipCat.setText(catName(this.catalog != null ? this.catalog.liveCats : null, this.catId));
+                }
                 this.chipSort.setText(sortLabel());
                 focusFirstRow();
                 return;
@@ -2568,6 +2570,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         List<Models.Category> list;
         int i = this.tab;
         if (i == 4) {
+            final String[] ids = {ExtraLiveSource.CAT_ID, ExtraLiveSource.CAT_ID_PL};
+            int selected = ExtraLiveSource.CAT_ID_PL.equals(this.catId) ? 1 : 0;
+            showPicker("Sprache", Arrays.asList("Deutsch", "Polnisch"), selected, new PickAdapter.OnPick() {
+                @Override // app.streamy2.MainActivity.PickAdapter.OnPick
+                public final void pick(int index) {
+                    MainActivity.this.lambda$pickCategory$56(ids, index);
+                }
+            });
             return;
         }
         int i2 = 0;
@@ -3802,7 +3812,23 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         final boolean hadLiveCache = liveCache.exists() && liveCache.length() >= 8L;
         try {
             ExtraLiveSource.merge(catalogFinal, liveCache);
-            IO.execute(() -> ExtraLiveSource.refreshCache(liveCache));
+            IO.execute(() -> {
+                if (ExtraLiveSource.refreshCache(liveCache)) {
+                    try {
+                        ExtraLiveSource.merge(catalogFinal, liveCache);
+                        this.guide.apply(catalogFinal.live);
+                    } catch (Throwable ignored) {
+                    }
+                    UI.post(() -> {
+                        if (this.catalog == catalogFinal) {
+                            App.live = catalogFinal.live;
+                            if (this.tab == 0 || this.tab == 4) {
+                                renderList();
+                            }
+                        }
+                    });
+                }
+            });
             try {
                 this.guide.apply(catalogFinal.live);
             } catch (Throwable unused) {
@@ -3855,7 +3881,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 i = 0;
                 try {
                     for (Models.Channel channel : new ArrayList<>(catalog3.live)) {
-                        if (channel != null && "extra_live".equals(channel.categoryId)) {
+                        if (channel != null
+                                && (ExtraLiveSource.CAT_ID.equals(channel.categoryId)
+                                || ExtraLiveSource.CAT_ID_PL.equals(channel.categoryId))) {
                             i++;
                         }
                     }
