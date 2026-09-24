@@ -96,7 +96,7 @@ struct SettingsView: View {
                     }
 
                     if let date = epg.lastRefresh {
-                        Text("Zuletzt: (date.formatted(date: .abbreviated, time: .shortened))")
+                        Text("Zuletzt: \(date.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -122,7 +122,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
 
                     ForEach(sync.peers, id: \.self) { peer in
-                        Button("Mit (peer.displayName) verbinden") {
+                        Button("Mit \(peer.displayName) verbinden") {
                             sync.connect(peer)
                         }
                     }
