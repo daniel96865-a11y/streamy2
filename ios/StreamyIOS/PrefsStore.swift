@@ -25,12 +25,13 @@ final class PrefsStore: ObservableObject {
     private let defaults = UserDefaults.standard
 
     init() {
-        playerPreference = PlayerPreference(rawValue: defaults.string(forKey: "playerPreference") ?? "") ?? .automatic
-        resizeMode = VideoResizeMode(rawValue: defaults.string(forKey: "resizeMode") ?? "") ?? .fit
-        accentHex = defaults.string(forKey: "accentHex") ?? "#5B9DFF"
-        hideTopBar = defaults.bool(forKey: "hideTopBar")
-        rememberLastChannel = defaults.object(forKey: "rememberLastChannel") as? Bool ?? true
-        epgRefreshHours = defaults.object(forKey: "epgRefreshHours") as? Int ?? 12
+        let stored = UserDefaults.standard
+        playerPreference = PlayerPreference(rawValue: stored.string(forKey: "playerPreference") ?? "") ?? .automatic
+        resizeMode = VideoResizeMode(rawValue: stored.string(forKey: "resizeMode") ?? "") ?? .fit
+        accentHex = stored.string(forKey: "accentHex") ?? "#5B9DFF"
+        hideTopBar = stored.bool(forKey: "hideTopBar")
+        rememberLastChannel = stored.object(forKey: "rememberLastChannel") as? Bool ?? true
+        epgRefreshHours = stored.object(forKey: "epgRefreshHours") as? Int ?? 12
     }
 }
 
