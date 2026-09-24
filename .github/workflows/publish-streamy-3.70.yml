@@ -14,8 +14,15 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout main (sparse)
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docs/streamy2-tv.json
+            docs/streamy2-tv.txt
+            docs/streamy2-mobile.json
+            docs/streamy2-mobile.txt
+          sparse-checkout-cone-mode: false
 
       - name: Download tested 3.70 unsigned build
         env:
@@ -82,7 +89,7 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/downloads/Streamy2-TV-3.70.apk docs/downloads/Streamy2-Mobile-3.70.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
+          git add --sparse docs/downloads/Streamy2-TV-3.70.apk docs/downloads/Streamy2-Mobile-3.70.apk docs/streamy2-tv.json docs/streamy2-tv.txt docs/streamy2-mobile.json docs/streamy2-mobile.txt
           if ! git diff --cached --quiet; then
             git commit -m 'Publish Streamy 2 3.70 updater APKs'
             git push origin HEAD:main
