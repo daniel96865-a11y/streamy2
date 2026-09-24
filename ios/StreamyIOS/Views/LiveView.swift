@@ -4,26 +4,57 @@ struct LiveView: View {
     @EnvironmentObject private var state: AppState
     @EnvironmentObject private var epg: EPGStore
     @State private var categoryID: String?
+    @State private var favoritesOnly = false
     @State private var search = ""
     @State private var epgChannel: Channel?
 
     private var filtered: [Channel] {
         state.channels.filter { channel in
             let matchesCategory = categoryID == nil || channel.categoryID == categoryID
+            let matchesFavorite = !favoritesOnly || state.isFavorite(channel)
             let matchesSearch = search.isEmpty || channel.name.localizedCaseInsensitiveContains(search)
-            return matchesCategory && matchesSearch
+            return matchesCategory && matchesFavorite && matchesSearch
         }
     }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if let last = state.lastChannel {
+                    Button {
+                        state.play(channel: last)
+                    } label: {
+                        HStack {
+                            Image(systemName: "play.circle.fill")
+                            Text("Weiter: \(last.name)")
+                                .lineLimit(1)
+                            Spacer()
+                            if let now = epg.now(for: last) {
+                                Text(now.title)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 9)
+                    }
+                    .buttonStyle(.plain)
+                    .background(.thinMaterial)
+                }
+
                 categoryBar
 
                 if state.isLoading && state.channels.isEmpty {
                     Spacer()
                     ProgressView("Sender werden geladen …")
                     Spacer()
+                } else if filtered.isEmpty {
+                    ContentUnavailableView(
+                        favoritesOnly ? "Noch keine Favoriten" : "Keine Sender gefunden",
+                        systemImage: favoritesOnly ? "star" : "tv",
+                        description: Text(favoritesOnly ? "Halte einen Sender gedrückt und füge ihn zu den Favoriten hinzu." : "Passe Suche oder Kategorie an.")
+                    )
                 } else {
                     List(filtered) { channel in
                         Button {
@@ -40,9 +71,16 @@ struct LiveView: View {
                                 .frame(width: 54, height: 42)
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(channel.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
+                                    HStack(spacing: 6) {
+                                        Text(channel.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                        if state.isFavorite(channel) {
+                                            Image(systemName: "star.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.yellow)
+                                        }
+                                    }
                                     if let now = epg.now(for: channel) {
                                         Text(now.title)
                                             .font(.subheadline)
@@ -66,6 +104,31 @@ struct LiveView: View {
                                 Image(systemName: "play.fill")
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                        .contextMenu {
+                            Button {
+                                state.toggleFavorite(channel)
+                            } label: {
+                                Label(
+                                    state.isFavorite(channel) ? "Aus Favoriten entfernen" : "Zu Favoriten",
+                                    systemImage: state.isFavorite(channel) ? "star.slash" : "star"
+                                )
+                            }
+                            if channel.hasCatchup {
+                                Button {
+                                    epgChannel = channel
+                                } label: {
+                                    Label("Programm / Catch-up", systemImage: "clock.arrow.circlepath")
+                                }
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button {
+                                state.toggleFavorite(channel)
+                            } label: {
+                                Label("Favorit", systemImage: state.isFavorite(channel) ? "star.slash" : "star")
+                            }
+                            .tint(.yellow)
                         }
                     }
                     .listStyle(.plain)
@@ -92,13 +155,29 @@ struct LiveView: View {
     private var categoryBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack {
-                Button("Alle") { categoryID = nil }
-                    .buttonStyle(.borderedProminent)
-                    .tint(categoryID == nil ? .accentColor : .gray.opacity(0.35))
+                Button("Alle") {
+                    categoryID = nil
+                    favoritesOnly = false
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(categoryID == nil && !favoritesOnly ? .accentColor : .gray.opacity(0.35))
+
+                Button {
+                    categoryID = nil
+                    favoritesOnly = true
+                } label: {
+                    Label("Favoriten", systemImage: "star.fill")
+                }
+                .buttonStyle(.bordered)
+                .tint(favoritesOnly ? .yellow : .secondary)
+
                 ForEach(state.liveCategories) { category in
-                    Button(category.name) { categoryID = category.id }
-                        .buttonStyle(.bordered)
-                        .tint(categoryID == category.id ? .accentColor : .secondary)
+                    Button(category.name) {
+                        categoryID = category.id
+                        favoritesOnly = false
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(categoryID == category.id && !favoritesOnly ? .accentColor : .secondary)
                 }
             }
             .padding(.horizontal)
