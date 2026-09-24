@@ -193,7 +193,11 @@ final class PlayerSession: ObservableObject {
         #if canImport(VLCKit)
         avPlayer.pause()
         usingVLC = true
-        let media = VLCMedia(url: item.url)
+        guard let media = VLCMedia(url: item.url) else {
+            usingVLC = false
+            errorMessage = reason ?? "VLC konnte den Stream nicht öffnen."
+            return
+        }
         media.addOption(":network-caching=\(bufferMode.milliseconds)")
         if audioMode == .stereo {
             media.addOption(":stereo-mode=stereo")
