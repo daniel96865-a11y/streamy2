@@ -45,6 +45,51 @@ final class OkPlay {
     }
 
     static String postJson(String str, String str2, String signature) {
+        return postJson(str, str2, signature, 20);
+    }
+
+    static String postJsonFast(String str, String str2, String signature) {
+        return postJson(str, str2, signature, 7);
+    }
+
+    static final class ResolveResponse {
+        final String body;
+        final int status;
+        final String failure;
+
+        ResolveResponse(String body, int status, String failure) {
+            this.body = body;
+            this.status = status;
+            this.failure = failure;
+        }
+    }
+
+    static ResolveResponse postResolve(String url, String json, String signature) {
+        try {
+            Request request = new Request.Builder().url(url)
+                    .header(HttpHeaders.USER_AGENT, "MediaHubMX/2")
+                    .header(HttpHeaders.ACCEPT, "*/*")
+                    .header(HttpHeaders.ACCEPT_LANGUAGE, "de")
+                    .header(HttpHeaders.CONTENT_TYPE, "application/json; charset=utf-8")
+                    .header("mediahubmx-signature", signature)
+                    .post(RequestBody.create(json, JSON)).build();
+            try (Response response = client().newBuilder()
+                    .connectTimeout(7, TimeUnit.SECONDS)
+                    .readTimeout(12, TimeUnit.SECONDS)
+                    .callTimeout(12, TimeUnit.SECONDS)
+                    .build().newCall(request).execute()) {
+                ResponseBody body = response.body();
+                return new ResolveResponse(response.isSuccessful() && body != null ? body.string() : null,
+                        response.code(), response.isSuccessful() ? "" : "HTTP " + response.code());
+            }
+        } catch (Exception error) {
+            // Never include response bodies or signed stream URLs in diagnostics.
+            return new ResolveResponse(null, 0, error instanceof java.net.SocketTimeoutException
+                    || error instanceof java.io.InterruptedIOException ? "Zeitüberschreitung" : "Netzwerkfehler");
+        }
+    }
+
+    private static String postJson(String str, String str2, String signature, int timeoutSeconds) {
         try {
             Request.Builder rb = new Request.Builder().url(str)
                 .header(HttpHeaders.USER_AGENT, "MediaHubMX/2")
@@ -56,7 +101,7 @@ final class OkPlay {
             if (signature != null && !signature.isEmpty()) {
                 rb.header("mediahubmx-signature", signature);
             }
-            try (Response execute = client().newBuilder().connectTimeout(8L, TimeUnit.SECONDS).readTimeout(15L, TimeUnit.SECONDS).callTimeout(20L, TimeUnit.SECONDS).retryOnConnectionFailure(true).build().newCall(rb.post(RequestBody.create(str2, JSON)).build()).execute()) {
+            try (Response execute = client().newBuilder().connectTimeout(Math.min(8, timeoutSeconds), TimeUnit.SECONDS).readTimeout(Math.min(15, timeoutSeconds), TimeUnit.SECONDS).callTimeout(timeoutSeconds, TimeUnit.SECONDS).retryOnConnectionFailure(true).build().newCall(rb.post(RequestBody.create(str2, JSON)).build()).execute()) {
                 if (!execute.isSuccessful()) {
                     if (execute != null) {
                         execute.close();
