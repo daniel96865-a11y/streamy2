@@ -2833,13 +2833,19 @@ public class PlayerActivity extends AppCompatActivity {
                 list.setSelector(R.drawable.bg_player_dialog_item);
                 list.setFocusable(true);
                 list.setFocusableInTouchMode(false);
-                list.setDrawSelectorOnTop(false);
+                // AlertDialog rows can have their own opaque background. Draw the
+                // TV selector above them so the D-pad position is always visible.
+                list.setDrawSelectorOnTop(true);
                 list.post(() -> {
+                    list.requestFocus();
                     if (list.getCount() > 0) {
                         int position = Math.max(0, Math.min(initialPosition, list.getCount() - 1));
                         list.setSelection(position);
+                        if (list.getChoiceMode() != android.widget.ListView.CHOICE_MODE_NONE) {
+                            list.setItemChecked(position, true);
+                        }
                     }
-                    list.requestFocus();
+                    list.invalidate();
                 });
             }
             final View negative = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
