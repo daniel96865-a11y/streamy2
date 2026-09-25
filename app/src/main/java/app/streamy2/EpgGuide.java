@@ -153,6 +153,7 @@ public class EpgGuide {
             this.programmeCount = keptProg;
             this.channelCount = this.byId.size();
         } catch (Throwable ignored) {
+            Quiet.ignored("EpgGuide", ignored);
         }
     }
 
@@ -536,6 +537,7 @@ public class EpgGuide {
                     if (forChannel != null || !EpgTime.isCurrent(channel.epg, System.currentTimeMillis())) channel.epg = forChannel;
                     if (channel.epg != null) i++;
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
             int unified = applyUnified(list);
@@ -543,6 +545,7 @@ public class EpgGuide {
                 i = unified;
             }
         } catch (Exception unused2) {
+            Quiet.ignored("EpgGuide", unused2);
         }
         return i;
     }
@@ -603,6 +606,7 @@ public class EpgGuide {
                 }
             }
         } catch (Exception unused) {
+            Quiet.ignored("EpgGuide", unused);
         }
         return matched;
     }
@@ -643,6 +647,7 @@ public class EpgGuide {
                 matched++;
             }
         } catch (Exception unused) {
+            Quiet.ignored("EpgGuide", unused);
         }
         return matched;
     }
@@ -672,6 +677,7 @@ public class EpgGuide {
                 try {
                     file.delete();
                 } catch (Exception unused2) {
+                    Quiet.ignored("EpgGuide", unused2);
                 }
             }
             if (!z2 && this.channelCount > 0 && this.programmeCount > 0) {
@@ -761,6 +767,7 @@ public class EpgGuide {
                 try {
                     in = new GZIPInputStream(in);
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
             File parent = file.getParentFile();
@@ -788,6 +795,7 @@ public class EpgGuide {
             try {
                 out.close();
             } catch (Exception unused) {
+                Quiet.ignored("EpgGuide", unused);
             }
             out = null;
             if (code >= 400 || total < 40) {
@@ -806,24 +814,28 @@ public class EpgGuide {
                 try {
                     out.close();
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
             if (in != null) {
                 try {
                     in.close();
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
             if (conn != null) {
                 try {
                     conn.disconnect();
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
             if (part != null && part.exists()) {
                 try {
                     part.delete();
                 } catch (Exception unused) {
+                    Quiet.ignored("EpgGuide", unused);
                 }
             }
         }
@@ -863,6 +875,7 @@ public class EpgGuide {
             try {
                 fis.close();
             } catch (Exception unused) {
+                Quiet.ignored("EpgGuide", unused);
             }
         }
     }
@@ -887,6 +900,7 @@ public class EpgGuide {
             try {
                 bufferedInputStream.close();
             } catch (Exception unused) {
+                Quiet.ignored("EpgGuide", unused);
             }
         }
     }

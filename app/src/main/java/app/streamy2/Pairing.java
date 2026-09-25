@@ -57,9 +57,9 @@ final class Pairing {
         boolean alive() { return !closed && System.nanoTime() < expires; }
         void close() {
             closed = true; payload = null;
-            try { server.close(); } catch (Exception ignored) {}
+            try { server.close(); } catch (Exception ignored) { Quiet.ignored("Pairing", ignored); }
             discovery.close();
-            try { if (client != null) client.close(); } catch (Exception ignored) {}
+            try { if (client != null) client.close(); } catch (Exception ignored) { Quiet.ignored("Pairing", ignored); }
         }
         void start() {
             Thread tcp = new Thread(this::serve, "s2-pair-secure"); tcp.setDaemon(true); tcp.start();
@@ -75,9 +75,9 @@ final class Pairing {
                         if (!request.matches("S2DISCOVER2 [0-9a-f-]{36}")) continue;
                         byte[] reply = request.replace("S2DISCOVER2", "S2OFFER2").getBytes(StandardCharsets.US_ASCII);
                         discovery.send(new DatagramPacket(reply, reply.length, packet.getAddress(), packet.getPort()));
-                    } catch (SocketTimeoutException ignored) {}
+                    } catch (SocketTimeoutException ignored) { Quiet.ignored("Pairing", ignored); }
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) { Quiet.ignored("Pairing", ignored); }
             finally { close(); }
         }
         void serve() {
@@ -95,8 +95,8 @@ final class Pairing {
                             PairingCrypto.writeBytes(out, session.encrypt(value.getBytes(StandardCharsets.UTF_8)));
                             break; // One successful transfer consumes this PIN.
                         }
-                    } catch (SocketTimeoutException ignored) {}
-                    catch (Exception ignored) { /* No credential response after failed authentication. */ }
+                    } catch (SocketTimeoutException ignored) { Quiet.ignored("Pairing", ignored); }
+                    catch (Exception ignored) { /* No credential response after failed authentication. */ Quiet.ignored("Pairing", ignored); }
                     finally { client = null; }
                 }
             } finally { close(); }
@@ -127,9 +127,9 @@ final class Pairing {
                         byte[] encrypted = PairingCrypto.readBytes(in, PairingCrypto.MAX_PAYLOAD + 28);
                         return new String(session.decrypt(encrypted), StandardCharsets.UTF_8);
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) { Quiet.ignored("Pairing", ignored); }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) { Quiet.ignored("Pairing", ignored); }
         return null;
     }
 

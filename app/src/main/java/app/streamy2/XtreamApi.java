@@ -586,6 +586,7 @@ public class XtreamApi {
                     simpleDateFormat.setTimeZone(TimeZone.getDefault());
                     return simpleDateFormat.parse(str).getTime();
                 } catch (Exception unused) {
+                    Quiet.ignored("XtreamApi", unused);
                 }
             }
         }
@@ -615,6 +616,7 @@ public class XtreamApi {
                 return Text.clean(trim);
             }
         } catch (Exception unused) {
+            Quiet.ignored("XtreamApi", unused);
         }
         return Text.clean(str);
     }
@@ -689,6 +691,7 @@ public class XtreamApi {
         try {
             jSONObject.put("epg_listings", obj);
         } catch (Exception unused) {
+            Quiet.ignored("XtreamApi", unused);
         }
         return jSONObject;
     }

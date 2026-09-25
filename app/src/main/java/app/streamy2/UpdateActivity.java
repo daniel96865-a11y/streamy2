@@ -408,7 +408,7 @@ public final class UpdateActivity extends Activity {
 
     private void removeSystemDownload() {
         long id = transfer.downloadId();
-        if (id >= 0) try { downloads().remove(id); } catch (Exception ignored) { }
+        if (id >= 0) try { downloads().remove(id); } catch (Exception ignored) { Quiet.ignored("UpdateActivity", ignored); }
     }
 
     private static String detail(Exception e) {

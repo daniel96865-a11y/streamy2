@@ -165,6 +165,7 @@ public class Images {
                 }
             }
         } catch (Exception unused) {
+            Quiet.ignored("Images", unused);
         }
     }
 
@@ -214,6 +215,7 @@ public class Images {
                     try {
                         list2.remove(0).stop();
                     } catch (Exception unused) {
+                        Quiet.ignored("Images", unused);
                     }
                 } else {
                     list2.add(animatedImageDrawable);
@@ -225,6 +227,7 @@ public class Images {
             animatedImageDrawable.setRepeatCount(-1);
             animatedImageDrawable.start();
         } catch (Exception unused2) {
+            Quiet.ignored("Images", unused2);
         }
     }
 
@@ -236,6 +239,7 @@ public class Images {
                 try {
                     it.next().stop();
                 } catch (Exception unused) {
+                    Quiet.ignored("Images", unused);
                 }
             }
             RUNNING.clear();
@@ -250,6 +254,7 @@ public class Images {
         try {
             ((AnimatedImageDrawable) drawable).stop();
         } catch (Exception unused) {
+            Quiet.ignored("Images", unused);
         }
         List<AnimatedImageDrawable> list = RUNNING;
         synchronized (list) {

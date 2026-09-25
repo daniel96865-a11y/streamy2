@@ -294,6 +294,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         MainActivity.this.browser = new BrowserController(MainActivity.this);
                     }
                 } catch (Throwable ignored) {
+                    Quiet.ignored("MainActivity", ignored);
                 }
             }
         });
@@ -1424,6 +1425,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             });
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
     }
 
@@ -1432,6 +1434,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             this.adapter.notifyEpg();
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
     }
 
@@ -1447,6 +1450,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 try {
                     BrowserController.trimForMemory(false);
                 } catch (Throwable ignored) {
+                    Quiet.ignored("MainActivity", ignored);
                 }
             }
         }
@@ -2200,7 +2204,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 recyclerView.scrollToPosition(0);
             }
             if (i == 0 || i == 4) {
-                try { loadVisibleEpg(); } catch (Throwable ignored) {}
+                try { loadVisibleEpg(); } catch (Throwable ignored) { Quiet.ignored("MainActivity", ignored); }
             }
         }
         AppBarLayout appBarLayout = this.appBar;
@@ -2409,6 +2413,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 searchKinoRemote();
             }
         } catch (Exception unused) {
+            Quiet.ignored("MainActivity", unused);
         }
     }
 
@@ -2493,6 +2498,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     }));
                 }
             } catch (Exception unused) {
+                Quiet.ignored("MainActivity", unused);
             }
         }
         return arrayList;
@@ -2537,6 +2543,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 });
             }
         } catch (Exception unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         return arrayList;
     }
@@ -2737,6 +2744,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("MainActivity", ignored);
         }
     }
 
@@ -2794,7 +2802,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     btnNow.post(new Runnable() {
                         @Override
                         public void run() {
-                            try { btnNow.requestFocus(); } catch (Throwable ignored) {}
+                            try { btnNow.requestFocus(); } catch (Throwable ignored) { Quiet.ignored("MainActivity", ignored); }
                         }
                     });
                 }
@@ -2998,6 +3006,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda49
             @Override // java.lang.Runnable
@@ -3012,6 +3021,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             this.api.enrich(media);
         } catch (Exception unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda2
             @Override // java.lang.Runnable
@@ -3051,6 +3061,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             try {
                 this.adapter.notifyItemChanged(i);
             } catch (Exception unused) {
+                Quiet.ignored("MainActivity", unused);
             }
         }
     }
@@ -3063,6 +3074,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
             this.adapter.notifyItemChanged(i);
         } catch (Exception unused) {
+            Quiet.ignored("MainActivity", unused);
         }
     }
 
@@ -3122,6 +3134,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda61
             @Override // java.lang.Runnable
@@ -3147,6 +3160,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             this.api.enrich(media);
         } catch (Exception unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda3
             @Override // java.lang.Runnable
@@ -3293,6 +3307,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda119
             @Override // java.lang.Runnable
@@ -3387,6 +3402,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             ExtraMediaSource.enrich(media);
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda54
             @Override // java.lang.Runnable
@@ -3692,6 +3708,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         try {
             ExtraMediaSource.load();
         } catch (Throwable unused) {
+            Quiet.ignored("MainActivity", unused);
         }
         UI.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda11
             @Override // java.lang.Runnable
@@ -3818,6 +3835,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         ExtraLiveSource.merge(catalogFinal, liveCache);
                         this.guide.apply(catalogFinal.live);
                     } catch (Throwable ignored) {
+                        Quiet.ignored("MainActivity", ignored);
                     }
                     UI.post(() -> {
                         if (this.catalog == catalogFinal) {
@@ -3832,6 +3850,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             try {
                 this.guide.apply(catalogFinal.live);
             } catch (Throwable unused) {
+                Quiet.ignored("MainActivity", unused);
             }
             Handler handler = UI;
             handler.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda42
@@ -3948,6 +3967,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                         MainActivity.this.prefetchEpg();
                                         MainActivity.this.ensureLiveEpg(false);
                                     } catch (Throwable ignored) {
+                                        Quiet.ignored("MainActivity", ignored);
                                     }
                                 }
                             });
@@ -3955,6 +3975,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     });
                 }
             } catch (Throwable ignored) {
+                Quiet.ignored("MainActivity", ignored);
             }
         }
         try {
@@ -4103,6 +4124,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                             try {
                                 MainActivity.this.guide.applyUnifiedSiblings(channel, catalog.live);
                             } catch (Throwable ignored) {
+                                Quiet.ignored("MainActivity", ignored);
                             }
                             UI.post(new Runnable() {
                                 @Override
@@ -4112,6 +4134,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                             MainActivity.this.adapter.notifyEpg();
                                         }
                                     } catch (Throwable ignored) {
+                                        Quiet.ignored("MainActivity", ignored);
                                     }
                                 }
                             });
@@ -4165,6 +4188,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 try {
                     MainActivity.this.guide.applyUnifiedSiblings(channel, catalog.live);
                 } catch (Throwable ignored) {
+                    Quiet.ignored("MainActivity", ignored);
                 }
                 UI.post(new Runnable() {
                     @Override
@@ -4174,6 +4198,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                 MainActivity.this.adapter.notifyEpg();
                             }
                         } catch (Throwable ignored) {
+                            Quiet.ignored("MainActivity", ignored);
                         }
                     }
                 });

@@ -80,6 +80,7 @@ final class LocalHls {
                                     });
                                 }
                             } catch (Exception unused) {
+                                Quiet.ignored("LocalHls", unused);
                             }
                         }
                     });
@@ -179,10 +180,12 @@ final class LocalHls {
                 }
             }
         } catch (Exception unused) {
+            Quiet.ignored("LocalHls", unused);
         } finally {
             try {
                 socket.close();
             } catch (Exception unused2) {
+                Quiet.ignored("LocalHls", unused2);
             }
         }
     }
@@ -348,7 +351,7 @@ final class LocalHls {
             return null;
         } finally {
             if (open != null) {
-                try { open.disconnect(); } catch (Exception ignored) {}
+                try { open.disconnect(); } catch (Exception ignored) { Quiet.ignored("LocalHls", ignored); }
             }
         }
     }

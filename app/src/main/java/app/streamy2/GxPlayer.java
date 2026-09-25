@@ -58,6 +58,7 @@ final class GxPlayer {
                     }
                 }
             } catch (Exception unused) {
+                Quiet.ignored("GxPlayer", unused);
             }
         }
         return null;

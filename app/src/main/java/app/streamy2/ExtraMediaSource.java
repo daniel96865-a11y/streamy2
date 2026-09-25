@@ -72,6 +72,7 @@ final class ExtraMediaSource {
             cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
             CookieHandler.setDefault(cookieManager);
         } catch (Exception unused) {
+            Quiet.ignored("ExtraMediaSource", unused);
         }
         films = new ArrayList();
         serials = new ArrayList();
@@ -102,6 +103,7 @@ final class ExtraMediaSource {
                     live.add(origin(seed));
                 }
             } catch (Exception unused) {
+                Quiet.ignored("ExtraMediaSource", unused);
             }
         }
         if (!live.isEmpty()) {
@@ -124,7 +126,7 @@ final class ExtraMediaSource {
             if (base != null) {
                 return base;
             }
-            try { refreshHosts(); } catch (Throwable ignored) {}
+            try { refreshHosts(); } catch (Throwable ignored) { Quiet.ignored("ExtraMediaSource", ignored); }
             String[] strArr = BASES;
             int length = strArr.length;
             for (int i = 0; i < length; i++) {
@@ -305,6 +307,7 @@ final class ExtraMediaSource {
                 return parseList;
             }
         } catch (Exception unused) {
+            Quiet.ignored("ExtraMediaSource", unused);
         }
         return localSearch(str);
     }
@@ -750,6 +753,7 @@ final class ExtraMediaSource {
         try {
             replaceAll = Html.fromHtml(replaceAll, 0).toString();
         } catch (Exception unused) {
+            Quiet.ignored("ExtraMediaSource", unused);
         }
         return replaceAll.replace(Typography.nbsp, ' ').replaceAll("[ \\t]+", " ").trim();
     }
@@ -821,6 +825,7 @@ final class ExtraMediaSource {
             try {
                 return Integer.parseInt(matcher.group(1));
             } catch (Exception unused) {
+                Quiet.ignored("ExtraMediaSource", unused);
             }
         }
         return i;
@@ -977,6 +982,7 @@ final class ExtraMediaSource {
                         try {
                             httpURLConnection.disconnect();
                         } catch (Exception unused2) {
+                            Quiet.ignored("ExtraMediaSource", unused2);
                         }
                     }
                     return null;
@@ -1010,6 +1016,7 @@ final class ExtraMediaSource {
                     }
                     i++;
                 } catch (Exception unused) {
+                    Quiet.ignored("ExtraMediaSource", unused);
                 }
             }
         }

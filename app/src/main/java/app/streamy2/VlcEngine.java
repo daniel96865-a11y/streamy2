@@ -31,10 +31,10 @@ final class VlcEngine implements LiveEngine {
             VlcFactory.lastError = msg;
             new Handler(Looper.getMainLooper()).post(new Runnable() {
                 @Override public void run() {
-                    try { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show(); } catch (Throwable ignored) {}
+                    try { Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
             });
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
     }
 
     private boolean attached;
@@ -55,17 +55,17 @@ final class VlcEngine implements LiveEngine {
                 toastError("VLC EncounteredError");
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
-                    try { l.onError(); } catch (Throwable ignored) {}
+                    try { l.onError(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
             } else if (event.type == MediaPlayer.Event.Playing) {
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
-                    try { l.onPlaying(); } catch (Throwable ignored) {}
+                    try { l.onPlaying(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
             } else if (event.type == MediaPlayer.Event.Paused || event.type == MediaPlayer.Event.Stopped) {
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
-                    try { l.onPaused(); } catch (Throwable ignored) {}
+                    try { l.onPaused(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
             }
         }
@@ -98,6 +98,7 @@ final class VlcEngine implements LiveEngine {
             try {
                 this.player.setEventListener(eventListener);
             } catch (Throwable ignored) {
+                Quiet.ignored("VlcEngine", ignored);
             }
             VlcFactory.available = true;
             VlcFactory.probed = true;
@@ -124,6 +125,7 @@ final class VlcEngine implements LiveEngine {
             try {
                 this.player.stop();
             } catch (Exception unused) {
+                Quiet.ignored("VlcEngine", unused);
             }
             this.host.setVisibility(0);
             this.layout.setVisibility(0);
@@ -195,8 +197,10 @@ final class VlcEngine implements LiveEngine {
             try {
                 mediaPlayer.updateVideoSurfaces();
             } catch (Throwable ignored) {
+                Quiet.ignored("VlcEngine", ignored);
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("VlcEngine", ignored);
         }
     }
 
@@ -231,6 +235,7 @@ final class VlcEngine implements LiveEngine {
             }
             this.player.pause();
         } catch (Exception unused) {
+            Quiet.ignored("VlcEngine", unused);
         }
     }
 
@@ -242,6 +247,7 @@ final class VlcEngine implements LiveEngine {
                 mediaPlayer.play();
             }
         } catch (Exception unused) {
+            Quiet.ignored("VlcEngine", unused);
         }
     }
 
@@ -263,11 +269,13 @@ final class VlcEngine implements LiveEngine {
                 try {
                     mediaPlayer.stop();
                 } catch (Exception unused) {
+                    Quiet.ignored("VlcEngine", unused);
                 }
                 if (this.attached) {
                     try {
                         this.player.detachViews();
                     } catch (Exception unused2) {
+                        Quiet.ignored("VlcEngine", unused2);
                     }
                     this.attached = false;
                 }
@@ -275,20 +283,24 @@ final class VlcEngine implements LiveEngine {
                     try {
                         this.player.setEventListener(null);
                     } catch (Exception unused4) {
+                        Quiet.ignored("VlcEngine", unused4);
                     }
                     try {
                         this.player.release();
                     } catch (Exception unused3) {
+                        Quiet.ignored("VlcEngine", unused3);
                     }
                     this.player = null;
                 }
             }
         } catch (Throwable unused4) {
+            Quiet.ignored("VlcEngine", unused4);
         }
         if (z && (libVLC = this.lib) != null) {
             try {
                 libVLC.release();
             } catch (Exception unused5) {
+                Quiet.ignored("VlcEngine", unused5);
             }
             this.lib = null;
         }
@@ -339,6 +351,7 @@ final class VlcEngine implements LiveEngine {
             }
             mediaPlayer.setTime(Math.max(0L, j));
         } catch (Throwable unused) {
+            Quiet.ignored("VlcEngine", unused);
         }
     }
 }

@@ -189,6 +189,7 @@ final class OkPlay {
             try {
                 if (reader != null) reader.close();
             } catch (Exception ignored) {
+                Quiet.ignored("OkPlay", ignored);
             }
             if (connection != null) connection.disconnect();
         }
