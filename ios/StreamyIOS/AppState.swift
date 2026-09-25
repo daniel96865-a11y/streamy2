@@ -17,6 +17,7 @@ final class AppState: ObservableObject {
     @Published var errorMessage: String?
     @Published var playbackItem: PlaybackItem?
     @Published var resolvingExtraLive = false
+    @Published var resolvingExtraMedia = false
     @Published private(set) var favoriteChannelKeys: Set<String> = []
     @Published private(set) var lastChannelKey: String?
     @Published private(set) var accountInfo: XtreamAccountInfo?
@@ -90,6 +91,7 @@ final class AppState: ObservableObject {
             }
 
             await mergeExtraLive()
+            await mergeExtraMedia()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -149,24 +151,72 @@ final class AppState: ObservableObject {
     }
 
     func play(movie: Movie) {
+        if ExtraMediaService.isExtra(movie) {
+            resolvingExtraMedia = true
+            Task {
+                do {
+                    let resolved = try await ExtraMediaService.shared.resolveMovie(movie)
+                    playbackItem = PlaybackItem(
+                        title: movie.name,
+                        subtitle: movie.plot,
+                        url: resolved,
+                        logoURL: movie.posterURL,
+                        isLive: false,
+                        channel: nil,
+                        resumeKey: "movie:" + movie.id
+                    )
+                    errorMessage = nil
+                } catch {
+                    errorMessage = "Media Extra konnte nicht gestartet werden: \(error.localizedDescription)"
+                }
+                resolvingExtraMedia = false
+            }
+            return
+        }
+
         playbackItem = PlaybackItem(
             title: movie.name,
             subtitle: movie.plot,
             url: movie.streamURL,
             logoURL: movie.posterURL,
             isLive: false,
-            channel: nil
+            channel: nil,
+            resumeKey: "movie:" + movie.id
         )
     }
 
     func play(episode: Episode, series: Series) {
+        if ExtraMediaService.isExtra(episode) || ExtraMediaService.isExtra(series) {
+            resolvingExtraMedia = true
+            Task {
+                do {
+                    let resolved = try await ExtraMediaService.shared.resolveEpisode(episode)
+                    playbackItem = PlaybackItem(
+                        title: series.name,
+                        subtitle: "S\(episode.season) E\(episode.episode) · \(episode.title)",
+                        url: resolved,
+                        logoURL: series.posterURL,
+                        isLive: false,
+                        channel: nil,
+                        resumeKey: "episode:" + episode.id
+                    )
+                    errorMessage = nil
+                } catch {
+                    errorMessage = "Media Extra-Folge konnte nicht gestartet werden: \(error.localizedDescription)"
+                }
+                resolvingExtraMedia = false
+            }
+            return
+        }
+
         playbackItem = PlaybackItem(
             title: series.name,
             subtitle: "S\(episode.season) E\(episode.episode) · \(episode.title)",
             url: episode.streamURL,
             logoURL: series.posterURL,
             isLive: false,
-            channel: nil
+            channel: nil,
+            resumeKey: "episode:" + episode.id
         )
     }
 
@@ -185,6 +235,9 @@ final class AppState: ObservableObject {
     }
 
     func episodes(for series: Series) async throws -> [Episode] {
+        if ExtraMediaService.isExtra(series) {
+            return try await ExtraMediaService.shared.episodes(for: series)
+        }
         guard let source = playlists.selectedSource,
               let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)) else { return [] }
         return try await api.episodes(seriesID: series.id)
@@ -234,6 +287,58 @@ final class AppState: ObservableObject {
             $0.id == ExtraLiveService.germanCategoryID ||
             $0.id == ExtraLiveService.polishCategoryID
         }
+    }
+
+    func refreshExtraMedia() async {
+        guard prefs.extraMediaEnabled else {
+            removeExtraMedia()
+            return
+        }
+        let catalog = await ExtraMediaService.shared.refreshAll()
+        applyExtraMedia(movies: catalog.movies, series: catalog.series)
+    }
+
+    private func mergeExtraMedia() async {
+        guard prefs.extraMediaEnabled else {
+            removeExtraMedia()
+            return
+        }
+
+        let cached = await ExtraMediaService.shared.cachedCatalog()
+        if !cached.movies.isEmpty || !cached.series.isEmpty {
+            applyExtraMedia(movies: cached.movies, series: cached.series)
+        }
+
+        let fresh = await ExtraMediaService.shared.loadFast()
+        if !fresh.movies.isEmpty || !fresh.series.isEmpty {
+            applyExtraMedia(movies: fresh.movies, series: fresh.series)
+        }
+    }
+
+    private func applyExtraMedia(movies extraMovies: [Movie], series extraSeries: [Series]) {
+        movies.removeAll { ExtraMediaService.isExtra($0) }
+        series.removeAll { ExtraMediaService.isExtra($0) }
+
+        let movieMap = Dictionary(grouping: extraMovies, by: \.id).compactMap { $0.value.first }
+        let seriesMap = Dictionary(grouping: extraSeries, by: \.id).compactMap { $0.value.first }
+        movies.append(contentsOf: movieMap)
+        series.append(contentsOf: seriesMap)
+
+        vodCategories.removeAll { $0.id == ExtraMediaService.filmCategoryID }
+        seriesCategories.removeAll { $0.id == ExtraMediaService.seriesCategoryID }
+        if !movieMap.isEmpty {
+            vodCategories.insert(Category(id: ExtraMediaService.filmCategoryID, name: "Media Extra"), at: 0)
+        }
+        if !seriesMap.isEmpty {
+            seriesCategories.insert(Category(id: ExtraMediaService.seriesCategoryID, name: "Media Extra"), at: 0)
+        }
+    }
+
+    private func removeExtraMedia() {
+        movies.removeAll { ExtraMediaService.isExtra($0) }
+        series.removeAll { ExtraMediaService.isExtra($0) }
+        vodCategories.removeAll { $0.id == ExtraMediaService.filmCategoryID }
+        seriesCategories.removeAll { $0.id == ExtraMediaService.seriesCategoryID }
     }
 
     private func channelKey(_ channel: Channel) -> String {
