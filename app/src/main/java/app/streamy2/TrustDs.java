@@ -147,6 +147,7 @@ final class TrustDs extends BaseDataSource {
                 inputStream.close();
             }
         } catch (Exception unused) {
+            Quiet.ignored("TrustDs", unused);
         }
         this.in = null;
         try {
@@ -155,6 +156,7 @@ final class TrustDs extends BaseDataSource {
                 httpURLConnection.disconnect();
             }
         } catch (Exception unused2) {
+            Quiet.ignored("TrustDs", unused2);
         }
         this.conn = null;
         this.remaining = -1L;

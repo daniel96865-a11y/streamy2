@@ -131,6 +131,7 @@ public final class CatalogCache {
             }
             file2.renameTo(file);
         } catch (Exception unused) {
+            Quiet.ignored("CatalogCache", unused);
         }
     }
 

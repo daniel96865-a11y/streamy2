@@ -174,6 +174,7 @@ final class FeatureAccess {
                 try {
                     json = new JSONObject(body);
                 } catch (Exception ignored) {
+                    Quiet.ignored("FeatureAccess", ignored);
                 }
             }
 
@@ -266,6 +267,7 @@ final class FeatureAccess {
                         decor.removeView(webView);
                         webView.destroy();
                     } catch (Throwable ignored) {
+                        Quiet.ignored("FeatureAccess", ignored);
                     }
                     callback.onResult(result);
                 }

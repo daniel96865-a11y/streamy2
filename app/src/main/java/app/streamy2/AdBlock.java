@@ -42,6 +42,7 @@ public final class AdBlock {
             } finally {
             }
         } catch (Exception unused) {
+            Quiet.ignored("AdBlock", unused);
         }
     }
 

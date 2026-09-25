@@ -47,6 +47,7 @@ public class App extends Application {
                 }
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("App", ignored);
         }
         lowRamValue = low;
         lowRamCached = low;
@@ -87,11 +88,13 @@ public class App extends Application {
             cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
             CookieHandler.setDefault(cookieManager);
         } catch (Throwable unused) {
+            Quiet.ignored("App", unused);
         }
         EpgRefresh.schedule(this);
         try {
             LocalHls.start();
         } catch (Throwable ignored) {
+            Quiet.ignored("App", ignored);
         }
         // Never probe libVLC on Application.onCreate — cold start must stay light.
         // VlcFactory.isAvailable() / create() run on first player use only.
@@ -130,14 +133,17 @@ public class App extends Application {
                 }
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("App", ignored);
         }
         try {
             BrowserController.trimForMemory(isAggressiveTrim(level));
         } catch (Throwable ignored) {
+            Quiet.ignored("App", ignored);
         }
         try {
             System.gc();
         } catch (Throwable ignored) {
+            Quiet.ignored("App", ignored);
         }
     }
 }

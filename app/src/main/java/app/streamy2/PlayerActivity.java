@@ -191,6 +191,7 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         PlayerActivity.this.player.seekToDefaultPosition();
                     } catch (Throwable unused) {
+                        Quiet.ignored("PlayerActivity", unused);
                     }
                 }
             } else {
@@ -283,6 +284,7 @@ public class PlayerActivity extends AppCompatActivity {
                 }
             }
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
         return 0L;
     }
@@ -580,12 +582,14 @@ public class PlayerActivity extends AppCompatActivity {
             try {
                 Toast.makeText(this, "Zu wenig Speicher für den Player", Toast.LENGTH_LONG).show();
             } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
             }
         } catch (Throwable t) {
             this.player = null;
             try {
                 Toast.makeText(this, "Player konnte nicht gestartet werden", Toast.LENGTH_LONG).show();
             } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
             }
         }
         PlayerView playerView = (PlayerView) findViewById(R.id.playerView);
@@ -741,6 +745,7 @@ public class PlayerActivity extends AppCompatActivity {
                         PlayerActivity.this.pickPlayableAudio(PlayerActivity.this.player.getCurrentTracks());
                     }
                 } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
                 }
             }
             if (i == 4 && PlayerActivity.this.liveMode && !PlayerActivity.this.userPaused) {
@@ -767,6 +772,7 @@ public class PlayerActivity extends AppCompatActivity {
             try {
                 PlayerActivity.this.pickPlayableAudio(tracks);
             } catch (Throwable unused) {
+                Quiet.ignored("PlayerActivity", unused);
             }
         }
 
@@ -788,7 +794,7 @@ public class PlayerActivity extends AppCompatActivity {
             try {
                 PlayerActivity.this.lastExoError = str;
                 PlayerActivity.this.toastPlaybackError("Player: " + str);
-            } catch (Throwable ignored) {}
+            } catch (Throwable ignored) { Quiet.ignored("PlayerActivity", ignored); }
             if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.recoverTries < 2) {
                 PlayerActivity.this.recoverTries++;
                 // A provider-side auth/resolve change can leave the cached signature valid-looking
@@ -943,6 +949,7 @@ public class PlayerActivity extends AppCompatActivity {
                 }
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
         }
         return "—";
     }
@@ -986,6 +993,7 @@ public class PlayerActivity extends AppCompatActivity {
             intent.putExtra("fromPlayer", true);
             startActivity(intent);
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
         finish();
     }
@@ -994,18 +1002,22 @@ public class PlayerActivity extends AppCompatActivity {
         try {
             UI.removeCallbacks(this.extraLivePrefetch);
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
         try {
             UI.removeCallbacks(this.tick);
         } catch (Throwable unused2) {
+            Quiet.ignored("PlayerActivity", unused2);
         }
         try {
             UI.removeCallbacks(this.watchdog);
         } catch (Throwable unused3) {
+            Quiet.ignored("PlayerActivity", unused3);
         }
         try {
             UI.removeCallbacks(this.hideHud);
         } catch (Throwable unused4) {
+            Quiet.ignored("PlayerActivity", unused4);
         }
         try {
             PlayerView playerView = this.playerView;
@@ -1013,6 +1025,7 @@ public class PlayerActivity extends AppCompatActivity {
                 playerView.setPlayer(null);
             }
         } catch (Throwable unused5) {
+            Quiet.ignored("PlayerActivity", unused5);
         }
         try {
             LiveEngine liveEngine = this.vlc;
@@ -1020,6 +1033,7 @@ public class PlayerActivity extends AppCompatActivity {
                 liveEngine.pause();
             }
         } catch (Throwable unused6) {
+            Quiet.ignored("PlayerActivity", unused6);
         }
         try {
             ExoPlayer exoPlayer = this.player;
@@ -1027,6 +1041,7 @@ public class PlayerActivity extends AppCompatActivity {
                 exoPlayer.setPlayWhenReady(false);
             }
         } catch (Throwable unused7) {
+            Quiet.ignored("PlayerActivity", unused7);
         }
     }
 
@@ -1037,14 +1052,17 @@ public class PlayerActivity extends AppCompatActivity {
             try {
                 exoPlayer.stop();
             } catch (Throwable unused) {
+                Quiet.ignored("PlayerActivity", unused);
             }
             try {
                 exoPlayer.clearMediaItems();
             } catch (Throwable unused2) {
+                Quiet.ignored("PlayerActivity", unused2);
             }
             try {
                 exoPlayer.release();
             } catch (Throwable unused3) {
+                Quiet.ignored("PlayerActivity", unused3);
             }
         }
         try {
@@ -1054,6 +1072,7 @@ public class PlayerActivity extends AppCompatActivity {
                 this.vlc = null;
             }
         } catch (Throwable unused4) {
+            Quiet.ignored("PlayerActivity", unused4);
         }
     }
 
@@ -1411,6 +1430,7 @@ public class PlayerActivity extends AppCompatActivity {
                 getWindow().setStatusBarColor(Color.TRANSPARENT);
                 getWindow().setNavigationBarColor(Color.TRANSPARENT);
             } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
             }
             if (Build.VERSION.SDK_INT >= 28) {
                 try {
@@ -1419,6 +1439,7 @@ public class PlayerActivity extends AppCompatActivity {
                             WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                     getWindow().setAttributes(attrs);
                 } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
                 }
             }
             if (Build.VERSION.SDK_INT >= 30) {
@@ -1433,6 +1454,7 @@ public class PlayerActivity extends AppCompatActivity {
                 getWindow().getDecorView().setSystemUiVisibility(5894);
             }
         } catch (Exception unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
     }
 
@@ -1526,6 +1548,7 @@ public class PlayerActivity extends AppCompatActivity {
                 arrayList.addAll(App.guide.listingsFor(channel));
             }
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
         final Models.Epg epgFinal = epg;
         UI.post(new Runnable() { // from class: app.streamy2.PlayerActivity$$ExternalSyntheticLambda22
@@ -1832,6 +1855,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             exoPlayer.seekTo(pos);
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
     }
 
@@ -1963,6 +1987,7 @@ public class PlayerActivity extends AppCompatActivity {
                         ? C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
                         : C.VIDEO_SCALING_MODE_SCALE_TO_FIT);
             } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
             }
         }
         LiveEngine liveEngine = this.vlc;
@@ -2075,6 +2100,7 @@ public class PlayerActivity extends AppCompatActivity {
                 Uri parse = Uri.parse(str);
                 return parse.getScheme() + "://" + parse.getHost() + (parse.getPort() > 0 ? ":" + parse.getPort() : "") + "/";
             } catch (Exception unused) {
+                Quiet.ignored("PlayerActivity", unused);
             }
         }
         return "";
@@ -2106,10 +2132,10 @@ public class PlayerActivity extends AppCompatActivity {
                             errorView.setVisibility(0);
                             errorView.setText(msg);
                         }
-                    } catch (Throwable ignored) {}
+                    } catch (Throwable ignored) { Quiet.ignored("PlayerActivity", ignored); }
                 }
             });
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) { Quiet.ignored("PlayerActivity", ignored); }
     }
 
     public void playCurrent() {
@@ -2502,12 +2528,14 @@ public class PlayerActivity extends AppCompatActivity {
                 liveEngine.stop(true);
             }
         } catch (Throwable unused) {
+            Quiet.ignored("PlayerActivity", unused);
         }
         ViewGroup viewGroup = this.vlcHost;
         if (viewGroup != null) {
             try {
                 viewGroup.removeAllViews();
             } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
             }
             viewGroup.setVisibility(8);
         }
@@ -2561,14 +2589,17 @@ public class PlayerActivity extends AppCompatActivity {
                 try {
                     exoPlayer.setPlayWhenReady(false);
                 } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
                 }
                 try {
                     exoPlayer.stop();
                 } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
                 }
                 try {
                     exoPlayer.clearMediaItems();
                 } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
                 }
             }
             PlayerView playerView = this.playerView;
@@ -2625,6 +2656,7 @@ public class PlayerActivity extends AppCompatActivity {
                     try {
                         Toast.makeText(PlayerActivity.this, "Zu wenig Speicher für VLC", Toast.LENGTH_LONG).show();
                     } catch (Throwable ignored) {
+                        Quiet.ignored("PlayerActivity", ignored);
                     }
                 }
             });
@@ -2707,6 +2739,7 @@ public class PlayerActivity extends AppCompatActivity {
         try {
             Toast.makeText(this, "VLC fehlgeschlagen → Exo", Toast.LENGTH_SHORT).show();
         } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
         }
         paintPlayerBtn();
         playCurrent();
@@ -3059,6 +3092,7 @@ public class PlayerActivity extends AppCompatActivity {
             try {
                 exoPlayer.stop();
             } catch (Throwable unused) {
+                Quiet.ignored("PlayerActivity", unused);
             }
         }
         hideVlc();

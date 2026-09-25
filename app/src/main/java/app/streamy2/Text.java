@@ -13,6 +13,7 @@ public final class Text {
             try {
                 str = Html.fromHtml(str, 0).toString();
             } catch (Exception unused) {
+                Quiet.ignored("Text", unused);
             }
         }
         return str.replace(Typography.nbsp, ' ').trim();

@@ -125,6 +125,7 @@ final class ExtraLiveSource {
                 }
             }
         } catch (Exception unused) {
+            Quiet.ignored("ExtraLiveSource", unused);
         }
     }
 
@@ -163,6 +164,7 @@ final class ExtraLiveSource {
                 return (germany != null && !germany.isEmpty()) || (poland != null && !poland.isEmpty());
             }
         } catch (Throwable unused) {
+            Quiet.ignored("ExtraLiveSource", unused);
         }
         return false;
     }
@@ -310,6 +312,7 @@ final class ExtraLiveSource {
                     return playable(trim.split("\\s")[0]);
                 }
             } catch (Exception unused) {
+                Quiet.ignored("ExtraLiveSource", unused);
             }
         }
         return null;
@@ -519,6 +522,7 @@ final class ExtraLiveSource {
                 z = false;
                 str7 = str3;
             } catch (Exception unused) {
+                Quiet.ignored("ExtraLiveSource", unused);
             }
         }
         return arrayList;
@@ -566,6 +570,7 @@ final class ExtraLiveSource {
                     }
                 }
             } catch (Exception unused) {
+                Quiet.ignored("ExtraLiveSource", unused);
             }
         }
         diagnosticStage = "Auth: fehlgeschlagen";
@@ -581,6 +586,7 @@ final class ExtraLiveSource {
                 String host = new URL(diagnosticAuthHost).getHost();
                 if (host != null && !host.isEmpty()) sb.append(" · Auth ").append(host);
             } catch (Throwable ignored) {
+                Quiet.ignored("ExtraLiveSource", ignored);
             }
         }
         if (diagnosticResolveHost != null && !diagnosticResolveHost.isEmpty()) {
@@ -808,6 +814,7 @@ final class ExtraLiveSource {
             }
             file2.renameTo(file);
         } catch (Exception unused) {
+            Quiet.ignored("ExtraLiveSource", unused);
         }
     }
 
@@ -852,6 +859,7 @@ final class ExtraLiveSource {
                     }
                 }
             } catch (Exception unused) {
+                Quiet.ignored("ExtraLiveSource", unused);
             }
         }
         return arrayList;

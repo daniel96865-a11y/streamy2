@@ -86,6 +86,7 @@ public class Prefs {
                 if (!id.isEmpty() && !result.contains(id)) result.add(id);
             }
         } catch (Exception ignored) {
+            Quiet.ignored("Prefs", ignored);
         }
         return result;
     }
@@ -211,6 +212,7 @@ public class Prefs {
             int read;
             while ((read = in.read(buf)) > 0) out.write(buf, 0, read);
         } catch (Exception ignored) {
+            Quiet.ignored("Prefs", ignored);
         }
     }
 

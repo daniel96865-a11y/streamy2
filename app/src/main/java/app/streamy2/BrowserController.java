@@ -465,10 +465,12 @@ public class BrowserController {
             cm.removeAllCookies(null);
             cm.flush();
         } catch (Exception ignored) {
+            Quiet.ignored("BrowserController", ignored);
         }
         try {
             WebStorage.getInstance().deleteAllData();
         } catch (Exception ignored) {
+            Quiet.ignored("BrowserController", ignored);
         }
         WebView webView = this.web;
         if (webView != null) {
@@ -505,6 +507,7 @@ public class BrowserController {
             try {
                 this.web.onResume();
             } catch (Throwable ignored) {
+                Quiet.ignored("BrowserController", ignored);
             }
         }
         View view = this.pane;
@@ -550,10 +553,12 @@ public class BrowserController {
             try {
                 webView.onPause();
             } catch (Throwable ignored) {
+                Quiet.ignored("BrowserController", ignored);
             }
             try {
                 webView.clearCache(false);
             } catch (Throwable ignored) {
+                Quiet.ignored("BrowserController", ignored);
             }
             // Free DOM when user never navigated this session
             if (!this.userNavigated) {
@@ -561,6 +566,7 @@ public class BrowserController {
                     webView.stopLoading();
                     webView.loadUrl("about:blank");
                 } catch (Throwable ignored) {
+                    Quiet.ignored("BrowserController", ignored);
                 }
             }
         }
@@ -586,11 +592,13 @@ public class BrowserController {
             try {
                 webView.clearCache(false);
             } catch (Throwable ignored) {
+                Quiet.ignored("BrowserController", ignored);
             }
             if (!c.userNavigated || aggressive) {
                 try {
                     webView.loadUrl("about:blank");
                 } catch (Throwable ignored) {
+                    Quiet.ignored("BrowserController", ignored);
                 }
             }
             if (aggressive && !c.visible()) {
@@ -598,14 +606,17 @@ public class BrowserController {
                     webView.clearHistory();
                     webView.clearFormData();
                 } catch (Throwable ignored) {
+                    Quiet.ignored("BrowserController", ignored);
                 }
                 // Free hardware layer surface while hidden
                 try {
                     webView.setLayerType(View.LAYER_TYPE_NONE, null);
                 } catch (Throwable ignored) {
+                    Quiet.ignored("BrowserController", ignored);
                 }
             }
         } catch (Throwable ignored) {
+            Quiet.ignored("BrowserController", ignored);
         }
     }
 
@@ -637,6 +648,7 @@ public class BrowserController {
             try {
                 webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
             } catch (Throwable ignored2) {
+                Quiet.ignored("BrowserController", ignored2);
             }
         }
     }
@@ -686,6 +698,7 @@ public class BrowserController {
             try {
                 customViewCallback.onCustomViewHidden();
             } catch (Exception unused) {
+                Quiet.ignored("BrowserController", unused);
             }
             this.customCb = null;
         }

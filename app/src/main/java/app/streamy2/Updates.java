@@ -42,7 +42,7 @@ public final class Updates {
                         && (info == null || parse.versionCode > info.versionCode)) {
                     info = parse;
                 }
-            } catch (Exception unused) { }
+            } catch (Exception unused) { Quiet.ignored("Updates", unused); }
         }
         return info;
     }
