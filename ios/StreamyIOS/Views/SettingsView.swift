@@ -137,6 +137,24 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Media Extra") {
+                    Toggle("Filme und Serien aus Media Extra", isOn: $prefs.extraMediaEnabled)
+                        .onChange(of: prefs.extraMediaEnabled) { _ in
+                            Task { await state.reload() }
+                        }
+
+                    Button {
+                        Task { await state.refreshExtraMedia() }
+                    } label: {
+                        Label("Media Extra aktualisieren", systemImage: "film.stack")
+                    }
+                    .disabled(!prefs.extraMediaEnabled)
+
+                    Text("Media Extra erscheint als eigene Kategorie bei Filme und Serien. Staffeln und Folgen werden beim Öffnen geladen.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Live TV & EPG") {
                     Picker("EPG aktualisieren", selection: $prefs.epgRefreshHours) {
                         Text("Alle 6 Stunden").tag(6)
