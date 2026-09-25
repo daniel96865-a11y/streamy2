@@ -467,16 +467,20 @@ actor ExtraMediaService {
     }
 
     private func rot13(_ value: String) -> String {
-        String(value.unicodeScalars.map { scalar in
+        var output = ""
+        for scalar in value.unicodeScalars {
             let v = scalar.value
-            if v >= 65 && v <= 90 {
-                return UnicodeScalar(((v - 65 + 13) % 26) + 65)!
+            if v >= 65 && v <= 90,
+               let rotated = UnicodeScalar(((v - 65 + 13) % 26) + 65) {
+                output.unicodeScalars.append(rotated)
+            } else if v >= 97 && v <= 122,
+                      let rotated = UnicodeScalar(((v - 97 + 13) % 26) + 97) {
+                output.unicodeScalars.append(rotated)
+            } else {
+                output.unicodeScalars.append(scalar)
             }
-            if v >= 97 && v <= 122 {
-                return UnicodeScalar(((v - 97 + 13) % 26) + 97)!
-            }
-            return scalar
-        })
+        }
+        return output
     }
 
     private func ranked(_ urls: [URL]) -> [URL] {
