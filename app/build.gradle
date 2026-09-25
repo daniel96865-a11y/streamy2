@@ -20,8 +20,8 @@ android {
         applicationId "app.streamy2"
         minSdk providers.gradleProperty('streamyMinSdk').map { it.toInteger() }.getOrElse(24)
         targetSdk 34
-        versionCode 192
-        versionName "3.72"
+        versionCode 193
+        versionName "3.73"
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "ACCESS_API_URL", '"https://streamy-2-pin-verwaltung-9j0gia.v2.appdeploy.ai/"'
         ndk {
