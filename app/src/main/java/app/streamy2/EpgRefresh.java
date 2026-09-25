@@ -31,6 +31,16 @@ final class EpgRefresh {
         return (hours == 6 || hours == 24 ? hours : 12) * 3600000L;
     }
 
+    /**
+     * Re-parsing every cached XMLTV file used to happen every 30 minutes, also while a
+     * stream was playing (the player polls EpgRefresh every minute). On weak TV sticks the
+     * CPU/GC spike drained the small live buffer → buffering after ~30 min. While the
+     * player is open the in-memory window (≥4 h ahead) is still valid, so re-hydrate rarely.
+     */
+    static long hydrateIntervalMillis(boolean playerOpen) {
+        return playerOpen ? 3L * 3600000L : 30L * 60000L;
+    }
+
     static boolean due(long last, long now, long interval) {
         return last <= 0 || now < last || now - last >= interval;
     }
@@ -54,6 +64,9 @@ final class EpgRefresh {
         final EpgGuide target = guide;
         target.loading = true;
         IO.execute(() -> {
+            // Parsing multi-MB XMLTV must never compete with video decoding / segment loads.
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); }
+            catch (Throwable ignored) { Quiet.ignored("EpgRefresh", ignored); }
             String error = null;
             try { error = refresh(app, target, force); }
             catch (Exception e) { error = "EPG-Aktualisierung fehlgeschlagen"; }
@@ -80,7 +93,7 @@ final class EpgRefresh {
         String key = digest(primary);
         if (!key.equals(sourceKey)) { guide.clear(); hydratedAt = 0; sourceKey = key; }
         long now = System.currentTimeMillis();
-        boolean hydrate = guide.programmeCount == 0 || due(hydratedAt, now, 30 * 60000L);
+        boolean hydrate = guide.programmeCount == 0 || due(hydratedAt, now, hydrateIntervalMillis(App.playerOpen));
         List<String> failures = new ArrayList<>();
         boolean downloaded = false;
         int fallbackLoaded = 0;

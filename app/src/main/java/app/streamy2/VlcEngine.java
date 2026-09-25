@@ -18,6 +18,8 @@ final class VlcEngine implements LiveEngine {
         void onPlaying();
         void onPaused();
         void onError();
+        /** End of stream. For live TV this means the server closed or the URL expired. */
+        void onEnded();
     }
 
     private PlaybackListener playbackListener;
@@ -61,6 +63,11 @@ final class VlcEngine implements LiveEngine {
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
                     try { l.onPlaying(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
+                }
+            } else if (event.type == MediaPlayer.Event.EndReached) {
+                PlaybackListener l = VlcEngine.this.playbackListener;
+                if (l != null) {
+                    try { l.onEnded(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
             } else if (event.type == MediaPlayer.Event.Paused || event.type == MediaPlayer.Event.Stopped) {
                 PlaybackListener l = VlcEngine.this.playbackListener;
