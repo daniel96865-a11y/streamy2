@@ -96,6 +96,38 @@ public class PlayerRegressionTest {
     }
 
 
+    @Test public void recoveryBudgetIsWindowedAndRefilledByHealthyPlayback() throws Exception {
+        field("recoverTries",0); field("recoverWindowAt",0L);
+        for(int i=0;i<PlayerActivity.RECOVER_TRIES_PER_WINDOW;i++) assertTrue(activity.takeRecoverTry());
+        assertFalse(activity.takeRecoverTry());
+        // Window expired → a stuck stream is retried again instead of buffering forever.
+        field("recoverWindowAt",android.os.SystemClock.elapsedRealtime()-PlayerActivity.RECOVER_WINDOW_MS-1);
+        assertTrue(activity.takeRecoverTry());
+        // A minute of clean playback refills the budget immediately.
+        while(activity.takeRecoverTry()) { }
+        field("extraLiveTriedVlc",true);
+        for(int i=0;i<PlayerActivity.HEALTHY_TICKS_TO_RESET;i++) activity.noteHealthyTick();
+        assertEquals(0,field("recoverTries")); assertFalse((Boolean)field("extraLiveTriedVlc"));
+        assertTrue(activity.takeRecoverTry());
+    }
+
+    @Test public void vlcFrozenClockIsDetectedButMissingClockIsNot() throws Exception {
+        final long[] pos={0};
+        FakeEngine engine=new FakeEngine() {
+            @Override public boolean isPlaying(){return true;}
+            @Override public long getPositionMs(){return pos[0];}
+        };
+        field("vlc",engine);
+        assertFalse(activity.vlcClockFrozen()); assertFalse(activity.vlcClockFrozen());
+        pos[0]=5000; assertFalse(activity.vlcClockFrozen());
+        pos[0]=6000; assertFalse(activity.vlcClockFrozen());
+        assertTrue(activity.vlcClockFrozen());
+    }
+
+    @Test public void extraLivePrefetchIsNotAggressive() {
+        assertTrue(PlayerActivity.EXTRA_LIVE_PREFETCH_MS>=120000L);
+    }
+
     @Test public void buildQueueUsesOnlyProviderUrls() throws Exception {
         call("buildQueue", new Class[]{String.class,String.class},
                 "https://provider.example/live/123.m3u8",

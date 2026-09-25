@@ -106,6 +106,10 @@ public class DataRegressionTest {
             assertTrue(EpgRefresh.due(0,1000,interval));
         }
     }
+    @Test public void epgIsNotReparsedEveryHalfHourWhilePlaying() {
+        assertEquals(30L*60000L,EpgRefresh.hydrateIntervalMillis(false));
+        assertTrue(EpgRefresh.hydrateIntervalMillis(true)>=2L*3600000L);
+    }
     @Test public void changingIntervalReplacesPersistedBackgroundJob() {
         android.content.Context context=org.robolectric.RuntimeEnvironment.getApplication();
         android.app.job.JobScheduler scheduler=(android.app.job.JobScheduler)context.getSystemService(android.content.Context.JOB_SCHEDULER_SERVICE);

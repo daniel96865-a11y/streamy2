@@ -103,6 +103,18 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView playerTitle;
     private PlayerView playerView;
     private int recoverTries;
+    /** Start of the current recovery budget window (elapsedRealtime). */
+    private long recoverWindowAt;
+    /** Consecutive watchdog seconds with healthy playback. */
+    private int healthyTicks;
+    /** Last observed VLC clock, used to detect a frozen picture while VLC still reports "playing". */
+    private long lastVlcPositionMs = -1L;
+    /** VOD position to restore after a watchdog restart (-1 = none). */
+    private long vodResumeMs = -1L;
+    private android.net.wifi.WifiManager.WifiLock wifiLock;
+    static final int RECOVER_TRIES_PER_WINDOW = 3;
+    static final long RECOVER_WINDOW_MS = 180_000L;
+    static final int HEALTHY_TICKS_TO_RESET = 60;
     private boolean resolving;
     private boolean seeking;
     private View topBar;
@@ -156,8 +168,16 @@ public class PlayerActivity extends AppCompatActivity {
             } else if (PlayerActivity.this.useVlc) {
                 if (PlayerActivity.this.vlc == null || !PlayerActivity.this.vlc.isPlaying()) {
                     PlayerActivity.this.freezeTicks++;
+                    PlayerActivity.this.healthyTicks = 0;
+                    PlayerActivity.this.lastVlcPositionMs = -1L;
+                } else if (PlayerActivity.this.liveMode && PlayerActivity.this.vlcClockFrozen()) {
+                    // VLC keeps reporting "playing" while an expired/blocked live URL
+                    // delivers nothing; a stuck clock is the only visible symptom.
+                    PlayerActivity.this.freezeTicks++;
+                    PlayerActivity.this.healthyTicks = 0;
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
+                    PlayerActivity.this.noteHealthyTick();
                     if (PlayerActivity.this.errorView != null) {
                         PlayerActivity.this.errorView.setVisibility(8);
                     }
@@ -168,10 +188,19 @@ public class PlayerActivity extends AppCompatActivity {
                 }
             } else if (PlayerActivity.this.player != null && !PlayerActivity.this.userPaused) {
                 int playbackState = PlayerActivity.this.player.getPlaybackState();
-                if (playbackState == 2 || (playbackState == 3 && PlayerActivity.this.player.getPlayWhenReady() && !PlayerActivity.this.player.isPlaying())) {
+                boolean liveErrorStuck = playbackState == 1
+                        && PlayerActivity.this.liveMode
+                        && !PlayerActivity.this.catchup
+                        && !PlayerActivity.this.resolving
+                        && PlayerActivity.this.player.getPlayerError() != null;
+                if (playbackState == 2 || liveErrorStuck || (playbackState == 3 && PlayerActivity.this.player.getPlayWhenReady() && !PlayerActivity.this.player.isPlaying())) {
+                    // An errored live player sits in IDLE forever; count it as frozen so the
+                    // watchdog keeps retrying instead of leaving a dead stream on screen.
                     PlayerActivity.this.freezeTicks++;
+                    PlayerActivity.this.healthyTicks = 0;
                 } else {
                     PlayerActivity.this.freezeTicks = 0;
+                    if (PlayerActivity.this.player.isPlaying()) PlayerActivity.this.noteHealthyTick();
                 }
                 if (PlayerActivity.this.freezeTicks == 12
                         && PlayerActivity.this.liveMode
@@ -780,6 +809,21 @@ public class PlayerActivity extends AppCompatActivity {
         public void onPlayerError(PlaybackException playbackException) {
             if (!foreground || useVlc || userPaused) return;
             final long request = playbackGeneration;
+            if (playbackException != null
+                    && playbackException.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+                    && PlayerActivity.this.player != null
+                    && PlayerActivity.this.liveMode && !PlayerActivity.this.catchup) {
+                // Fell out of the live window (e.g. after a long stall): jump back to the
+                // live edge with the same URL instead of burning a recovery attempt.
+                PlayerActivity.this.lastFallbackReason = "Hinter Live-Fenster → zurück zur Live-Kante";
+                try {
+                    PlayerActivity.this.player.seekToDefaultPosition();
+                    PlayerActivity.this.player.prepare();
+                    return;
+                } catch (Throwable ignored) {
+                    Quiet.ignored("PlayerActivity", ignored);
+                }
+            }
             String str;
             String str2;
             if (playbackException == null) {
@@ -795,8 +839,7 @@ public class PlayerActivity extends AppCompatActivity {
                 PlayerActivity.this.lastExoError = str;
                 PlayerActivity.this.toastPlaybackError("Player: " + str);
             } catch (Throwable ignored) { Quiet.ignored("PlayerActivity", ignored); }
-            if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.recoverTries < 2) {
-                PlayerActivity.this.recoverTries++;
+            if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.takeRecoverTry()) {
                 // A provider-side auth/resolve change can leave the cached signature valid-looking
                 // but unusable. Force a fresh login/resolve before replaying the canonical URL.
                 ExtraLiveSource.invalidateSig();
@@ -1091,6 +1134,7 @@ public class PlayerActivity extends AppCompatActivity {
         this.extraLiveKeep = null;
         this.extraLiveHot = null;
         this.recoverTries = 0;
+        resetRecoveryBudget();
         this.metaDurationMs = intent.getLongExtra("durationMs", 0L);
         this.playerTitle.setText(Text.clean(intent.getStringExtra("title")));
         String stringExtra = intent.getStringExtra("url");
@@ -2244,7 +2288,14 @@ public class PlayerActivity extends AppCompatActivity {
             } else {
                 createMediaSource = new ProgressiveMediaSource.Factory(factory, new DefaultExtractorsFactory().setTsExtractorFlags(73)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
             }
-            this.player.setMediaSource(createMediaSource);
+            long resumeAt = this.vodResumeMs;
+            this.vodResumeMs = -1L;
+            if (!this.liveMode && resumeAt > 0) {
+                // Watchdog restart of a movie/episode: continue where it stalled.
+                this.player.setMediaSource(createMediaSource, resumeAt);
+            } else {
+                this.player.setMediaSource(createMediaSource);
+            }
             this.player.setVolume(1.0f);
             this.player.prepare();
             this.player.setPlayWhenReady(true);
@@ -2572,6 +2623,15 @@ public class PlayerActivity extends AppCompatActivity {
                     @Override public void run() {
                         if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
                             PlayerActivity.this.tryExoAfterVlc();
+                        }
+                    }
+                });
+            }
+            @Override public void onEnded() {
+                PlayerActivity.UI.post(new Runnable() {
+                    @Override public void run() {
+                        if (acceptPlayback(request) && vlc == liveEngine && useVlc && !userPaused) {
+                            PlayerActivity.this.onVlcEnded();
                         }
                     }
                 });
@@ -3167,6 +3227,7 @@ public class PlayerActivity extends AppCompatActivity {
         this.extraLiveHot = null;
         this.extraLiveTriedVlc = false;
         this.recoverTries = 0;
+        resetRecoveryBudget();
         this.lastExoError = "";
         this.lastVlcError = "";
         this.lastFallbackReason = "";
@@ -3215,6 +3276,8 @@ public class PlayerActivity extends AppCompatActivity {
         scheduleHide();
     }
 
+    static final long EXTRA_LIVE_PREFETCH_MS = 240_000L;
+
     private void startExtraLivePrefetch() {
         Handler handler = UI;
         handler.removeCallbacks(this.extraLivePrefetch);
@@ -3247,7 +3310,9 @@ public class PlayerActivity extends AppCompatActivity {
             UI.post(() -> {
                 if (!acceptPlayback(request) || !str.equals(extraLiveKeep) || userPaused) return;
                 if (resolved != null && !resolved.isEmpty()) extraLiveHot = resolved;
-                UI.postDelayed(this, 15000L);
+                // Was 15 s: ~120 resolve calls per 30 min per viewer invites provider-side
+                // throttling exactly when a real re-resolve is needed.
+                UI.postDelayed(this, EXTRA_LIVE_PREFETCH_MS);
             });
         }
     }
@@ -3314,7 +3379,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (!foreground || userPaused || isFinishing()) return;
         if (this.extraLiveKeep != null) {
             if (this.resolving) return;
-            if (this.recoverTries++ < 2) {
+            if (takeRecoverTry()) {
                 this.extraLiveHot = null;
                 ExtraLiveSource.invalidateSig();
                 swapExtraLive(false);
@@ -3343,9 +3408,8 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
         }
-        int i = this.recoverTries;
-        if (i < 2) {
-            this.recoverTries = i + 1;
+        if (takeRecoverTry()) {
+            rememberVodPosition();
             playCurrent();
             return;
         }
@@ -3354,6 +3418,97 @@ public class PlayerActivity extends AppCompatActivity {
             textView.setVisibility(0);
             this.errorView.setText("Sender hängt. Oben auf VLC oder Exo tippen.");
         }
+    }
+
+    /**
+     * Recovery attempts are budgeted per time window instead of per channel session.
+     * Previously two failures anywhere in a long session (e.g. two expired Live Extra
+     * URLs) exhausted recovery for good and the next stall buffered forever.
+     */
+    boolean takeRecoverTry() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (recoverWindowAt == 0L || now - recoverWindowAt > RECOVER_WINDOW_MS) {
+            recoverWindowAt = now;
+            recoverTries = 0;
+        }
+        if (recoverTries < RECOVER_TRIES_PER_WINDOW) {
+            recoverTries++;
+            return true;
+        }
+        return false;
+    }
+
+    /** A minute of clean playback refills the recovery budget. */
+    void noteHealthyTick() {
+        if (++healthyTicks >= HEALTHY_TICKS_TO_RESET) {
+            healthyTicks = 0;
+            recoverTries = 0;
+            recoverWindowAt = 0L;
+            extraLiveTriedVlc = false;
+        }
+    }
+
+    private void resetRecoveryBudget() {
+        recoverTries = 0;
+        recoverWindowAt = 0L;
+        healthyTicks = 0;
+        lastVlcPositionMs = -1L;
+        vodResumeMs = -1L;
+    }
+
+    /** True when VLC reports playing but its clock did not advance since the last tick. */
+    boolean vlcClockFrozen() {
+        LiveEngine engine = this.vlc;
+        if (engine == null) return false;
+        long pos = engine.getPositionMs();
+        long previous = lastVlcPositionMs;
+        lastVlcPositionMs = pos;
+        // Some live feeds never expose a clock (always 0) — never treat those as frozen.
+        return pos > 0 && previous > 0 && pos == previous;
+    }
+
+    private void rememberVodPosition() {
+        if (liveMode || useVlc || player == null) return;
+        try {
+            long pos = player.getCurrentPosition();
+            vodResumeMs = pos > 0 ? pos : -1L;
+        } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
+        }
+    }
+
+    private void acquireWifiLock() {
+        try {
+            if (wifiLock == null) {
+                android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager)
+                        getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wm == null) return;
+                int mode = android.os.Build.VERSION.SDK_INT >= 29
+                        ? android.net.wifi.WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                        : android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                wifiLock = wm.createWifiLock(mode, "streamy2:player");
+                wifiLock.setReferenceCounted(false);
+            }
+            if (!wifiLock.isHeld()) wifiLock.acquire();
+        } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
+        }
+    }
+
+    private void releaseWifiLock() {
+        try {
+            if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
+        } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
+        }
+    }
+
+    /** VLC reached the end of a live stream (server closed / URL expired): reconnect. */
+    void onVlcEnded() {
+        if (!liveMode || catchup || userPaused || !foreground) return;
+        freezeTicks = 0;
+        lastFallbackReason = "VLC: Live-Stream beendet → neu verbinden";
+        recoverStuck();
     }
 
     private boolean switchToVlc() {
@@ -3380,6 +3535,7 @@ public class PlayerActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         foreground = true;
+        acquireWifiLock();
         UI.removeCallbacks(tick);
         UI.removeCallbacks(watchdog);
         UI.post(tick);
@@ -3404,6 +3560,7 @@ public class PlayerActivity extends AppCompatActivity {
         restartOnResume = resolving || vlcStarting;
         foreground = false;
         invalidatePlayback();
+        releaseWifiLock();
         UI.removeCallbacks(tick);
         UI.removeCallbacks(watchdog);
         UI.removeCallbacks(hideHud);
@@ -3424,6 +3581,7 @@ public class PlayerActivity extends AppCompatActivity {
         App.playerOpen = false;
         foreground = false;
         invalidatePlayback();
+        releaseWifiLock();
         stopPlayback();
         releasePlayer();
         super.onDestroy();
