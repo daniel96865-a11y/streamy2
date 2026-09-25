@@ -1,1 +1,1 @@
-{"versionCode":191,"versionName":"3.71","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.71.apk","changelog":"3.71 behebt Wiedergabe-Abbrüche: Die Wiedergabe hängt nicht mehr nach ca. 30 Minuten; stabilere Wiederverbindung bei Live-TV und Vavoo."}
+{"versionCode":192,"versionName":"3.72","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-Mobile-3.72.apk","changelog":"3.72: Filme zeigen jetzt die neuesten Titel zuerst, Suchfeld filtert die Liste."}
