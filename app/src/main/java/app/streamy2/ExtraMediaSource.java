@@ -37,7 +37,7 @@ final class ExtraMediaSource {
     private static final long CACHE_TTL_MS = 5L * 60L * 1000L;
     static final List<Models.Media> serials;
     private static long tokenAt;
-    private static String[] BASES = {"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
+    private static String[] BASES = {"https://megakino21.com", "https://megakino20.com", "https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com", "https://megakino1.com"};
     private static final Object HOST = new Object();
     private static List<Models.Media> groupedSerials;
     private static final Pattern IFRAME = Pattern.compile("<iframe[^>]+(?:data-src|src)=\"([^\"]+)\"", 2);
@@ -84,7 +84,7 @@ final class ExtraMediaSource {
 
 
     static void refreshHosts() {
-        String[] seeds = new String[]{"https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com"};
+        String[] seeds = new String[]{"https://megakino21.com", "https://megakino20.com", "https://megakino19.com", "https://megakino18.com", "https://megakino15.com", "https://megakino14.com", "https://megakino12.com", "https://megakino5.org", "https://megakino4.com", "https://megakino2.com"};
         java.util.LinkedHashSet<String> live = new java.util.LinkedHashSet<>();
         for (String seed : seeds) {
             try {
@@ -213,14 +213,18 @@ final class ExtraMediaSource {
             }
             for (Models.Media media2 : parseList(req(base2 + "/kinofilme/", null), false)) {
                 if (!contains(parseList, media2.id)) {
-                    parseList.add(0, media2);
+                    parseList.add(media2);
                 }
             }
             for (Models.Media media3 : parseList(req(base2 + "/", null), false)) {
                 if (!contains(parseList, media3.id) && !media3.series) {
-                    parseList.add(0, media3);
+                    parseList.add(media3);
                 }
             }
+            // Newest uploads first. Previously /kinofilme/ entries were prepended one by one
+            // (reversing them), so the same old cinema titles always sat on top and new
+            // releases from /films/ page 1 were pushed below them.
+            sortNewestFirst(parseList);
             List<Models.Media> parseList2 = parseList(req(base2 + "/serials/", null), true);
             for (int i2 = 2; i2 <= 8; i2++) {
                 for (Models.Media media4 : parseList(req(base2 + "/serials/page/" + i2 + "/", null), true)) {
@@ -274,6 +278,34 @@ final class ExtraMediaSource {
         } finally {
             loading = false;
         }
+    }
+
+    private static final Pattern POST_ID = Pattern.compile("/(\\d+)-[^/]*\\.html");
+
+    static long postId(Models.Media media) {
+        String url = media == null ? null : (media.streamUrl != null ? media.streamUrl : media.id);
+        if (url == null) {
+            return -1L;
+        }
+        Matcher m = POST_ID.matcher(url);
+        if (!m.find()) {
+            return -1L;
+        }
+        try {
+            return Long.parseLong(m.group(1));
+        } catch (NumberFormatException e) {
+            return -1L;
+        }
+    }
+
+    static void sortNewestFirst(List<Models.Media> list) {
+        // Stable sort: entries without a numeric post id keep their relative (source) order at the end.
+        list.sort(new Comparator<Models.Media>() {
+            @Override
+            public int compare(Models.Media a, Models.Media b) {
+                return Long.compare(postId(b), postId(a));
+            }
+        });
     }
 
     static List<Models.Media> all() {
@@ -931,7 +963,7 @@ final class ExtraMediaSource {
                             headerField = "https://" + headerField.substring(7);
                         }
                         String origin = origin(headerField);
-                        if (origin.contains(CAT)) {
+                        if (isRestrictedUrl(origin)) {
                             base = origin;
                         }
                         httpURLConnection.disconnect();
@@ -961,7 +993,7 @@ final class ExtraMediaSource {
                             bufferedReader.close();
                             if (responseCode < 400) {
                                 String origin2 = origin(httpURLConnection.getURL().toString());
-                                if (origin2.contains(CAT)) {
+                                if (isRestrictedUrl(origin2)) {
                                     base = origin2;
                                 }
                             }
