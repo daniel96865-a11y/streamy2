@@ -103,7 +103,7 @@ final class PlaylistUiBinder {
         entries.add("＋ Neue Playlist hinzufügen");
         entries.add("🗑 Aktive Playlist löschen");
 
-        new AlertDialog.Builder(main)
+        AlertDialog manager = new AlertDialog.Builder(main)
                 .setTitle("Wiedergabelisten")
                 .setItems(entries.toArray(new String[0]), (dialog, which) -> {
                     if (which < ids.size()) {
@@ -116,6 +116,7 @@ final class PlaylistUiBinder {
                 })
                 .setNegativeButton("Abbrechen", null)
                 .show();
+        Tv.styleDialog(manager);
     }
 
     private static void activate(MainActivity main, Prefs prefs, String id) {
@@ -135,7 +136,7 @@ final class PlaylistUiBinder {
 
     private static void confirmDelete(MainActivity main, Prefs prefs) {
         String name = prefs.activeProfileName();
-        new AlertDialog.Builder(main)
+        AlertDialog confirm = new AlertDialog.Builder(main)
                 .setTitle("Playlist löschen")
                 .setMessage("„" + name + "“ wirklich von diesem Gerät löschen?")
                 .setPositiveButton("Löschen", (dialog, which) -> {
@@ -147,6 +148,7 @@ final class PlaylistUiBinder {
                 })
                 .setNegativeButton("Abbrechen", null)
                 .show();
+        Tv.styleDialog(confirm);
     }
 
     private static void resetAppState() {

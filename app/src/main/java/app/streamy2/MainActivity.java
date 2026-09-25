@@ -3,7 +3,10 @@ package app.streamy2;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -23,6 +26,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
@@ -676,6 +680,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         updateEpgStatus();
         Tv.focusTree(this.mainPane);
         Tv.focusTree(this.settingsPane);
+        installSettingsTvLayout();
         TextView textView4 = (TextView) findViewById(R.id.btnClosePicker);
         if (textView4 != null) {
             textView4.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda99
@@ -2063,7 +2068,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         boolean z = view.getVisibility() != 0;
         setFold(i, i2, z);
         if (z) {
-            View firstFocusable = firstFocusable(view);
+            View firstFocusable = focusableEdge(view, true);
             if (firstFocusable != null) {
                 Objects.requireNonNull(firstFocusable);
                 firstFocusable.post(new MainActivity$$ExternalSyntheticLambda60(firstFocusable));
@@ -2098,70 +2103,125 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void relinkFolds() {
-        View findViewById = findViewById(R.id.bodyAccount);
-        View findViewById2 = findViewById(R.id.bodyPlay);
-        View findViewById3 = findViewById(R.id.bodyEpg);
-        View findViewById4 = findViewById(R.id.bodyLook);
-        View findViewById5 = findViewById(R.id.headAccount);
-        View findViewById6 = findViewById(R.id.headPlay);
-        View findViewById7 = findViewById(R.id.headEpg);
-        View findViewById8 = findViewById(R.id.headLook);
+        // D-pad links between the settings cards. Links follow the actually open
+        // sections in both directions so Up/Down never skip an expanded section
+        // (previously Down from "Player" jumped to the HLS/TS row and Up from a
+        // card header skipped the whole section above).
+        int[] heads = new int[]{R.id.headAccount, R.id.headPlay, R.id.headEpg, R.id.headLook};
+        int[] bodies = new int[]{R.id.bodyAccount, R.id.bodyPlay, R.id.bodyEpg, R.id.bodyLook};
         View accessUnlock = this.btnAccessUnlock;
         boolean accessFocusable = accessUnlock != null
                 && accessUnlock.getVisibility() == View.VISIBLE
                 && accessUnlock.isEnabled();
-        if (findViewById5 != null) {
-            findViewById5.setNextFocusDownId(open(findViewById) ? R.id.inName : R.id.headPlay);
-        }
-        if (accessUnlock != null) {
-            accessUnlock.setNextFocusUpId(R.id.headLook);
-            accessUnlock.setNextFocusDownId(R.id.btnCheckUpdate);
-        }
-        View getPin = findViewById(R.id.btnGetPin);
-        if (getPin != null) {
-            getPin.setNextFocusDownId(R.id.headPlay);
-        }
-        if (findViewById6 != null) {
-            findViewById6.setNextFocusDownId(open(findViewById2) ? R.id.fmtHls : R.id.headEpg);
-            findViewById6.setNextFocusUpId(R.id.headAccount);
-        }
-        if (findViewById7 != null) {
-            findViewById7.setNextFocusDownId(open(findViewById3) ? R.id.epg6 : R.id.headLook);
-            findViewById7.setNextFocusUpId(R.id.headPlay);
-        }
-        if (findViewById8 != null) {
-            findViewById8.setNextFocusDownId(open(findViewById4)
-                    ? R.id.cols1
-                    : (accessFocusable ? R.id.btnAccessUnlock : R.id.btnCheckUpdate));
-            findViewById8.setNextFocusUpId(R.id.headEpg);
-        }
         View checkUpdate = findViewById(R.id.btnCheckUpdate);
-        if (checkUpdate != null) {
-            checkUpdate.setNextFocusUpId(accessFocusable ? R.id.btnAccessUnlock : R.id.headLook);
+        View afterLook = accessFocusable ? accessUnlock : checkUpdate;
+        for (int i = 0; i < heads.length; i++) {
+            View head = findViewById(heads[i]);
+            View body = findViewById(bodies[i]);
+            View next = i + 1 < heads.length ? findViewById(heads[i + 1]) : afterLook;
+            View firstInBody = open(body) ? focusableEdge(body, true) : null;
+            View lastInBody = open(body) ? focusableEdge(body, false) : null;
+            if (head != null) {
+                if (firstInBody != null) {
+                    head.setNextFocusDownId(ensureViewId(firstInBody));
+                } else if (next != null) {
+                    head.setNextFocusDownId(next.getId());
+                }
+            }
+            if (lastInBody != null && next != null) {
+                lastInBody.setNextFocusDownId(next.getId());
+            }
+            if (next != null && head != null) {
+                int upId = lastInBody != null ? ensureViewId(lastInBody) : head.getId();
+                if (i + 1 < heads.length) {
+                    next.setNextFocusUpId(upId);
+                } else {
+                    if (accessUnlock != null) {
+                        accessUnlock.setNextFocusUpId(upId);
+                        accessUnlock.setNextFocusDownId(R.id.btnCheckUpdate);
+                    }
+                    if (checkUpdate != null) {
+                        checkUpdate.setNextFocusUpId(accessFocusable ? accessUnlock.getId() : upId);
+                    }
+                }
+            }
         }
     }
 
-    private static boolean open(View view) {
-        return view != null && view.getVisibility() == 0;
+    private static int ensureViewId(View view) {
+        if (view.getId() == View.NO_ID) {
+            view.setId(View.generateViewId());
+        }
+        return view.getId();
     }
 
-    private View firstFocusable(View view) {
-        if (view == null) {
+    /** First/last D-pad target inside {@code view}, skipping hidden subtrees. */
+    private static View focusableEdge(View view, boolean first) {
+        if (view == null || view.getVisibility() != View.VISIBLE) {
             return null;
         }
-        if (view.isFocusable() && view.getVisibility() == 0 && ((view instanceof EditText) || view.isClickable())) {
+        if (view.isFocusable() && view.isEnabled() && ((view instanceof EditText) || view.isClickable())) {
             return view;
         }
         if (view instanceof ViewGroup) {
-            ViewGroup viewGroup = (ViewGroup) view;
-            for (int i = 0; i < viewGroup.getChildCount(); i++) {
-                View firstFocusable = firstFocusable(viewGroup.getChildAt(i));
-                if (firstFocusable != null) {
-                    return firstFocusable;
+            ViewGroup group = (ViewGroup) view;
+            if (group.getDescendantFocusability() == ViewGroup.FOCUS_BLOCK_DESCENDANTS) {
+                return null;
+            }
+            int count = group.getChildCount();
+            for (int k = 0; k < count; k++) {
+                View found = focusableEdge(group.getChildAt(first ? k : count - 1 - k), first);
+                if (found != null) {
+                    return found;
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * TV only: overscan-safe margins for the settings screen, visible focus on the
+     * password field/"Anzeigen" and scroll-follow so the first/last entries (and the
+     * update status text below the last button) are fully shown.
+     */
+    private void installSettingsTvLayout() {
+        if (!Tv.isTv(this) || this.settingsPane == null) {
+            return;
+        }
+        this.settingsPane.setPadding(dp(32), dp(12), dp(32), dp(12));
+        View inPass = findViewById(R.id.inPass);
+        if (inPass != null) {
+            inPass.setBackgroundResource(R.drawable.bg_field_focus);
+        }
+        View showPass = findViewById(R.id.btnShowPass);
+        if (showPass != null) {
+            showPass.setBackgroundResource(R.drawable.bg_field_focus);
+        }
+        View scrollView = findViewById(R.id.settingsScroll);
+        if (!(scrollView instanceof ScrollView)) {
+            return;
+        }
+        final ScrollView scroll = (ScrollView) scrollView;
+        final View content = scroll.getChildAt(0);
+        if (content == null) {
+            return;
+        }
+        content.setPadding(content.getPaddingLeft(), content.getPaddingTop(),
+                content.getPaddingRight(), content.getPaddingBottom() + dp(24));
+        scroll.getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
+            if (newFocus == null || this.settingsPane.getVisibility() != View.VISIBLE || !isUnder(scroll, newFocus)) {
+                return;
+            }
+            if (newFocus == focusableEdge(content, false)) {
+                scroll.post(() -> scroll.smoothScrollTo(0, Math.max(0, content.getHeight() - scroll.getHeight())));
+            } else if (newFocus == focusableEdge(content, true)) {
+                scroll.post(() -> scroll.smoothScrollTo(0, 0));
+            }
+        });
+    }
+
+    private static boolean open(View view) {
+        return view != null && view.getVisibility() == 0;
     }
 
     private void paintChip(TextView textView, boolean z, Theme.Accent accent) {
@@ -4318,9 +4378,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (view == null) {
             return;
         }
-        if (view.getBackground() != null) {
-            view.getBackground().mutate().setTint(accent.color);
-        }
+        // Do not setTint() the bg_btn selector: tinting recolours the white focus
+        // stroke too, so the focused button looked identical to the unfocused one
+        // on TV. Build an accent background that keeps a visible focus outline.
+        float radius = dp(8);
+        GradientDrawable normal = new GradientDrawable();
+        normal.setCornerRadius(radius);
+        normal.setColor(accent.color);
+        GradientDrawable focused = new GradientDrawable();
+        focused.setCornerRadius(radius);
+        focused.setColor(accent.color);
+        focused.setStroke(dp(4), 0xFFFFFFFF);
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[0], normal);
+        view.setBackground(states);
         if (view instanceof TextView) {
             ((TextView) view).setTextColor(accent.onColor);
         }
@@ -4339,6 +4411,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(dp, dp);
             layoutParams.setMarginEnd(dp2);
             view.setLayoutParams(layoutParams);
+            view.setId(View.generateViewId());
+            view.setContentDescription("Akzentfarbe " + accent.label);
             view.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda39
                 @Override // android.view.View.OnClickListener
                 public final void onClick(View view2) {
@@ -4372,7 +4446,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             } else {
                 gradientDrawable.setStroke(dp(2), DefaultTimeBar.DEFAULT_UNPLAYED_COLOR);
             }
-            childAt.setBackground(gradientDrawable);
+            // Focused (remote) state: white outer ring with a gap, so the D-pad
+            // position is visible and distinct from the "selected" stroke.
+            GradientDrawable ring = new GradientDrawable();
+            ring.setShape(GradientDrawable.OVAL);
+            ring.setColor(0x00000000);
+            ring.setStroke(dp(3), -1);
+            GradientDrawable inner = new GradientDrawable();
+            inner.setShape(GradientDrawable.OVAL);
+            inner.setColor(accent2.color);
+            LayerDrawable focusedDot = new LayerDrawable(new Drawable[]{ring, inner});
+            focusedDot.setLayerInset(1, dp(6), dp(6), dp(6), dp(6));
+            StateListDrawable dot = new StateListDrawable();
+            dot.addState(new int[]{android.R.attr.state_focused}, focusedDot);
+            dot.addState(new int[0], gradientDrawable);
+            childAt.setBackground(dot);
         }
     }
 
