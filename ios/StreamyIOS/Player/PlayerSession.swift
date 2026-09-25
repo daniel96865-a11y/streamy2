@@ -22,6 +22,8 @@ final class PlayerSession: ObservableObject {
     private let bufferMode: BufferMode
     private let audioMode: AudioMode
     private var statusObserver: NSKeyValueObservation?
+    private var timeObserver: Any?
+    private var restoredResumePosition = false
 
     #if canImport(VLCKit)
     let vlcPlayer = VLCMediaPlayer()
@@ -37,6 +39,7 @@ final class PlayerSession: ObservableObject {
         configureAudioSession()
         configureAVPlayerBuffer()
         configure()
+        startResumeTracking()
     }
 
     var videoGravity: AVLayerVideoGravity {
@@ -74,7 +77,12 @@ final class PlayerSession: ObservableObject {
     }
 
     func stop() {
+        saveResumePosition()
         avPlayer.pause()
+        if let timeObserver {
+            avPlayer.removeTimeObserver(timeObserver)
+            self.timeObserver = nil
+        }
         avPlayer.replaceCurrentItem(with: nil)
         #if canImport(VLCKit)
         vlcPlayer.stop()
@@ -184,9 +192,58 @@ final class PlayerSession: ObservableObject {
                     self.switchToVLC(reason: observed.error?.localizedDescription)
                 } else if observed.status == .readyToPlay {
                     self.refreshAudioOptions()
+                    self.restoreResumePositionIfNeeded()
                 }
             }
         }
+    }
+
+    private func startResumeTracking() {
+        guard item.resumeKey != nil, !item.isLive else { return }
+        timeObserver = avPlayer.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 5, preferredTimescale: 600),
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.saveResumePosition()
+            }
+        }
+    }
+
+    private func restoreResumePositionIfNeeded() {
+        guard !restoredResumePosition,
+              !item.isLive,
+              let key = item.resumeKey else { return }
+        restoredResumePosition = true
+
+        let seconds = UserDefaults.standard.double(forKey: resumeStorageKey(key))
+        guard seconds >= 10 else { return }
+        avPlayer.seek(
+            to: CMTime(seconds: seconds, preferredTimescale: 600),
+            toleranceBefore: CMTime(seconds: 1, preferredTimescale: 600),
+            toleranceAfter: CMTime(seconds: 1, preferredTimescale: 600)
+        )
+    }
+
+    private func saveResumePosition() {
+        guard !item.isLive,
+              let key = item.resumeKey,
+              !usingVLC else { return }
+
+        let current = CMTimeGetSeconds(avPlayer.currentTime())
+        guard current.isFinite, current >= 0 else { return }
+
+        let duration = avPlayer.currentItem.map { CMTimeGetSeconds($0.duration) } ?? .nan
+        let storageKey = resumeStorageKey(key)
+        if duration.isFinite, duration > 0, current >= max(0, duration - 30) {
+            UserDefaults.standard.removeObject(forKey: storageKey)
+        } else if current >= 10 {
+            UserDefaults.standard.set(current, forKey: storageKey)
+        }
+    }
+
+    private func resumeStorageKey(_ key: String) -> String {
+        "streamy.resume." + key
     }
 
     private func switchToVLC(reason: String?) {
