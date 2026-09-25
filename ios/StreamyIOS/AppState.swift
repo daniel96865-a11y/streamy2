@@ -16,6 +16,7 @@ final class AppState: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var playbackItem: PlaybackItem?
+    @Published var resolvingExtraLive = false
     @Published private(set) var favoriteChannelKeys: Set<String> = []
     @Published private(set) var lastChannelKey: String?
     @Published private(set) var accountInfo: XtreamAccountInfo?
@@ -87,6 +88,8 @@ final class AppState: ObservableObject {
                     Task { await epg.refresh(from: epgURL) }
                 }
             }
+
+            await mergeExtraLive()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -112,6 +115,29 @@ final class AppState: ObservableObject {
             lastChannelKey = key
             UserDefaults.standard.set(key, forKey: lastChannelStorageKey)
         }
+
+        if ExtraLiveService.isExtra(channel) {
+            resolvingExtraLive = true
+            Task {
+                do {
+                    let resolved = try await ExtraLiveService.shared.resolve(channel)
+                    playbackItem = PlaybackItem(
+                        title: channel.name,
+                        subtitle: epg.now(for: channel)?.title,
+                        url: resolved,
+                        logoURL: channel.logoURL,
+                        isLive: true,
+                        channel: channel
+                    )
+                    errorMessage = nil
+                } catch {
+                    errorMessage = "Live Extra konnte nicht gestartet werden: \(error.localizedDescription)"
+                }
+                resolvingExtraLive = false
+            }
+            return
+        }
+
         playbackItem = PlaybackItem(
             title: channel.name,
             subtitle: epg.now(for: channel)?.title,
@@ -162,6 +188,52 @@ final class AppState: ObservableObject {
         guard let source = playlists.selectedSource,
               let api = XtreamAPI(source: source, credentials: playlists.credentials(for: source)) else { return [] }
         return try await api.episodes(seriesID: series.id)
+    }
+
+    func refreshExtraLive() async {
+        guard prefs.extraLiveEnabled else {
+            removeExtraLive()
+            return
+        }
+        let extra = await ExtraLiveService.shared.refreshAll()
+        applyExtraLive(extra)
+    }
+
+    private func mergeExtraLive() async {
+        guard prefs.extraLiveEnabled else {
+            removeExtraLive()
+            return
+        }
+
+        let cached = await ExtraLiveService.shared.cachedChannels()
+        if !cached.isEmpty {
+            applyExtraLive(cached)
+        }
+
+        let fresh = await ExtraLiveService.shared.fetchFast()
+        if !fresh.isEmpty {
+            applyExtraLive(fresh)
+        }
+    }
+
+    private func applyExtraLive(_ extra: [Channel]) {
+        let baseChannels = channels.filter { !ExtraLiveService.isExtra($0) }
+        let unique = Dictionary(grouping: extra, by: \.id).compactMap { $0.value.first }
+        channels = baseChannels + unique
+
+        let baseCategories = liveCategories.filter {
+            $0.id != ExtraLiveService.germanCategoryID &&
+            $0.id != ExtraLiveService.polishCategoryID
+        }
+        liveCategories = ExtraLiveService.categories(for: unique) + baseCategories
+    }
+
+    private func removeExtraLive() {
+        channels.removeAll { ExtraLiveService.isExtra($0) }
+        liveCategories.removeAll {
+            $0.id == ExtraLiveService.germanCategoryID ||
+            $0.id == ExtraLiveService.polishCategoryID
+        }
     }
 
     private func channelKey(_ channel: Channel) -> String {

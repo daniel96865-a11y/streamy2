@@ -119,6 +119,24 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Live Extra") {
+                    Toggle("Live Extra Deutschland / Polen", isOn: $prefs.extraLiveEnabled)
+                        .onChange(of: prefs.extraLiveEnabled) { _ in
+                            Task { await state.reload() }
+                        }
+
+                    Button {
+                        Task { await state.refreshExtraLive() }
+                    } label: {
+                        Label("Live Extra aktualisieren", systemImage: "antenna.radiowaves.left.and.right")
+                    }
+                    .disabled(!prefs.extraLiveEnabled)
+
+                    Text("Die zusätzlichen Live-Kategorien werden getrennt als Deutschland und Polen eingeblendet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Live TV & EPG") {
                     Picker("EPG aktualisieren", selection: $prefs.epgRefreshHours) {
                         Text("Alle 6 Stunden").tag(6)
