@@ -102,6 +102,25 @@ struct PlaybackItem: Identifiable, Hashable {
     let logoURL: URL?
     let isLive: Bool
     let channel: Channel?
+    let resumeKey: String?
+
+    init(
+        title: String,
+        subtitle: String?,
+        url: URL,
+        logoURL: URL?,
+        isLive: Bool,
+        channel: Channel?,
+        resumeKey: String? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.url = url
+        self.logoURL = logoURL
+        self.isLive = isLive
+        self.channel = channel
+        self.resumeKey = resumeKey
+    }
 }
 
 enum PlayerPreference: String, Codable, CaseIterable, Identifiable {
