@@ -28,6 +28,7 @@ final class PlaybackDiagnostics {
                 .setMessage("Android-Bericht wird gelesen…")
                 .setPositiveButton("OK",null)
                 .setNeutralButton("Kopieren",null).show();
+        Tv.styleDialog(dialog);
         dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setEnabled(false);
         Context app=activity.getApplicationContext();
         IO.execute(()->{

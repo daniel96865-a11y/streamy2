@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Transparent field/inline-button background that shows an accent outline
+     when focused with the TV remote (used inside bg_elevated containers). -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#2c2c2e"/>
+            <stroke
+                android:width="3dp"
+                android:color="@color/accent"/>
+            <corners android:radius="8dp"/>
+        </shape>
+    </item>
+    <item android:drawable="@android:color/transparent"/>
+</selector>
