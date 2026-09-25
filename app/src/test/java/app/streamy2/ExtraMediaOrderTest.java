@@ -40,4 +40,15 @@ public class ExtraMediaOrderTest {
         assertEquals(6166L, ExtraMediaSource.postId(list.get(3)));
         assertEquals(-1L, ExtraMediaSource.postId(list.get(4)));
     }
+
+    @Test public void localSearchFiltersByTrimmedCaseInsensitiveTitle() {
+        Models.Media m = film("/films/6520-unabomber.html");
+        m.name = "UNABOMBER";
+        assertTrue(ExtraMediaSource.matchesQuery(m, ""));
+        assertTrue(ExtraMediaSource.matchesQuery(m, null));
+        assertTrue(ExtraMediaSource.matchesQuery(m, "  bomb "));
+        assertTrue(ExtraMediaSource.matchesQuery(m, "Unabomber"));
+        assertFalse(ExtraMediaSource.matchesQuery(m, "spider"));
+        assertFalse(ExtraMediaSource.matchesQuery(null, ""));
+    }
 }

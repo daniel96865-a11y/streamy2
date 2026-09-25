@@ -308,6 +308,19 @@ final class ExtraMediaSource {
         });
     }
 
+    /** Local title filter: trimmed, case-insensitive "contains"; empty query matches everything. */
+    static boolean matchesQuery(Models.Media media, String query) {
+        if (media == null) {
+            return false;
+        }
+        String q = query == null ? "" : query.trim().toLowerCase(Locale.GERMAN);
+        if (q.isEmpty()) {
+            return true;
+        }
+        String name = media.name == null ? "" : media.name.toLowerCase(Locale.GERMAN);
+        return name.contains(q);
+    }
+
     static List<Models.Media> all() {
         ArrayList<Models.Media> arrayList = new ArrayList<>();
         List<Models.Media> grouped;

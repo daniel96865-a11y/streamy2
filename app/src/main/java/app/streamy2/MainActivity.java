@@ -3553,9 +3553,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         for (Models.Media media : all) {
             if (media != null && (!"mk-films".equals(this.catId) || !media.series)) {
                 if (!"mk-serials".equals(this.catId) || media.series) {
-                    if (!lowerCase.isEmpty()) {
-                        if (!(media.name == null ? "" : media.name.toLowerCase(Locale.GERMAN)).contains(lowerCase)) {
-                        }
+                    if (!ExtraMediaSource.matchesQuery(media, lowerCase)) {
+                        continue;
                     }
                     arrayList.add(media);
                 }
