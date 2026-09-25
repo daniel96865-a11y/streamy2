@@ -1,0 +1,23 @@
+name: Check IPTV connectivity
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - .github/workflows/check-iptv-connectivity.yml
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve host
+        run: getent ahostsv4 ip.sltv.be || true
+
+      - name: Check TCP port 8080
+        run: |
+          timeout 8 bash -c '</dev/tcp/ip.sltv.be/8080' && echo "TCP 8080 reachable" || echo "TCP 8080 timeout/refused"
+
+      - name: Check HTTP root
+        run: |
+          curl -sS -o /dev/null -D - --connect-timeout 8 --max-time 12 http://ip.sltv.be:8080/ || true
