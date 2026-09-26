@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.75"><img alt="Version" src="https://img.shields.io/badge/Version-3.75-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-195-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.76"><img alt="Version" src="https://img.shields.io/badge/Version-3.76-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-196-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.webp" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.75
+## 📥 Download – Version 3.76
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.75 (Build 195) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.75/Streamy2-TV-3.75.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.75 (Build 195) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.75/Streamy2-Mobile-3.75.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.76 (Build 196) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.76/Streamy2-TV-3.76.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.76 (Build 196) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.76/Streamy2-Mobile-3.76.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.75/Streamy2-TV-3.75.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.76/Streamy2-TV-3.76.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -53,6 +53,7 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 - 🎬 **Filme & Serien** — Übersicht mit Postern, Staffeln und Episoden, Suche und wählbarer Spaltenanzahl
 - ▶️ **Zwei Player** — eigener Player (ExoPlayer/Media3) und VLC; Auto wählt passend, getrennt einstellbar
 - 🔊 **Wiedergabe-Optionen** — Audiospur, Untertitel, Geschwindigkeit, Bildformat (Anpassen/Füllen/Strecken), Puffergröße, Surround oder Stereo, Sleep-Timer, Nur-Audio
+- 📶 **Puffer-Anzeige** — zeigt im Player Vorlauf in Sekunden, Datenrate und Nachlade-Zähler, damit Ruckler nachvollziehbar werden; einblendbar mit der Bedienleiste oder dauerhaft
 - 🎮 **Für die Fernbedienung gemacht** — komplette Bedienung mit D-Pad, gut sichtbare Auswahl, alle Einstellungen erreichbar
 - 🔗 **Kopplung per PIN** — Playlist bequem vom Handy an den Fernseher senden (gleiches WLAN)
 - 🎨 **Darstellung** — mehrere Akzentfarben, dunkles Design
@@ -73,6 +74,8 @@ Sie können parallel installiert werden und erhalten ihre Updates unabhängig vo
 
 ## 🆕 Letzte Änderungen
 
+**3.76** – Puffer-Anzeige im Player: vorgeladene Sekunden, Datenrate, Stream-Bitrate und Nachlade-Zähler; geladener Bereich in der Zeitleiste. Einstellbar unter Wiedergabe (Mit Bedienleiste / Immer / Aus).
+
 **3.75** – Neue Playlists werden zusätzlich gespeichert statt die bisherige zu ersetzen (auch beim Empfang per PIN); Playlists auswählen, umbenennen und einzeln löschen. Zurück- und Vorspulen bei Sendern mit Zurückblicken.
 
 **3.74** – TV: Absturz direkt nach dem Start (während das EPG lädt) behoben; Einstellungen und Fernbedienungs-Navigation zusätzlich abgesichert.
@@ -80,8 +83,6 @@ Sie können parallel installiert werden und erhalten ihre Updates unabhängig vo
 **3.73** – TV: Alle Einstellungen komplett mit der Fernbedienung erreichbar, gut sichtbare Auswahl, mehr Randabstand, damit am Bildschirmrand nichts abgeschnitten wird.
 
 **3.72** – Filmübersicht zeigt die neuesten Titel zuerst; Suchfeld filtert die Filmliste.
-
-**3.71** – Wiedergabe bleibt auch bei langer Laufzeit stabil (kein Hängen mehr nach ca. 30 Minuten), zuverlässigere Wiederverbindung bei Live-TV, leichtere EPG-Aktualisierung während der Wiedergabe.
 
 Alle Versionen: [Releases](https://github.com/daniel96865-a11y/streamy2/releases)
 
