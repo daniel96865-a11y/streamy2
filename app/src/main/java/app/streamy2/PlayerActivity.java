@@ -80,6 +80,17 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView btnPlayer;
     private TextView btnResize;
     private boolean catchup;
+    /** Wall-clock start of the current timeshift stream (catch-up only). */
+    private long catchupStreamStartMs;
+    /** Pending catch-up seek target while the user is still pressing left/right. */
+    private long catchupPendingTarget = -1L;
+    private final Runnable catchupSeekRun = new Runnable() {
+        @Override public void run() {
+            long target = PlayerActivity.this.catchupPendingTarget;
+            PlayerActivity.this.catchupPendingTarget = -1L;
+            if (target >= 0) PlayerActivity.this.catchupSeekTo(target);
+        }
+    };
     private Models.Channel channel;
     private TextView clock;
     private EpgGuide.Listing current;
@@ -1292,6 +1303,14 @@ public class PlayerActivity extends AppCompatActivity {
                 seekBy(left ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
                 return true;
             }
+            if (this.catchup && this.current != null && (!dpad || !tv || getCurrentFocus() == this.epgSeek)) {
+                // Archive: rewind / fast-forward by time; key repeats are combined and
+                // applied once the user stops pressing.
+                long step = dpad ? CatchupSeek.STEP_MS : CatchupSeek.MEDIA_STEP_MS;
+                catchupNudge(left ? -step : step);
+                scheduleHide();
+                return true;
+            }
             if (tv && dpad) {
                 View focus = getCurrentFocus();
                 if (focus != this.epgSeek) {
@@ -1814,8 +1833,8 @@ public class PlayerActivity extends AppCompatActivity {
         }
         long j = listing.start;
         long max = Math.max(1L, this.current.stop - j);
-        if (this.catchup && (exoPlayer = this.player) != null && exoPlayer.getDuration() > 0) {
-            currentTimeMillis = this.player.getCurrentPosition() + j;
+        if (this.catchup) {
+            currentTimeMillis = this.catchupPendingTarget >= 0 ? this.catchupPendingTarget : catchupShownTime();
         } else {
             currentTimeMillis = System.currentTimeMillis();
         }
@@ -1935,6 +1954,62 @@ public class PlayerActivity extends AppCompatActivity {
         return String.format(Locale.GERMANY, "%02d:%02d", Long.valueOf(j4), Long.valueOf(j5));
     }
 
+    /** Wall-clock time currently shown in catch-up playback. */
+    private long catchupShownTime() {
+        long pos = 0L;
+        try {
+            if (this.useVlc) {
+                if (this.vlc != null) pos = this.vlc.getPositionMs();
+            } else if (this.player != null) {
+                pos = this.player.getCurrentPosition();
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+        return CatchupSeek.shownTime(this.catchupStreamStartMs, pos);
+    }
+
+    private void catchupNudge(long deltaMs) {
+        EpgGuide.Listing listing = this.current;
+        if (listing == null) return;
+        long base = this.catchupPendingTarget >= 0 ? this.catchupPendingTarget : catchupShownTime();
+        long target = CatchupSeek.clamp(base + deltaMs, listing.start, listing.stop, System.currentTimeMillis());
+        this.catchupPendingTarget = target;
+        if (this.epgSeek != null) {
+            this.epgSeek.setProgress(CatchupSeek.progress(target, listing.start, listing.stop));
+        }
+        UI.removeCallbacks(this.catchupSeekRun);
+        UI.postDelayed(this.catchupSeekRun, 700L);
+    }
+
+    /** Seek inside the current timeshift stream when possible, else rebuild its URL. */
+    void catchupSeekTo(long target) {
+        EpgGuide.Listing listing = this.current;
+        if (!this.catchup || listing == null) return;
+        long t = CatchupSeek.clamp(target, listing.start, listing.stop, System.currentTimeMillis());
+        long duration = 0L;
+        boolean seekable = false;
+        try {
+            if (this.useVlc) {
+                if (this.vlc != null) {
+                    duration = this.vlc.getDurationMs();
+                    seekable = duration > 0;
+                }
+            } else if (this.player != null) {
+                duration = this.player.getDuration();
+                seekable = this.player.isCurrentMediaItemSeekable() && duration != C.TIME_UNSET;
+            }
+        } catch (Throwable ignored) {
+            Quiet.ignored("PlayerActivity", ignored);
+        }
+        long offset = CatchupSeek.inStreamOffset(t, this.catchupStreamStartMs, duration, seekable);
+        if (offset >= 0) {
+            seekTo(offset);
+        } else {
+            playCatchup(listing, t);
+        }
+    }
+
     /* JADX INFO: Access modifiers changed from: private */
     public void onSeekEpg(int i) {
         if (!this.liveMode) {
@@ -1946,6 +2021,15 @@ public class PlayerActivity extends AppCompatActivity {
             return;
         }
         long max = this.current.start + ((Math.max(1L, listing.stop - this.current.start) * i) / 1000);
+        if (this.catchup) {
+            long now = System.currentTimeMillis();
+            if (max >= now - CatchupSeek.LIVE_GUARD_MS && listing.stop > now) {
+                playLive();
+                return;
+            }
+            catchupSeekTo(max);
+            return;
+        }
         if (this.liveMode) {
             Models.Channel channel = this.channel;
             if (channel != null && channel.archive && max < System.currentTimeMillis() - C.DEFAULT_SEEK_FORWARD_INCREMENT_MS) {
@@ -2052,6 +2136,8 @@ public class PlayerActivity extends AppCompatActivity {
         }
         this.catchup = false;
         this.liveMode = true;
+        this.catchupPendingTarget = -1L;
+        UI.removeCallbacks(this.catchupSeekRun);
         this.errorView.setVisibility(8);
         buildQueue(this.channel.hlsUrl, this.channel.tsUrl);
         playCurrent();
@@ -2069,11 +2155,9 @@ public class PlayerActivity extends AppCompatActivity {
             Toast.makeText(this, "Dieser Sender hat kein Archiv.", 0).show();
             return;
         }
-        long max = Math.max(listing.start, j);
-        if (max >= listing.stop - 30000) {
-            max = listing.start;
-        }
-        long j2 = max;
+        // Previously a target near the programme end jumped back to the START, so
+        // fast-forwarding restarted the programme. Clamp to shortly before the end.
+        long j2 = CatchupSeek.streamStartFor(j, listing.start, listing.stop);
         if (listing.stop < System.currentTimeMillis() - (Math.max(1, this.channel.archiveDays) * 86400000)) {
             Toast.makeText(this, "Außerhalb des Archivs.", 0).show();
             return;
@@ -2081,6 +2165,7 @@ public class PlayerActivity extends AppCompatActivity {
         this.catchup = true;
         this.liveMode = true;
         this.current = listing;
+        this.catchupStreamStartMs = j2;
         this.errorView.setVisibility(8);
         this.queue.clear();
         Iterator<String> it = App.api.timeshiftUrls(this.channel, j2, listing.stop).iterator();
@@ -3578,6 +3663,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
+        UI.removeCallbacks(this.catchupSeekRun);
         App.playerOpen = false;
         foreground = false;
         invalidatePlayback();
