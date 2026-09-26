@@ -33,6 +33,8 @@ public class XtreamApi {
     public final String format;
     public final String pass;
     public final String user;
+    /** Manual playlist refresh: always fetch from the network, never from an HTTP cache. */
+    public volatile boolean noCache;
 
     public XtreamApi(String str, String str2, String str3, String str4) {
         this.base = normalize(str);
@@ -655,7 +657,7 @@ public class XtreamApi {
         if (str2 != null && !str2.isEmpty()) {
             sb.append("&").append(str2);
         }
-        String trim = http(sb.toString()).trim();
+        String trim = http(sb.toString(), this.noCache).trim();
         return trim.startsWith("[") ? new JSONArray(trim) : new JSONObject(trim);
     }
 
@@ -708,9 +710,14 @@ public class XtreamApi {
         }
     }
 
-    private static String http(String url) throws Exception {
+    private static String http(String url, boolean noCache) throws Exception {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         try {
+            if (noCache) {
+                conn.setUseCaches(false);
+                conn.setRequestProperty("Cache-Control", "no-cache");
+                conn.setRequestProperty("Pragma", "no-cache");
+            }
             conn.setConnectTimeout(15000);
             conn.setReadTimeout(25000);
             conn.setInstanceFollowRedirects(true);

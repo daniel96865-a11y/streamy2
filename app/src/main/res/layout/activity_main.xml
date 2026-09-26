@@ -117,7 +117,10 @@
                     android:layout_marginEnd="16dp"/>
                 <TextView
                     android:id="@+id/btnRefreshMedia"
-                    android:text="↻  Aktualisieren"
+                    android:text="Aktualisieren"
+                    android:contentDescription="Aktualisieren"
+                    android:drawableStart="@drawable/ic_refresh"
+                    android:drawablePadding="8dp"
                     android:textSize="12sp"
                     android:textStyle="bold"
                     android:textColor="@color/fg"
