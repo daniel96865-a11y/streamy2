@@ -119,6 +119,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private EditText inUser;
     private long kinoSearchGen;
     private boolean forceMediaRefresh;
+    private volatile boolean playlistRefreshing;
     private RecyclerView list;
     private ProgressBar loading;
     private boolean lockSearchFocus;
@@ -302,7 +303,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.btnRefreshMedia.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view2) {
-                    MainActivity.this.refreshMediaNow();
+                    if (MainActivity.this.tab == 5) {
+                        MainActivity.this.refreshMediaNow();
+                    } else {
+                        MainActivity.this.refreshPlaylist();
+                    }
                 }
             });
         }
@@ -859,6 +864,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         paintTabs();
+        updateRefreshButton();
         if (this.prefs.hasXtream()) {
             // Show shell UI immediately; heavy CatalogCache JSON parse runs off the main thread.
             if (this.loading != null) {
@@ -2440,9 +2446,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         // Switching section/tab always leaves the search: clear the query, drop focus
         // from the search field and hide the keyboard (3.79 fix).
         closeSearch();
-        if (this.btnRefreshMedia != null) {
-            this.btnRefreshMedia.setVisibility(i == 5 ? View.VISIBLE : View.GONE);
-        }
+        updateRefreshButton();
         this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
@@ -3941,6 +3945,172 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.adapter.setMedia(arrayList);
             this.empty.setVisibility(arrayList.isEmpty() ? 0 : 8);
             this.empty.setText("Nichts gefunden.");
+        }
+    }
+
+    /**
+     * The refresh button above the list: Media Extra on its tab, otherwise the
+     * active playlist (Live-TV, Filme, Serien) when one is saved.
+     */
+    void updateRefreshButton() {
+        View view = this.btnRefreshMedia;
+        if (view == null) {
+            return;
+        }
+        int t = this.tab;
+        boolean playlistTab = (t == 0 || t == 1 || t == 2) && this.prefs != null && this.prefs.hasXtream();
+        view.setVisibility(t == 5 || playlistTab ? View.VISIBLE : View.GONE);
+        if (view instanceof TextView) {
+            TextView button = (TextView) view;
+            boolean busy = t != 5 && this.playlistRefreshing;
+            button.setText(busy ? "Wird aktualisiert…" : (t == 5 ? "Aktualisieren" : "Playlist aktualisieren"));
+            button.setContentDescription(t == 5 ? "Medien aktualisieren" : "Playlist aktualisieren");
+            button.setEnabled(!busy);
+            button.setAlpha(busy ? 0.7f : 1.0f);
+            try {
+                button.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(
+                        Theme.get(this.prefs.accent()).color));
+            } catch (Throwable t2) {
+                Quiet.ignored("MainActivity", t2);
+            }
+        }
+    }
+
+    boolean isPlaylistRefreshing() {
+        return this.playlistRefreshing;
+    }
+
+    /**
+     * Manual playlist refresh: reloads the active playlist from the server, bypassing
+     * the disk catalog cache and any HTTP cache, then refreshes the channel list.
+     * On failure the current list stays visible.
+     */
+    void refreshPlaylist() {
+        if (this.prefs == null || !this.prefs.hasXtream()) {
+            Toast.makeText(this, "Keine Playlist gespeichert – zuerst in den Einstellungen hinzufügen.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (this.playlistRefreshing) {
+            Toast.makeText(this, "Playlist wird bereits aktualisiert…", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        this.playlistRefreshing = true;
+        setPlaylistRefreshBusy(true);
+        if (this.loading != null) {
+            this.loading.setVisibility(0);
+        }
+        setStatus("Playlist wird aktualisiert…", false);
+        Toast.makeText(this, "Playlist wird aktualisiert…", Toast.LENGTH_SHORT).show();
+        final String url = this.prefs.url();
+        final String user = this.prefs.user();
+        final String pass = this.prefs.pass();
+        final String format = this.prefs.format();
+        final File file = CatalogCache.file(getCacheDir());
+        IO.execute(() -> {
+            try {
+                XtreamApi source = new XtreamApi(url, user, pass, format);
+                source.noCache = true;
+                final Models.Catalog fresh = source.loadLive();
+                if (fresh == null || fresh.live == null || countChannels(fresh) == 0) {
+                    throw new Exception("Die Playlist lieferte keine Sender.");
+                }
+                CatalogCache.write(file, fresh);
+                UI.post(() -> onPlaylistRefreshed(source, fresh));
+                loadLibrarySafely(source, fresh);
+            } catch (Throwable t) {
+                final String message = playlistRefreshError(t);
+                UI.post(() -> onPlaylistRefreshFailed(message));
+            }
+        });
+    }
+
+    static int countChannels(Models.Catalog catalog) {
+        int n = 0;
+        if (catalog != null && catalog.live != null) {
+            for (Models.Channel channel : catalog.live) {
+                if (channel != null && !channel.header) n++;
+            }
+        }
+        return n;
+    }
+
+    static String playlistRefreshError(Throwable t) {
+        String prefix = "Playlist konnte nicht aktualisiert werden: ";
+        if (t instanceof java.net.UnknownHostException || t instanceof java.net.ConnectException
+                || t instanceof java.net.SocketTimeoutException || t instanceof java.net.NoRouteToHostException) {
+            return prefix + "Server nicht erreichbar. Internetverbindung prüfen.";
+        }
+        Throwable cause = t;
+        if (t instanceof java.util.concurrent.ExecutionException && t.getCause() != null) {
+            cause = t.getCause();
+            if (cause instanceof java.net.UnknownHostException || cause instanceof java.net.ConnectException
+                    || cause instanceof java.net.SocketTimeoutException) {
+                return prefix + "Server nicht erreichbar. Internetverbindung prüfen.";
+            }
+        }
+        String message = cause.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            message = cause.getClass().getSimpleName();
+        }
+        return prefix + message.trim();
+    }
+
+    private void onPlaylistRefreshed(XtreamApi source, Models.Catalog fresh) {
+        this.playlistRefreshing = false;
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        Models.Catalog old = this.catalog;
+        if (old != null) {
+            // Keep films/series visible until the library reload replaces them.
+            fresh.vodCats = old.vodCats;
+            fresh.seriesCats = old.seriesCats;
+            fresh.vod = old.vod;
+            fresh.series = old.series;
+        }
+        this.api = source;
+        App.api = source;
+        this.catalog = fresh;
+        App.live = fresh.live;
+        synchronized (this.epgAsked) {
+            this.epgAsked.clear();
+        }
+        if (this.loading != null) {
+            this.loading.setVisibility(8);
+        }
+        setPlaylistRefreshBusy(false);
+        int n = countChannels(fresh);
+        setStatus("Verbunden · " + n + " Sender", false);
+        paintTabs();
+        renderList();
+        try {
+            prefetchEpg();
+            ensureLiveEpg(false);
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
+        Toast.makeText(this, "Playlist aktualisiert: " + n + " Sender", Toast.LENGTH_LONG).show();
+    }
+
+    private void onPlaylistRefreshFailed(String message) {
+        this.playlistRefreshing = false;
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        if (this.loading != null) {
+            this.loading.setVisibility(8);
+        }
+        setPlaylistRefreshBusy(false);
+        setStatus(message, true);
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void setPlaylistRefreshBusy(boolean busy) {
+        updateRefreshButton();
+        try {
+            PlaylistUiBinder.setRefreshBusy(this, busy);
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
         }
     }
 

@@ -18,6 +18,9 @@ final class PlaylistUiBinder {
     private static final String PREFS = "streamy2";
     private static final String OPEN_SETTINGS = "profileOpenSettings";
     private static final String ADD_TAG = "streamyPlaylistAddButton";
+    static final String REFRESH_TAG = "streamyPlaylistRefreshButton";
+    private static final String REFRESH_LABEL = "Playlist aktualisieren";
+    private static final String REFRESH_BUSY_LABEL = "Playlist wird aktualisiert…";
 
     private PlaylistUiBinder() {
     }
@@ -56,6 +59,73 @@ final class PlaylistUiBinder {
         label.setContentDescription("Wiedergabelisten verwalten");
         label.setOnClickListener(v -> showManager(main, new Prefs(main)));
         bindVisibleAddButton(main, label);
+        bindRefreshButton(main, label, prefs);
+    }
+
+    /** Visible "Playlist aktualisieren" button right below the active playlist label. */
+    private static void bindRefreshButton(MainActivity main, TextView label, Prefs prefs) {
+        if (!(label.getParent() instanceof ViewGroup)) return;
+        ViewGroup parent = (ViewGroup) label.getParent();
+        View existing = parent.findViewWithTag(REFRESH_TAG);
+        TextView button;
+        if (existing instanceof TextView) {
+            button = (TextView) existing;
+        } else {
+            button = new TextView(main);
+            button.setTag(REFRESH_TAG);
+            button.setId(View.generateViewId());
+            button.setText(REFRESH_LABEL);
+            button.setTextSize(14f);
+            button.setGravity(Gravity.CENTER_VERTICAL);
+            button.setBackgroundResource(R.drawable.bg_btn_sec);
+            button.setFocusable(true);
+            button.setFocusableInTouchMode(false);
+            button.setClickable(true);
+            button.setContentDescription("Aktive Playlist jetzt vom Server neu laden");
+            button.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_refresh, 0, 0, 0);
+            button.setCompoundDrawablePadding(dp(main, 10));
+            int horizontal = dp(main, 14);
+            button.setPadding(horizontal, 0, horizontal, 0);
+            button.setOnClickListener(v -> main.refreshPlaylist());
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(main, 48));
+            params.topMargin = dp(main, 8);
+            parent.addView(button, Math.max(0, parent.indexOfChild(label) + 1), params);
+        }
+        int accent = AccentTheme.accent(main);
+        button.setTextColor(accent);
+        button.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(accent));
+        boolean has = prefs.hasXtream();
+        button.setVisibility(has ? View.VISIBLE : View.GONE);
+        boolean busy = main.isPlaylistRefreshing();
+        button.setText(busy ? REFRESH_BUSY_LABEL : REFRESH_LABEL);
+        button.setEnabled(!busy);
+
+        // D-pad order: label -> refresh -> add -> name field.
+        View add = parent.findViewWithTag(ADD_TAG);
+        if (has) {
+            label.setNextFocusDownId(button.getId());
+            if (add != null) {
+                button.setNextFocusDownId(add.getId());
+                add.setNextFocusUpId(button.getId());
+            }
+            button.setNextFocusUpId(label.getId());
+        } else if (add != null) {
+            label.setNextFocusDownId(add.getId());
+            add.setNextFocusUpId(label.getId());
+        }
+    }
+
+    /** Called by MainActivity while a manual playlist refresh runs. */
+    static void setRefreshBusy(MainActivity main, boolean busy) {
+        TextView label = main.findViewById(R.id.activeLabel);
+        if (label == null || !(label.getParent() instanceof ViewGroup)) return;
+        View existing = ((ViewGroup) label.getParent()).findViewWithTag(REFRESH_TAG);
+        if (!(existing instanceof TextView)) return;
+        TextView button = (TextView) existing;
+        button.setText(busy ? REFRESH_BUSY_LABEL : REFRESH_LABEL);
+        button.setEnabled(!busy);
+        button.setAlpha(busy ? 0.7f : 1.0f);
     }
 
     private static void bindVisibleAddButton(MainActivity main, TextView label) {
@@ -120,15 +190,39 @@ final class PlaylistUiBinder {
     private static void showEntry(MainActivity main, Prefs prefs, String id) {
         final boolean isActive = id.equals(prefs.activeProfileId());
         String name = prefs.profileDisplayName(id);
-        String[] actions = new String[]{
-                isActive ? "✓ Wird verwendet" : "▶ Diese Playlist verwenden",
-                "✎ Umbenennen",
-                "🗑 Löschen"};
+        final boolean canRefresh = isActive && prefs.profileHasAccount(id);
+        final List<String> actions = new ArrayList<>();
+        actions.add(isActive ? "✓ Wird verwendet" : "▶ Diese Playlist verwenden");
+        if (canRefresh) actions.add(REFRESH_LABEL);
+        actions.add("✎ Umbenennen");
+        actions.add("🗑 Löschen");
+        final int refreshIndex = canRefresh ? 1 : -1;
+        final int offset = canRefresh ? 1 : 0;
+        final int accent = AccentTheme.accent(main);
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<String>(
+                main, android.R.layout.select_dialog_item, android.R.id.text1, actions) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup group) {
+                View row = super.getView(position, convertView, group);
+                TextView text = row.findViewById(android.R.id.text1);
+                if (text != null) {
+                    if (position == refreshIndex) {
+                        text.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_refresh, 0, 0, 0);
+                        text.setCompoundDrawablePadding(dp(main, 12));
+                        text.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(accent));
+                    } else {
+                        text.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
+                    }
+                }
+                return row;
+            }
+        };
         AlertDialog entry = new AlertDialog.Builder(main)
                 .setTitle(name)
-                .setItems(actions, (dialog, which) -> {
+                .setAdapter(adapter, (dialog, which) -> {
                     if (which == 0) activate(main, prefs, id);
-                    else if (which == 1) rename(main, prefs, id);
+                    else if (which == refreshIndex) main.refreshPlaylist();
+                    else if (which == 1 + offset) rename(main, prefs, id);
                     else confirmDelete(main, prefs, id);
                 })
                 .setNegativeButton("Zurück", (dialog, which) -> showManager(main, new Prefs(main)))
