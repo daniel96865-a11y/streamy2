@@ -107,6 +107,25 @@ public class TvMainActivityLaunchTest {
     }
 
     @Test
+    public void focusedEmptyListAndKeysDoNotCrash() {
+        ActivityController<MainActivity> controller = launch(true);
+        MainActivity activity = controller.get();
+        androidx.recyclerview.widget.RecyclerView list = activity.findViewById(R.id.list);
+        // Simulate the list being emptied (catalog/EPG refresh) while it holds focus:
+        // the RecyclerView itself becomes the focused view.
+        list.setAdapter(null);
+        list.requestFocus();
+        ShadowLooper.idleMainLooper();
+        for (int key : new int[]{android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_DPAD_UP,
+                android.view.KeyEvent.KEYCODE_DPAD_DOWN}) {
+            activity.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, key));
+            activity.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, key));
+            ShadowLooper.idleMainLooper();
+        }
+        controller.pause().stop().destroy();
+    }
+
+    @Test
     public void phoneLaunchStillWorks() {
         ActivityController<MainActivity> controller = launch(false);
         MainActivity activity = controller.get();
