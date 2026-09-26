@@ -573,6 +573,7 @@ public class PlayerActivity extends AppCompatActivity {
                     PlayerActivity.this.lambda$onCreate$9(view2);
                 }
             });
+            installSwipeZap(findViewById6);
         }
         RecyclerView recyclerView = (RecyclerView) findViewById(R.id.epgList);
         this.epgList = recyclerView;
@@ -3494,6 +3495,81 @@ public class PlayerActivity extends AppCompatActivity {
     /*
         Code decompiled incorrectly, please refer to instructions dump.
     */
+    // --- Mobile: "Sender per Wischen wechseln" (see SwipeZap) ---
+    private float swipeDownX;
+    private float swipeDownY;
+    private long swipeDownAt;
+    private boolean swipeTracking;
+    private long lastSwipeZapAt;
+    private final Runnable hideZapOverlay = new Runnable() {
+        @Override public void run() {
+            View v = findViewById(R.id.zapOverlay);
+            if (v != null) v.setVisibility(View.GONE);
+        }
+    };
+
+    private void installSwipeZap(View layer) {
+        try {
+            if (Tv.isTv(this)) return; // TV behaviour unchanged
+            layer.setOnTouchListener(new View.OnTouchListener() {
+                @Override public boolean onTouch(View v, android.view.MotionEvent e) {
+                    return PlayerActivity.this.onSwipeZapTouch(v, e);
+                }
+            });
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
+    /** Returns true only when a channel swipe was recognised (the tap/click is then cancelled). */
+    private boolean onSwipeZapTouch(View v, android.view.MotionEvent e) {
+        try {
+            int action = e.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_DOWN) {
+                boolean sheetOpen = this.epgSheet != null && this.epgSheet.getVisibility() == View.VISIBLE;
+                this.swipeTracking = SwipeZap.allowed(new Prefs(this).swipeZap(), false, this.liveMode, this.catchup, sheetOpen);
+                this.swipeDownX = e.getX();
+                this.swipeDownY = e.getY();
+                this.swipeDownAt = e.getEventTime();
+                return false;
+            }
+            if (action == android.view.MotionEvent.ACTION_POINTER_DOWN || action == android.view.MotionEvent.ACTION_CANCEL) {
+                this.swipeTracking = false;
+                return false;
+            }
+            if (action != android.view.MotionEvent.ACTION_UP || !this.swipeTracking) return false;
+            this.swipeTracking = false;
+            int dir = SwipeZap.decide(this.swipeDownY, e.getX() - this.swipeDownX, e.getY() - this.swipeDownY,
+                    e.getEventTime() - this.swipeDownAt, v.getHeight(), getResources().getDisplayMetrics().density);
+            if (dir == SwipeZap.NONE) return false;
+            // Cancel the pending tap so the HUD does not toggle as well.
+            android.view.MotionEvent cancel = android.view.MotionEvent.obtain(e);
+            cancel.setAction(android.view.MotionEvent.ACTION_CANCEL);
+            v.onTouchEvent(cancel);
+            cancel.recycle();
+            long now = android.os.SystemClock.uptimeMillis();
+            if (!SwipeZap.intervalOk(now, this.lastSwipeZapAt)) return true;
+            this.lastSwipeZapAt = now;
+            zap(dir);
+            showZapOverlay(dir);
+            return true;
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+            this.swipeTracking = false;
+            return false;
+        }
+    }
+
+    private void showZapOverlay(int dir) {
+        TextView overlay = (TextView) findViewById(R.id.zapOverlay);
+        if (overlay == null) return;
+        Models.Channel ch = this.channel != null ? this.channel : App.playing;
+        overlay.setText(SwipeZap.overlayText(dir, ch == null ? 0 : ch.number, ch == null ? "" : Text.clean(ch.name)));
+        overlay.setVisibility(View.VISIBLE);
+        UI.removeCallbacks(this.hideZapOverlay);
+        UI.postDelayed(this.hideZapOverlay, 1500L);
+    }
+
     private void zap(int i) {
         if (!this.liveMode || App.live == null || App.live.isEmpty()) {
             return;
@@ -3889,6 +3965,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
         UI.removeCallbacks(this.catchupSeekRun);
+        UI.removeCallbacks(this.hideZapOverlay);
         App.playerOpen = false;
         foreground = false;
         invalidatePlayback();
