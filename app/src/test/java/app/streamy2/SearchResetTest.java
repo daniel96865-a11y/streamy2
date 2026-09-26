@@ -137,6 +137,10 @@ public class SearchResetTest {
         Models.Media hit = new Models.Media();
         hit.id = "vod:test";
         hit.name = "Nebelwacht";
+        hit.poster = "file:///android_asset/posters/nebelwacht.jpg";
+        hit.genre = "Fantasy";
+        hit.year = "2010";
+        hit.plot = "";
         a.onMedia(hit);
         idle();
         assertFalse(search.hasFocus());
