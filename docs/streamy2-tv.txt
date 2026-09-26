@@ -1,1 +1,1 @@
-{"versionCode":196,"versionName":"3.76","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.76.apk","changelog":"3.76: Puffer-Anzeige im Player (vorgeladene Sekunden, Datenrate, Nachlade-Zähler), einstellbar unter Wiedergabe."}
+{"versionCode":197,"versionName":"3.77","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.77.apk","changelog":"3.77: Neues Einstellungssymbol, Akzentfarbe färbt jetzt alle blauen Elemente, App-Symbol zeigt das Logo aus der App."}
