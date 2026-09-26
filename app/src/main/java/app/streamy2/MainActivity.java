@@ -79,6 +79,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView bufMax;
     private TextView bufNorm;
     private TextView bufIndHud;
+    /** Accent id the current activity theme was built with (see AccentTheme). */
+    private String appliedAccent;
+    /** Set before recreate() after an accent change, so settings reopen at "Darstellung". */
+    static boolean reopenLookAfterAccent;
     private TextView bufIndAlways;
     private TextView bufIndOff;
     private TextView chipCat;
@@ -211,6 +215,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     @Override // androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, android.app.Activity
     protected void onCreate(Bundle bundle) {
         View view;
+        this.appliedAccent = AccentTheme.apply(this);
         super.onCreate(bundle);
         setContentView(R.layout.activity_main);
         this.prefs = new Prefs(this);
@@ -656,6 +661,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         bindFold(R.id.headLook, R.id.bodyLook, R.id.chevLook);
         installSettingsFocusEffects();
         buildAccentRow();
+        maybeReopenLookAfterAccent();
         this.search.addTextChangedListener(new TextWatcher() { // from class: app.streamy2.MainActivity.3
             @Override // android.text.TextWatcher
             public void afterTextChanged(Editable editable) {
@@ -1456,6 +1462,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     protected void onResume() {
         RecyclerView recyclerView;
         super.onResume();
+        try {
+            if (this.appliedAccent != null && this.prefs != null
+                    && !Theme.get(this.prefs.accent()).id.equals(this.appliedAccent)) {
+                recreate();
+                return;
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
         UI.removeCallbacks(epgTick);
         UI.postDelayed(epgTick, 1000L);
         UI.removeCallbacks(this.accessValidationTick);
@@ -4532,6 +4547,53 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public /* synthetic */ void lambda$buildAccentRow$119(Theme.Accent accent, View view) {
         this.prefs.setAccent(accent.id);
         applyTheme();
+        // Themed resources (focus outlines, chips, headers, bars, dialogs) are resolved at
+        // inflation time, so rebuild the activity with the new accent overlay.
+        if (!Theme.get(accent.id).id.equals(this.appliedAccent)) {
+            reopenLookAfterAccent = true;
+            recreate();
+        }
+    }
+
+    private void maybeReopenLookAfterAccent() {
+        if (!reopenLookAfterAccent) return;
+        reopenLookAfterAccent = false;
+        final View decor = getWindow() == null ? null : getWindow().getDecorView();
+        if (decor == null) return;
+        decor.post(new Runnable() {
+            @Override public void run() {
+                try {
+                    showSettings(true);
+                    setFold(R.id.bodyLook, R.id.chevLook, true);
+                } catch (Throwable t) {
+                    Quiet.ignored("MainActivity", t);
+                }
+                decor.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        try {
+                            if (accentRow == null) return;
+                            String id = Theme.get(prefs.accent()).id;
+                            for (int i = 0; i < accentRow.getChildCount() && i < Theme.ALL.length; i++) {
+                                if (Theme.ALL[i].id.equals(id)) {
+                                    View dot = accentRow.getChildAt(i);
+                                    dot.requestFocus();
+                                    View scroll = findViewById(R.id.settingsScroll);
+                                    if (scroll instanceof android.widget.ScrollView) {
+                                        android.graphics.Rect r = new android.graphics.Rect();
+                                        dot.getDrawingRect(r);
+                                        ((android.widget.ScrollView) scroll).offsetDescendantRectToMyCoords(dot, r);
+                                        ((android.widget.ScrollView) scroll).smoothScrollTo(0, Math.max(0, r.top - dp(160)));
+                                    }
+                                    break;
+                                }
+                            }
+                        } catch (Throwable t) {
+                            Quiet.ignored("MainActivity", t);
+                        }
+                    }
+                }, 180L);
+            }
+        });
     }
 
     private void paintAccentDots() {

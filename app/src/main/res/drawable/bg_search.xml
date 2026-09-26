@@ -5,7 +5,7 @@
             <solid android:color="@color/card"/>
             <stroke
                 android:width="4dp"
-                android:color="@color/accent"/>
+                android:color="?attr/streamyAccent"/>
             <corners android:radius="20dp"/>
         </shape>
     </item>

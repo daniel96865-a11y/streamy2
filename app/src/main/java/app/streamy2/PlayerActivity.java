@@ -359,6 +359,7 @@ public class PlayerActivity extends AppCompatActivity {
     /* JADX WARN: Multi-variable type inference failed */
     @Override // androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, android.app.Activity
     protected void onCreate(Bundle bundle) {
+        AccentTheme.apply(this);
         super.onCreate(bundle);
         App.playerOpen = true;
         getWindow().addFlags(128);

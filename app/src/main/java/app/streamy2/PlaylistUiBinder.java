@@ -69,7 +69,7 @@ final class PlaylistUiBinder {
         addButton.setId(View.generateViewId());
         addButton.setText("＋ Wiedergabeliste hinzufügen");
         addButton.setTextSize(14f);
-        addButton.setTextColor(main.getColor(R.color.accent));
+        addButton.setTextColor(AccentTheme.accent(main));
         addButton.setGravity(Gravity.CENTER_VERTICAL);
         addButton.setBackgroundResource(R.drawable.bg_btn_sec);
         addButton.setFocusable(true);

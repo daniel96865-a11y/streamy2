@@ -41,8 +41,8 @@ public final class EpgBar extends View {
         setLayerType(LAYER_TYPE_NONE, null);
         track.setStyle(Paint.Style.FILL);
         fill.setStyle(Paint.Style.FILL);
-        track.setColor(context.getResources().getColor(R.color.epg_track, context.getTheme()));
-        fill.setColor(context.getResources().getColor(R.color.accent, context.getTheme()));
+        track.setColor(AccentTheme.color(context, R.attr.streamyAccentTrack, context.getResources().getColor(R.color.epg_track, context.getTheme())));
+        fill.setColor(AccentTheme.accent(context));
     }
 
     /** @param value 0..1 fill, or &lt; 0 to hide the fill/track */

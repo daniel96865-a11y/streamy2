@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher foreground = in-app header logo (brandMark): the ic_play glyph, sized like in the
+     header (20/36 of the mark). 108dp adaptive canvas, glyph 40dp centred, well inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="34"
+        android:translateY="34"
+        android:scaleX="1.6666666"
+        android:scaleY="1.6666666">
+        <path
+            android:fillColor="#f4f2ff"
+            android:pathData="M8.2,5.8v12.4L19.2,12 8.2,5.8z"/>
+    </group>
+</vector>

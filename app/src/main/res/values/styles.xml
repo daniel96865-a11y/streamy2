@@ -13,12 +13,20 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:defaultFocusHighlightEnabled">true</item>
         <item name="alertDialogTheme">@style/Theme.Streamy.Dialog</item>
-        <item name="colorControlActivated">@color/accent</item>
-        <item name="colorControlHighlight">@color/accent</item>
-        <item name="colorOnPrimary">@color/accent_fg</item>
-        <item name="colorPrimary">@color/accent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
         <item name="colorPrimaryVariant">@color/elevated</item>
-        <item name="colorSecondary">@color/brand</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="streamyAccent">#FF5B9DFF</item>
+        <item name="streamyOnAccent">#FF061428</item>
+        <item name="streamyAccentSoft">#665B9DFF</item>
+        <item name="streamyAccentTrack">#335B9DFF</item>
+        <item name="streamyAccentIconBg">#285B9DFF</item>
+        <item name="streamyAccentSurface">#FF26354D</item>
+        <item name="streamyAccentSurfaceDim">#FF202A3A</item>
+        <item name="streamyAccentSurfaceGlass">#CC26354D</item>
     </style>
 
     <style name="Theme.Streamy.Splash" parent="Theme.Streamy">
@@ -34,8 +42,8 @@
         <item name="android:textColor">@color/fg</item>
         <item name="android:background">@color/card</item>
         <item name="android:listSelector">@drawable/bg_row</item>
-        <item name="android:colorControlHighlight">@color/accent</item>
-        <item name="colorPrimary">@color/accent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
     </style>
     <style name="Tab" parent="">
         <item name="android:textSize">14.5sp</item>

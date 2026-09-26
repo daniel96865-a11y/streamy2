@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accent palette. Defaults live in Theme.Streamy (= the original blue),
+         the other accents are applied at runtime as ThemeOverlay.Streamy.Accent.* (see AccentTheme). -->
+    <attr name="streamyAccent" format="color" />
+    <attr name="streamyOnAccent" format="color" />
+    <attr name="streamyAccentSoft" format="color" />
+    <attr name="streamyAccentTrack" format="color" />
+    <attr name="streamyAccentIconBg" format="color" />
+    <attr name="streamyAccentSurface" format="color" />
+    <attr name="streamyAccentSurfaceDim" format="color" />
+    <attr name="streamyAccentSurfaceGlass" format="color" />
+</resources>
