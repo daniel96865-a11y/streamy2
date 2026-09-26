@@ -21,6 +21,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -698,6 +699,19 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             }
         });
+        this.search.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView textView, int actionId, KeyEvent keyEvent) {
+                boolean enter = keyEvent != null && keyEvent.getAction() == KeyEvent.ACTION_DOWN
+                        && keyEvent.getKeyCode() == KeyEvent.KEYCODE_ENTER;
+                if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE || enter) {
+                    // Keep the results, but put the keyboard away and release the field.
+                    MainActivity.this.releaseSearchFocus();
+                    return true;
+                }
+                return false;
+            }
+        });
         this.search.setOnFocusChangeListener(new View.OnFocusChangeListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda97
             @Override // android.view.View.OnFocusChangeListener
             public final void onFocusChange(View view3, boolean z2) {
@@ -893,6 +907,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
                 if (MainActivity.this.settingsPane.getVisibility() == 0) {
                     MainActivity.this.showSettings(false);
+                    return;
+                }
+                if (MainActivity.this.searchActive()) {
+                    MainActivity.this.closeSearch();
+                    MainActivity.this.renderList();
                     return;
                 }
                 if (MainActivity.this.seriesOpen != null) {
@@ -1492,6 +1511,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         UI.removeCallbacks(this.accessValidationTick);
         UI.post(this.accessValidationTick);
         this.resumeAt = SystemClock.uptimeMillis();
+        releaseSearchFocus();
         try {
             BrowserController browserController = this.browser;
             if (browserController != null && browserController.visible()) {
@@ -1583,6 +1603,61 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         } else {
             renderList();
         }
+    }
+
+    /** True while the search field holds a query or has input focus. */
+    boolean searchActive() {
+        String q = this.query;
+        EditText editText = this.search;
+        return (q != null && !q.isEmpty())
+                || (editText != null && (editText.hasFocus() || editText.length() > 0));
+    }
+
+    /**
+     * Leaves the search completely: empties the field and the filter query, cancels a
+     * pending debounced re-render and an in-flight remote search, drops focus from the
+     * field and hides the keyboard. Caller re-renders the list.
+     */
+    void closeSearch() {
+        EditText editText = this.search;
+        if (editText != null) {
+            editText.removeCallbacks(this.searchRun);
+            if (editText.length() > 0) {
+                editText.setText("");
+            }
+            // setText("") re-posts the debounced render via the TextWatcher; the caller
+            // renders right away, so drop it again.
+            editText.removeCallbacks(this.searchRun);
+        }
+        this.query = "";
+        this.kinoSearchGen++;
+        releaseSearchFocus();
+    }
+
+    /**
+     * Keeps the query but hides the keyboard and moves focus away from the search
+     * field, so the IME does not pop up again by itself (e.g. on resume or re-render).
+     */
+    void releaseSearchFocus() {
+        EditText editText = this.search;
+        this.lockSearchFocus = false;
+        if (editText == null) {
+            return;
+        }
+        InputMethodManager inputMethodManager = (InputMethodManager) getSystemService("input_method");
+        if (inputMethodManager != null && editText.getWindowToken() != null) {
+            inputMethodManager.hideSoftInputFromWindow(editText.getWindowToken(), 0);
+        }
+        if (editText.hasFocus()) {
+            // clearFocus() alone may hand focus straight back to the EditText (first
+            // focusable-in-touch-mode view), so park it on the list first.
+            RecyclerView recyclerView = this.list;
+            boolean moved = recyclerView != null && recyclerView.getVisibility() == 0 && recyclerView.requestFocus();
+            if (!moved || editText.hasFocus()) {
+                editText.clearFocus();
+            }
+        }
+        this.lockSearchFocus = false;
     }
 
     private void hideKeyboard() {
@@ -2362,6 +2437,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         this.tab = i;
         this.seriesOpen = null;
+        // Switching section/tab always leaves the search: clear the query, drop focus
+        // from the search field and hide the keyboard (3.79 fix).
+        closeSearch();
         if (this.btnRefreshMedia != null) {
             this.btnRefreshMedia.setVisibility(i == 5 ? View.VISIBLE : View.GONE);
         }
@@ -2838,12 +2916,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$pickCategory$56(String[] strArr, int i) {
         this.catId = strArr[i];
+        closeSearch();
         renderList();
     }
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$pickCategory$57(List list, int i) {
         this.catId = (String) list.get(i);
+        closeSearch();
         renderList();
     }
 
@@ -3073,6 +3153,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (channel.header) {
             return;
         }
+        releaseSearchFocus();
         App.playing = channel;
         App.api = this.api;
         App.guide = this.guide;
@@ -3117,6 +3198,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     @Override // app.streamy2.ChannelAdapter.Listener
     public void onMedia(Models.Media media) {
+        releaseSearchFocus();
         if ("folder-live".equals(media.id)) {
             setTab(0);
             return;
@@ -3150,6 +3232,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (media == null) {
             return;
         }
+        releaseSearchFocus();
         if (media.series) {
             openDetail(media);
         } else if (ExtraMediaSource.owns(media)) {
