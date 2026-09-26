@@ -168,6 +168,7 @@
                 android:paddingStart="0dp"
                 android:paddingEnd="0dp"
                 android:progressTint="@color/accent"
+                android:secondaryProgressTint="#80FFFFFF"
                 android:thumbTint="@android:color/transparent" />
 
             <LinearLayout
@@ -320,6 +321,19 @@
             android:textColor="@color/accent"
             android:textSize="12sp"
             android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/bufferInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:focusable="false"
+            android:gravity="center"
+            android:singleLine="true"
+            android:textColor="#B3FFFFFF"
+            android:textSize="11sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <LinearLayout
@@ -371,6 +385,24 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/bufferOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="20dp"
+        android:background="#99000000"
+        android:focusable="false"
+        android:paddingStart="8dp"
+        android:paddingTop="3dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="3dp"
+        android:singleLine="true"
+        android:textColor="#B3FFFFFF"
+        android:textSize="11sp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/playerError"

@@ -1083,6 +1083,69 @@
                             android:textColor="@color/muted"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
+                            android:text="Puffer-Anzeige im Player"/>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="Zeigt Vorlauf, Download-Rate und Nachlade-Zähler. Mit Bedienleiste = nur bei eingeblendeter Steuerung, Immer = kleines Overlay unten rechts."/>
+                        <HorizontalScrollView
+                            android:scrollbars="none"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="12dp">
+                            <LinearLayout
+                                android:orientation="horizontal"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content">
+                                <TextView
+                                    android:textColor="@color/fg"
+                                    android:gravity="center"
+                                    android:id="@+id/bufIndHud"
+                                    android:background="@drawable/bg_btn_sec"
+                                    android:focusable="true"
+                                    android:clickable="true"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:text="Mit Bedienleiste"
+                                    android:paddingStart="16dp"
+                                    android:paddingEnd="16dp"/>
+                                <TextView
+                                    android:textColor="@color/fg"
+                                    android:gravity="center"
+                                    android:id="@+id/bufIndAlways"
+                                    android:background="@drawable/bg_btn_sec"
+                                    android:focusable="true"
+                                    android:clickable="true"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:text="Immer"
+                                    android:paddingStart="16dp"
+                                    android:paddingEnd="16dp"
+                                    android:layout_marginStart="8dp"/>
+                                <TextView
+                                    android:textColor="@color/fg"
+                                    android:gravity="center"
+                                    android:id="@+id/bufIndOff"
+                                    android:background="@drawable/bg_btn_sec"
+                                    android:focusable="true"
+                                    android:clickable="true"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="40dp"
+                                    android:text="Aus"
+                                    android:paddingStart="16dp"
+                                    android:paddingEnd="16dp"
+                                    android:layout_marginStart="8dp"/>
+                            </LinearLayout>
+                        </HorizontalScrollView>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
                             android:text="Stream-Format"/>
                         <LinearLayout
                             android:orientation="horizontal"
