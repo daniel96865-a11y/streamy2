@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top-bar icon buttons (settings gear). 24dp glyph centred in a 44dp touch/focus target. -->
+    <dimen name="top_icon_button">44dp</dimen>
+    <dimen name="top_icon_padding">10dp</dimen>
+</resources>

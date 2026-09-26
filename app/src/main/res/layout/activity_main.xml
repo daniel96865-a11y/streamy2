@@ -52,9 +52,12 @@
                         android:id="@+id/btnSettings"
                         android:background="@drawable/bg_focus"
                         android:focusable="true"
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:src="@drawable/ic_gear"
+                        android:layout_width="@dimen/top_icon_button"
+                        android:layout_height="@dimen/top_icon_button"
+                        android:padding="@dimen/top_icon_padding"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_settings"
+                        android:tint="@color/fg"
                         android:contentDescription="Einstellungen"/>
                 </LinearLayout>
                 <HorizontalScrollView
@@ -463,7 +466,7 @@
                             android:layout_height="42dp"
                             android:background="@drawable/bg_settings_icon"
                             android:padding="10dp"
-                            android:src="@drawable/ic_gear"
+                            android:src="@drawable/ic_settings"
                             android:tint="@color/accent"
                             android:contentDescription="@null"/>
                         <LinearLayout

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TV: slightly larger focus target and glyph (26dp) for viewing distance. -->
+    <dimen name="top_icon_button">48dp</dimen>
+    <dimen name="top_icon_padding">11dp</dimen>
+</resources>
