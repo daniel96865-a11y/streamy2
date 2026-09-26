@@ -16,6 +16,8 @@ public class Prefs {
     private static final String KEY_PROFILES = "profilesV2";
     private static final String KEY_ACTIVE_PROFILE = "activeProfileV2";
     private static final String DEFAULT_PROFILE = "p1";
+    private static final String KEY_PROFILE_SEQ = "profileSeqV2";
+    private static final String KEY_PREVIOUS_PROFILE = "previousProfileV2";
     private static volatile String cacheProfileId = DEFAULT_PROFILE;
     private final SharedPreferences p;
 
@@ -145,11 +147,13 @@ public class Prefs {
 
     public String createProfile(String suggestedName) {
         List<String> ids = profileIds();
-        int n = 1;
+        String previous = activeProfileId();
+        // Never reuse the id of a deleted playlist: its old catalog cache file could
+        // otherwise show up under the new playlist.
+        int n = Math.max(this.p.getInt(KEY_PROFILE_SEQ, 1), ids.size()) + 1;
         String id;
-        do {
-            id = "p" + n++;
-        } while (ids.contains(id));
+        while (ids.contains(id = "p" + n)) n++;
+        this.p.edit().putInt(KEY_PROFILE_SEQ, n).putString(KEY_PREVIOUS_PROFILE, previous).apply();
         ids.add(id);
         writeProfileIds(ids);
         String label = suggestedName == null ? "" : suggestedName.trim();
@@ -187,8 +191,132 @@ public class Prefs {
         cacheProfileId = ids.get(0);
     }
 
+    /** Deletes one playlist by id (active or not). The last playlist is only emptied. */
+    public synchronized boolean deleteProfile(String id) {
+        List<String> ids = profileIds();
+        if (id == null || !ids.contains(id)) return false;
+        String active = activeProfileId();
+        if (id.equals(active)) {
+            deleteActiveProfile();
+            return true;
+        }
+        ids.remove(id);
+        SharedPreferences.Editor e = this.p.edit();
+        String prefix = "profile." + id + ".";
+        for (Map.Entry<String, ?> entry : this.p.getAll().entrySet()) {
+            if (entry.getKey().startsWith(prefix)) e.remove(entry.getKey());
+        }
+        JSONArray a = new JSONArray();
+        for (String x : ids) a.put(x);
+        e.putString(KEY_PROFILES, a.toString());
+        e.apply();
+        return true;
+    }
+
+    public boolean renameProfile(String id, String label) {
+        if (id == null || !readProfileIds().contains(id) || label == null || label.trim().isEmpty()) return false;
+        this.p.edit().putString(pk(id, "label"), label.trim()).apply();
+        return true;
+    }
+
+    public boolean profileHasAccount(String id) {
+        if (id == null) return false;
+        String u = this.p.getString(pk(id, "user"), "");
+        String url = this.p.getString(pk(id, "url"), "");
+        return u != null && !u.trim().isEmpty() && url != null && !url.trim().isEmpty();
+    }
+
+    static String normalizeServer(String url) {
+        if (url == null) return "";
+        String s = url.trim().toLowerCase(java.util.Locale.ROOT);
+        if (s.startsWith("http://")) s = s.substring(7);
+        else if (s.startsWith("https://")) s = s.substring(8);
+        while (s.endsWith("/")) s = s.substring(0, s.length() - 1);
+        return s;
+    }
+
+    /** Existing playlist with the same server and user name, or null. */
+    public String findProfile(String url, String user) {
+        String server = normalizeServer(url);
+        String u = user == null ? "" : user.trim();
+        if (server.isEmpty() || u.isEmpty()) return null;
+        for (String id : profileIds()) {
+            if (server.equals(normalizeServer(this.p.getString(pk(id, "url"), "")))
+                    && u.equals(this.p.getString(pk(id, "user"), "").trim())) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Saves a playlist from the settings form or from PIN pairing WITHOUT losing the
+     * other saved playlists:
+     * - active playlist still empty (e.g. just added) -> fill it
+     * - same server + user as a saved playlist -> update that one and make it active
+     * - same user + password on the active playlist (server moved) -> update active
+     * - otherwise -> create a NEW playlist and make it active.
+     * Returns the id of the playlist that was written.
+     */
+    public synchronized String saveAccountAsPlaylist(String name, String url, String user, String pass) {
+        String active = activeProfileId();
+        if (!profileHasAccount(active)) {
+            saveAccount(name, url, user, pass);
+            return active;
+        }
+        String match = findProfile(url, user);
+        if (match == null) {
+            String activeUser = this.p.getString(pk(active, "user"), "");
+            String activePass = this.p.getString(pk(active, "pass"), "");
+            if (user != null && user.trim().equals(activeUser == null ? "" : activeUser.trim())
+                    && pass != null && pass.equals(activePass)) {
+                match = active;
+            }
+        }
+        if (match == null) {
+            String label = name == null ? "" : name.trim();
+            if (label.isEmpty()) label = user == null ? "" : user.trim();
+            match = createProfile(label);
+        } else if (!match.equals(active)) {
+            setActiveProfile(match);
+        }
+        saveAccount(name, url, user, pass);
+        return match;
+    }
+
+    /**
+     * If the active playlist is still empty (user tapped "+ hinzufügen" and left
+     * without saving) and other playlists exist, remove the empty one and go back to
+     * the previously active playlist. Returns true if the active playlist changed.
+     */
+    public synchronized boolean discardEmptyActiveProfile() {
+        List<String> ids = profileIds();
+        String active = activeProfileId();
+        if (ids.size() <= 1 || profileHasAccount(active)) return false;
+        String previous = this.p.getString(KEY_PREVIOUS_PROFILE, "");
+        String target = null;
+        if (previous != null && !previous.equals(active) && ids.contains(previous) && profileHasAccount(previous)) {
+            target = previous;
+        } else {
+            for (String id : ids) {
+                if (!id.equals(active) && profileHasAccount(id)) {
+                    target = id;
+                    break;
+                }
+            }
+        }
+        if (target == null) return false;
+        deleteProfile(active);
+        setActiveProfile(target);
+        return true;
+    }
+
     public File catalogCacheFile(File cacheDir) {
         return profileCacheFile(cacheDir, activeProfileId());
+    }
+
+    public File catalogCacheFile(File cacheDir, String profileId) {
+        return profileCacheFile(cacheDir, profileId);
     }
 
     static File catalogCacheFileForActive(File cacheDir) {
