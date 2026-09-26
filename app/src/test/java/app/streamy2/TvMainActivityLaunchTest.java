@@ -91,10 +91,9 @@ public class TvMainActivityLaunchTest {
                 ShadowLooper.idleMainLooper();
             }
         }
-        // Click accent dots and simple option chips (re-paints theme / focus states).
+        // Click the already selected accent dot (re-paints theme / focus states, no rebuild).
         View accentRow = activity.findViewById(R.id.accentRow);
         if (accentRow instanceof ViewGroup && ((ViewGroup) accentRow).getChildCount() > 1) {
-            ((ViewGroup) accentRow).getChildAt(1).performClick();
             ((ViewGroup) accentRow).getChildAt(0).performClick();
         }
         ShadowLooper.idleMainLooper();
@@ -104,6 +103,26 @@ public class TvMainActivityLaunchTest {
         assertEquals(View.GONE, pane.getVisibility());
 
         controller.pause().stop().destroy();
+    }
+
+    @Test
+    public void accentChangeRebuildsWithOverlayAndReopensLook() {
+        Context app = RuntimeEnvironment.getApplication();
+        try {
+            new Prefs(app).setAccent("teal");
+            MainActivity.reopenLookAfterAccent = true;
+            ActivityController<MainActivity> controller = launch(true);
+            MainActivity activity = controller.get();
+            ShadowLooper.idleMainLooper();
+            assertFalse(MainActivity.reopenLookAfterAccent);
+            assertEquals(Theme.get("teal").color, AccentTheme.accent(activity));
+            assertEquals(View.VISIBLE, activity.findViewById(R.id.settingsPane).getVisibility());
+            assertEquals(View.VISIBLE, activity.findViewById(R.id.bodyLook).getVisibility());
+            controller.pause().stop().destroy();
+        } finally {
+            MainActivity.reopenLookAfterAccent = false;
+            new Prefs(app).setAccent("blue");
+        }
     }
 
     @Test
