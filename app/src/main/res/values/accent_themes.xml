@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Generated from Theme.ALL. "blue" equals the defaults in Theme.Streamy. -->
+    <style name="ThemeOverlay.Streamy.Accent.Blue" parent="">
+        <item name="streamyAccent">#FF5B9DFF</item>
+        <item name="streamyOnAccent">#FF061428</item>
+        <item name="streamyAccentSoft">#665B9DFF</item>
+        <item name="streamyAccentTrack">#335B9DFF</item>
+        <item name="streamyAccentIconBg">#285B9DFF</item>
+        <item name="streamyAccentSurface">#FF26354D</item>
+        <item name="streamyAccentSurfaceDim">#FF202A3A</item>
+        <item name="streamyAccentSurfaceGlass">#CC26354D</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+    <style name="ThemeOverlay.Streamy.Accent.Sky" parent="">
+        <item name="streamyAccent">#FF7EC8E3</item>
+        <item name="streamyOnAccent">#FF0C2430</item>
+        <item name="streamyAccentSoft">#667EC8E3</item>
+        <item name="streamyAccentTrack">#337EC8E3</item>
+        <item name="streamyAccentIconBg">#287EC8E3</item>
+        <item name="streamyAccentSurface">#FF2F3D43</item>
+        <item name="streamyAccentSurfaceDim">#FF283136</item>
+        <item name="streamyAccentSurfaceGlass">#CC2F3D43</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+    <style name="ThemeOverlay.Streamy.Accent.Teal" parent="">
+        <item name="streamyAccent">#FF2ECF9A</item>
+        <item name="streamyOnAccent">#FF04241A</item>
+        <item name="streamyAccentSoft">#662ECF9A</item>
+        <item name="streamyAccentTrack">#332ECF9A</item>
+        <item name="streamyAccentIconBg">#282ECF9A</item>
+        <item name="streamyAccentSurface">#FF1F3E36</item>
+        <item name="streamyAccentSurfaceDim">#FF1E312D</item>
+        <item name="streamyAccentSurfaceGlass">#CC1F3E36</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+    <style name="ThemeOverlay.Streamy.Accent.Violet" parent="">
+        <item name="streamyAccent">#FF8B7CFF</item>
+        <item name="streamyOnAccent">#FF16122A</item>
+        <item name="streamyAccentSoft">#668B7CFF</item>
+        <item name="streamyAccentTrack">#338B7CFF</item>
+        <item name="streamyAccentIconBg">#288B7CFF</item>
+        <item name="streamyAccentSurface">#FF312E49</item>
+        <item name="streamyAccentSurfaceDim">#FF292839</item>
+        <item name="streamyAccentSurfaceGlass">#CC312E49</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+    <style name="ThemeOverlay.Streamy.Accent.Rose" parent="">
+        <item name="streamyAccent">#FFF3A4B5</item>
+        <item name="streamyOnAccent">#FF3A1420</item>
+        <item name="streamyAccentSoft">#66F3A4B5</item>
+        <item name="streamyAccentTrack">#33F3A4B5</item>
+        <item name="streamyAccentIconBg">#28F3A4B5</item>
+        <item name="streamyAccentSurface">#FF45363B</item>
+        <item name="streamyAccentSurfaceDim">#FF362C30</item>
+        <item name="streamyAccentSurfaceGlass">#CC45363B</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+    <style name="ThemeOverlay.Streamy.Accent.Amber" parent="">
+        <item name="streamyAccent">#FFE2B56A</item>
+        <item name="streamyOnAccent">#FF2A1C08</item>
+        <item name="streamyAccentSoft">#66E2B56A</item>
+        <item name="streamyAccentTrack">#33E2B56A</item>
+        <item name="streamyAccentIconBg">#28E2B56A</item>
+        <item name="streamyAccentSurface">#FF42392C</item>
+        <item name="streamyAccentSurfaceDim">#FF342E27</item>
+        <item name="streamyAccentSurfaceGlass">#CC42392C</item>
+        <item name="colorPrimary">?attr/streamyAccent</item>
+        <item name="colorSecondary">?attr/streamyAccent</item>
+        <item name="colorAccent">?attr/streamyAccent</item>
+        <item name="colorControlActivated">?attr/streamyAccent</item>
+        <item name="colorControlHighlight">?attr/streamyAccent</item>
+        <item name="android:colorAccent">?attr/streamyAccent</item>
+        <item name="android:colorControlActivated">?attr/streamyAccent</item>
+        <item name="android:colorControlHighlight">?attr/streamyAccent</item>
+        <item name="colorOnPrimary">?attr/streamyOnAccent</item>
+        <item name="colorOnSecondary">?attr/streamyOnAccent</item>
+    </style>
+</resources>

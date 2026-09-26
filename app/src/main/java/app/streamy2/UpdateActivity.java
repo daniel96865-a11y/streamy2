@@ -54,6 +54,7 @@ public final class UpdateActivity extends Activity {
     }
 
     @Override protected void onCreate(Bundle savedState) {
+        AccentTheme.apply(this);
         super.onCreate(savedState);
         transfer = new UpdateTransfer(this);
         Updates.Info requested = new Updates.Info();

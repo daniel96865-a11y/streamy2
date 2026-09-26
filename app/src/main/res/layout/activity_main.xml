@@ -201,7 +201,7 @@
                         android:layout_weight="1"/>
                     <TextView
                         android:textSize="13sp"
-                        android:textColor="@color/accent_fg"
+                        android:textColor="?attr/streamyOnAccent"
                         android:gravity="center"
                         android:id="@+id/btnUpdateNow"
                         android:background="@drawable/bg_btn"
@@ -300,7 +300,7 @@
                         <TextView
                             android:textSize="13sp"
                             android:textStyle="bold"
-                            android:textColor="@color/accent_fg"
+                            android:textColor="?attr/streamyOnAccent"
                             android:gravity="center"
                             android:id="@+id/btnWebGo"
                             android:background="@drawable/bg_btn"
@@ -318,7 +318,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="3dp"
                         android:max="100"
-                        android:progressTint="@color/accent"
+                        android:progressTint="?attr/streamyAccent"
                         style="?android:attr/progressBarStyleHorizontal"/>
                     <FrameLayout
                         android:layout_width="match_parent"
@@ -359,7 +359,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
-                android:indeterminateTint="@color/accent"/>
+                android:indeterminateTint="?attr/streamyAccent"/>
             <TextView
                 android:textColor="@color/muted"
                 android:gravity="center"
@@ -379,7 +379,7 @@
             android:layout_height="52dp"
             android:layout_margin="18dp"
             android:src="@drawable/ic_up"
-            android:tint="@color/accent_fg"
+            android:tint="?attr/streamyOnAccent"
             android:contentDescription="Nach oben"/>
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
     <LinearLayout
@@ -467,7 +467,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="10dp"
                             android:src="@drawable/ic_settings"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -491,7 +491,7 @@
                                 android:text="Konten, Zugangsdaten und TV-Kopplung"/>
                             <TextView
                                 android:textSize="11sp"
-                                android:textColor="@color/accent"
+                                android:textColor="?attr/streamyAccent"
                                 android:ellipsize="end"
                                 android:id="@+id/accHint"
                                 android:layout_width="match_parent"
@@ -618,7 +618,7 @@
                                 android:paddingEnd="8dp"/>
                             <TextView
                                 android:textSize="13sp"
-                                android:textColor="@color/accent"
+                                android:textColor="?attr/streamyAccent"
                                 android:gravity="center"
                                 android:id="@+id/btnShowPass"
                                 android:focusable="true"
@@ -655,7 +655,7 @@
                             <TextView
                                 android:textSize="14sp"
                                 android:textStyle="bold"
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/btnSave"
                                 android:background="@drawable/bg_btn"
@@ -682,7 +682,7 @@
                         <TextView
                             android:textSize="14sp"
                             android:textStyle="bold"
-                            android:textColor="@color/accent_fg"
+                            android:textColor="?attr/streamyOnAccent"
                             android:gravity="center"
                             android:id="@+id/btnSendTv"
                             android:background="@drawable/bg_btn"
@@ -732,7 +732,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="10dp"
                             android:src="@drawable/ic_play"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -792,7 +792,7 @@
                             android:layout_marginTop="8dp"
                             android:layout_marginBottom="12dp">
                             <TextView
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/playerLiveAuto"
                                 android:background="@drawable/bg_btn"
@@ -853,7 +853,7 @@
                             android:layout_marginTop="8dp"
                             android:layout_marginBottom="12dp">
                             <TextView
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/playerExtraLiveAuto"
                                 android:background="@drawable/bg_btn"
@@ -917,7 +917,7 @@
                                 <TextView
                                     android:id="@+id/audioAuto"
                                     android:text="Automatisch"
-                                    android:textColor="@color/accent_fg"
+                                    android:textColor="?attr/streamyOnAccent"
                                     android:gravity="center"
                                     android:background="@drawable/bg_btn"
                                     android:focusable="true"
@@ -1041,7 +1041,7 @@
                                     android:paddingStart="16dp"
                                     android:paddingEnd="16dp"/>
                                 <TextView
-                                    android:textColor="@color/accent_fg"
+                                    android:textColor="?attr/streamyOnAccent"
                                     android:gravity="center"
                                     android:id="@+id/bufNorm"
                                     android:background="@drawable/bg_btn"
@@ -1156,7 +1156,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp">
                             <TextView
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/fmtHls"
                                 android:background="@drawable/bg_btn"
@@ -1201,7 +1201,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="8dp">
                             <TextView
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/resizeFit"
                                 android:background="@drawable/bg_btn"
@@ -1267,7 +1267,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="10dp"
                             android:src="@drawable/ic_player_grid"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -1389,7 +1389,7 @@
                         <TextView
                             android:textSize="14sp"
                             android:textStyle="bold"
-                            android:textColor="@color/accent_fg"
+                            android:textColor="?attr/streamyOnAccent"
                             android:gravity="center"
                             android:id="@+id/btnRefreshEpg"
                             android:background="@drawable/bg_btn"
@@ -1427,7 +1427,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="10dp"
                             android:src="@drawable/ic_player_tune"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -1498,7 +1498,7 @@
                                 android:paddingStart="18dp"
                                 android:paddingEnd="18dp"/>
                             <TextView
-                                android:textColor="@color/accent_fg"
+                                android:textColor="?attr/streamyOnAccent"
                                 android:gravity="center"
                                 android:id="@+id/cols2"
                                 android:background="@drawable/bg_btn"
@@ -1557,7 +1557,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="9dp"
                             android:src="@drawable/ic_player_info"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -1593,7 +1593,7 @@
                         android:id="@+id/btnAccessUnlock"
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/accent_fg"
+                        android:textColor="?attr/streamyOnAccent"
                         android:gravity="center"
                         android:background="@drawable/bg_btn"
                         android:focusable="true"
@@ -1622,7 +1622,7 @@
                             android:background="@drawable/bg_settings_icon"
                             android:padding="9dp"
                             android:src="@drawable/ic_up"
-                            android:tint="@color/accent"
+                            android:tint="?attr/streamyAccent"
                             android:contentDescription="@null"/>
                         <LinearLayout
                             android:orientation="vertical"
@@ -1657,7 +1657,7 @@
                     <TextView
                         android:textSize="14sp"
                         android:textStyle="bold"
-                        android:textColor="@color/accent_fg"
+                        android:textColor="?attr/streamyOnAccent"
                         android:gravity="center"
                         android:id="@+id/btnCheckUpdate"
                         android:background="@drawable/bg_btn"
@@ -1730,7 +1730,7 @@
                     android:layout_weight="1"/>
                 <TextView
                     android:textSize="14sp"
-                    android:textColor="@color/accent_fg"
+                    android:textColor="?attr/streamyOnAccent"
                     android:gravity="center"
                     android:id="@+id/btnClosePicker"
                     android:background="@drawable/bg_btn"
@@ -1796,7 +1796,7 @@
                     android:layout_weight="1"/>
                 <TextView
                     android:textSize="14sp"
-                    android:textColor="@color/accent_fg"
+                    android:textColor="?attr/streamyOnAccent"
                     android:gravity="center"
                     android:id="@+id/btnCloseDetail"
                     android:background="@drawable/bg_btn"
@@ -1882,7 +1882,7 @@
             <TextView
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="@color/accent_fg"
+                android:textColor="?attr/streamyOnAccent"
                 android:gravity="center"
                 android:id="@+id/btnPlayDetail"
                 android:background="@drawable/bg_btn"
@@ -1967,7 +1967,7 @@
             <TextView
                 android:textSize="15sp"
                 android:textStyle="bold"
-                android:textColor="@color/accent_fg"
+                android:textColor="?attr/streamyOnAccent"
                 android:gravity="center"
                 android:id="@+id/btnPairGo"
                 android:background="@drawable/bg_btn"
