@@ -10,6 +10,8 @@
     <color name="elevated">#2c2c2e</color>
     <color name="epg_track">#335b9dff</color>
     <color name="fg">#f5f5f7</color>
+    <!-- Launcher icon background = header logo colour (default accent, fixed). -->
+    <color name="ic_launcher_background">#5b9dff</color>
     <color name="live_bg">#333338</color>
     <color name="muted">#8e8e93</color>
     <color name="subtle">#636366</color>
