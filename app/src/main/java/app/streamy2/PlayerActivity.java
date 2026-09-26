@@ -545,7 +545,11 @@ public class PlayerActivity extends AppCompatActivity {
             }
             TextView textView8 = this.epgNext;
             if (textView8 != null) {
-                textView8.setVisibility(8);
+                // INVISIBLE, not GONE: this weighted middle view keeps the position on the
+                // left and the total duration on the right end of the seekbar. With GONE both
+                // labels were glued together on the left ("00:521:50:40").
+                textView8.setText("");
+                textView8.setVisibility(4);
             }
             TextView textView9 = this.archiveHint;
             if (textView9 != null) {
@@ -2068,13 +2072,14 @@ public class PlayerActivity extends AppCompatActivity {
     private void updateVodBar() {
         long vodDuration = vodDuration();
         long vodPosition = vodPosition();
+        String[] labels = vodTimeLabels(vodPosition, vodDuration);
         TextView textView = this.epgStart;
         if (textView != null) {
-            textView.setText(fmtMs(vodPosition));
+            textView.setText(labels[0]);
         }
         TextView textView2 = this.epgEnd;
         if (textView2 != null) {
-            textView2.setText(vodDuration > 0 ? fmtMs(vodDuration) : "--:--");
+            textView2.setText(labels[1]);
         }
         if (vodDuration > 0) {
             this.epgSeek.setProgress((int) Math.max(0L, Math.min(1000L, (vodPosition * 1000) / vodDuration)));
@@ -2162,6 +2167,28 @@ public class PlayerActivity extends AppCompatActivity {
         }
         seekTo(max);
         updateVodBar();
+    }
+
+    /**
+     * Position (left) and total duration (right) under the VOD seekbar. Both use the
+     * same format: h:mm:ss as soon as the duration (or position) reaches one hour.
+     */
+    static String[] vodTimeLabels(long positionMs, long durationMs) {
+        boolean hours = durationMs >= 3600000L || positionMs >= 3600000L;
+        String position = fmtMs(positionMs, hours);
+        String duration = durationMs > 0 ? fmtMs(durationMs, hours) : (hours ? "-:--:--" : "--:--");
+        return new String[]{position, duration};
+    }
+
+    static String fmtMs(long j, boolean hours) {
+        if (j < 0) {
+            j = 0;
+        }
+        long s = j / 1000;
+        if (hours) {
+            return String.format(Locale.GERMANY, "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60);
+        }
+        return fmtMs(j);
     }
 
     private static String fmtMs(long j) {
