@@ -387,6 +387,25 @@
     </LinearLayout>
 
     <TextView
+        android:id="@+id/zapOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_zap_overlay"
+        android:focusable="false"
+        android:maxWidth="420dp"
+        android:ellipsize="end"
+        android:paddingStart="20dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="10dp"
+        android:singleLine="true"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/bufferOverlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

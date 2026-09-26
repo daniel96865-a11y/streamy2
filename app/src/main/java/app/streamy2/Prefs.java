@@ -504,6 +504,15 @@ public class Prefs {
         this.p.edit().putString("buffer", str).apply();
     }
 
+    /** Mobile live TV: switch channel with a vertical swipe (default on). */
+    public boolean swipeZap() {
+        return this.p.getBoolean("swipeZap", true);
+    }
+
+    public void setSwipeZap(boolean on) {
+        this.p.edit().putBoolean("swipeZap", on).apply();
+    }
+
     /** Player buffer indicator: "hud" (with controls, default), "always" (small overlay) or "off". */
     public String bufferIndicator() {
         return BufferStats.normMode(this.p.getString("bufferIndicator", BufferStats.MODE_HUD));

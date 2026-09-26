@@ -85,6 +85,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     static boolean reopenLookAfterAccent;
     private TextView bufIndAlways;
     private TextView bufIndOff;
+    private TextView swipeZapOn;
+    private TextView swipeZapOff;
     private TextView chipCat;
     private TextView chipSort;
     private TextView cols1;
@@ -269,6 +271,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.bufIndHud = (TextView) findViewById(R.id.bufIndHud);
         this.bufIndAlways = (TextView) findViewById(R.id.bufIndAlways);
         this.bufIndOff = (TextView) findViewById(R.id.bufIndOff);
+        this.swipeZapOn = (TextView) findViewById(R.id.swipeZapOn);
+        this.swipeZapOff = (TextView) findViewById(R.id.swipeZapOff);
+        View swipeZapRow = findViewById(R.id.swipeZapRow);
+        if (swipeZapRow != null && Tv.isTv(this)) swipeZapRow.setVisibility(View.GONE); // mobile-only gesture
         this.cols1 = (TextView) findViewById(R.id.cols1);
         this.cols2 = (TextView) findViewById(R.id.cols2);
         this.cols4 = (TextView) findViewById(R.id.cols4);
@@ -609,6 +615,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (this.bufIndAlways != null) {
             this.bufIndAlways.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { MainActivity.this.setBufferIndicator(BufferStats.MODE_ALWAYS); }
+            });
+        }
+        if (this.swipeZapOn != null) {
+            this.swipeZapOn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.prefs.setSwipeZap(true); MainActivity.this.paintBuffer(); }
+            });
+        }
+        if (this.swipeZapOff != null) {
+            this.swipeZapOff.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.prefs.setSwipeZap(false); MainActivity.this.paintBuffer(); }
             });
         }
         if (this.bufIndOff != null) {
@@ -2095,6 +2111,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (this.bufIndHud != null) paintChip(this.bufIndHud, BufferStats.MODE_HUD.equals(indicator), accent);
         if (this.bufIndAlways != null) paintChip(this.bufIndAlways, BufferStats.MODE_ALWAYS.equals(indicator), accent);
         if (this.bufIndOff != null) paintChip(this.bufIndOff, BufferStats.MODE_OFF.equals(indicator), accent);
+        boolean swipe = this.prefs.swipeZap();
+        if (this.swipeZapOn != null) paintChip(this.swipeZapOn, swipe, accent);
+        if (this.swipeZapOff != null) paintChip(this.swipeZapOff, !swipe, accent);
     }
 
     private void paintResize() {
