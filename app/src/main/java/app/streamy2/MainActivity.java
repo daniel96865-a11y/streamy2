@@ -135,6 +135,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     };
     private Updates.Info pendingUpdate;
+    /** Last automatic update check (elapsedRealtime). The app often stays open for days on TV. */
+    private static long lastAutoUpdateCheck;
+    static final long AUTO_UPDATE_INTERVAL_MS = 6L * 60L * 60L * 1000L;
     private PickAdapter pickAdapter;
     private RecyclerView pickList;
     private View pickerPane;
@@ -872,6 +875,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             });
         }
         requestNotifyPermission();
+        lastAutoUpdateCheck = SystemClock.elapsedRealtime();
         checkUpdate(false);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(z) { // from class: app.streamy2.MainActivity.4
             @Override // androidx.activity.OnBackPressedCallback
@@ -1483,6 +1487,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     && !Theme.get(this.prefs.accent()).id.equals(this.appliedAccent)) {
                 recreate();
                 return;
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
+        try {
+            long nowUp = SystemClock.elapsedRealtime();
+            if (lastAutoUpdateCheck > 0 && nowUp - lastAutoUpdateCheck >= AUTO_UPDATE_INTERVAL_MS) {
+                lastAutoUpdateCheck = nowUp;
+                checkUpdate(false);
             }
         } catch (Throwable t) {
             Quiet.ignored("MainActivity", t);
