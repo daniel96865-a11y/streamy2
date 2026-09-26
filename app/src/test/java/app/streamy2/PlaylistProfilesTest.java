@@ -105,4 +105,99 @@ public class PlaylistProfilesTest {
         assertEquals("https://a.test", prefs.url());
         assertFalse(prefs.profileIds().contains(second));
     }
+
+    // --- 3.75: adding a playlist must never replace the previous one ---
+
+    @Test public void savingDifferentServerCreatesSecondPlaylistAndKeepsFirst() {
+        Prefs prefs = new Prefs(context);
+        String first = prefs.saveAccountAsPlaylist("Liste A", "http://a.test:8080", "alice", "pa");
+        String second = prefs.saveAccountAsPlaylist("Liste B", "http://b.test:8080", "bob", "pb");
+        assertNotEquals(first, second);
+        assertEquals(2, prefs.profileCount());
+        assertEquals(second, prefs.activeProfileId());
+        assertEquals("http://b.test:8080", prefs.url());
+        assertTrue(prefs.setActiveProfile(first));
+        assertEquals("http://a.test:8080", prefs.url());
+        assertEquals("alice", prefs.user());
+        assertEquals("pa", prefs.pass());
+    }
+
+    @Test public void resavingSamePlaylistUpdatesInsteadOfDuplicating() {
+        Prefs prefs = new Prefs(context);
+        String a = prefs.saveAccountAsPlaylist("Liste A", "http://a.test:8080", "alice", "pa");
+        prefs.saveAccountAsPlaylist("Liste B", "http://b.test", "bob", "pb");
+        // same server (different notation) + user -> update A and select it
+        String again = prefs.saveAccountAsPlaylist("A neu", "https://A.test:8080/", "alice", "neu");
+        assertEquals(a, again);
+        assertEquals(2, prefs.profileCount());
+        assertEquals(a, prefs.activeProfileId());
+        assertEquals("neu", prefs.pass());
+        // server moved: same user + password on the active playlist -> still one entry
+        String moved = prefs.saveAccountAsPlaylist("A neu", "http://a2.test", "alice", "neu");
+        assertEquals(a, moved);
+        assertEquals(2, prefs.profileCount());
+        assertEquals("http://a2.test", prefs.url());
+    }
+
+    @Test public void activeSelectionPersistsAcrossRestart() {
+        Prefs prefs = new Prefs(context);
+        String a = prefs.saveAccountAsPlaylist("Liste A", "http://a.test", "alice", "pa");
+        String b = prefs.saveAccountAsPlaylist("Liste B", "http://b.test", "bob", "pb");
+        assertTrue(prefs.setActiveProfile(a));
+        Prefs restarted = new Prefs(context);
+        assertEquals(a, restarted.activeProfileId());
+        assertEquals(2, restarted.profileCount());
+        assertEquals("http://a.test", restarted.url());
+        assertTrue(restarted.profileIds().contains(b));
+    }
+
+    @Test public void pairingReceiveAddsPlaylistInsteadOfReplacing() {
+        // PIN pairing ("PIN vom Handy eingeben") fills the form and saves via
+        // saveAccountAsPlaylist, exactly like the Speichern button.
+        Prefs prefs = new Prefs(context);
+        String tvList = prefs.saveAccountAsPlaylist("TV Liste", "http://tv.test", "tv", "t");
+        String fromPhone = prefs.saveAccountAsPlaylist("Vom Handy", "http://phone.test", "phone", "p");
+        assertEquals(2, prefs.profileCount());
+        assertEquals(fromPhone, prefs.activeProfileId());
+        assertTrue(prefs.profileHasAccount(tvList));
+        assertEquals("TV Liste", prefs.profileDisplayName(tvList));
+    }
+
+    @Test public void addedButUnsavedPlaylistIsDiscardedAndPreviousRestored() {
+        Prefs prefs = new Prefs(context);
+        String a = prefs.saveAccountAsPlaylist("Liste A", "http://a.test", "alice", "pa");
+        String empty = prefs.createProfile(null);
+        assertEquals(empty, prefs.activeProfileId());
+        assertFalse(prefs.hasXtream());
+        assertTrue(prefs.discardEmptyActiveProfile());
+        assertEquals(a, prefs.activeProfileId());
+        assertEquals(1, prefs.profileCount());
+        assertFalse(prefs.discardEmptyActiveProfile());
+    }
+
+    @Test public void filledNewPlaylistIsUsedForTheNextSave() {
+        Prefs prefs = new Prefs(context);
+        String a = prefs.saveAccountAsPlaylist("Liste A", "http://a.test", "alice", "pa");
+        String empty = prefs.createProfile(null);
+        String saved = prefs.saveAccountAsPlaylist("Liste B", "http://b.test", "bob", "pb");
+        assertEquals(empty, saved);
+        assertEquals(2, prefs.profileCount());
+        assertTrue(prefs.profileHasAccount(a));
+    }
+
+    @Test public void deleteAndRenameSingleNonActivePlaylist() {
+        Prefs prefs = new Prefs(context);
+        String a = prefs.saveAccountAsPlaylist("Liste A", "http://a.test", "alice", "pa");
+        String b = prefs.saveAccountAsPlaylist("Liste B", "http://b.test", "bob", "pb");
+        String c = prefs.saveAccountAsPlaylist("Liste C", "http://c.test", "carl", "pc");
+        assertTrue(prefs.renameProfile(a, "Wohnzimmer"));
+        assertEquals("Wohnzimmer", prefs.profileDisplayName(a));
+        assertTrue(prefs.deleteProfile(b));
+        assertEquals(2, prefs.profileCount());
+        assertEquals(c, prefs.activeProfileId());
+        assertTrue(prefs.profileHasAccount(a));
+        // a deleted id is never handed out again (old catalog cache must not leak)
+        String d = prefs.createProfile(null);
+        assertNotEquals(b, d);
+    }
 }
