@@ -1,1 +1,1 @@
-{"versionCode":197,"versionName":"3.77","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.77.apk","changelog":"3.77: Neues Einstellungssymbol, Akzentfarbe färbt jetzt alle blauen Elemente, App-Symbol zeigt das Logo aus der App."}
+{"versionCode":198,"versionName":"3.78","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.78.apk","changelog":"3.78: Handy: Im Player per Wischen nach oben/unten den Sender wechseln (abschaltbar unter Wiedergabe)."}
