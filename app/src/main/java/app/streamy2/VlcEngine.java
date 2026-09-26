@@ -47,6 +47,14 @@ final class VlcEngine implements LiveEngine {
     private VLCVideoLayout layout;
     private LibVLC lib;
     private MediaPlayer player;
+    // Buffer indicator statistics (written from VLC event thread / UI tick, read on UI thread).
+    private volatile float statBufferingPct = -1f;
+    private volatile boolean statPlayingSeen;
+    private volatile int statRebuffers;
+    private volatile long statInputBps;
+    private volatile long statDemuxBps;
+    private volatile int statLostPictures;
+    private String statUrl;
     private final MediaPlayer.EventListener eventListener = new MediaPlayer.EventListener() {
         @Override
         public void onEvent(MediaPlayer.Event event) {
@@ -59,7 +67,16 @@ final class VlcEngine implements LiveEngine {
                 if (l != null) {
                     try { l.onError(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
                 }
+            } else if (event.type == MediaPlayer.Event.Buffering) {
+                try {
+                    float pct = event.getBuffering();
+                    if (pct < 100f && VlcEngine.this.statPlayingSeen && VlcEngine.this.statBufferingPct >= 100f) {
+                        VlcEngine.this.statRebuffers++;
+                    }
+                    VlcEngine.this.statBufferingPct = pct;
+                } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
             } else if (event.type == MediaPlayer.Event.Playing) {
+                VlcEngine.this.statPlayingSeen = true;
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
                     try { l.onPlaying(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
@@ -128,6 +145,15 @@ final class VlcEngine implements LiveEngine {
                 toastError("VLC nicht initialisiert");
                 return;
             }
+            if (!str.equals(this.statUrl)) {
+                this.statUrl = str;
+                this.statRebuffers = 0;
+                this.statLostPictures = 0;
+            }
+            this.statBufferingPct = -1f;
+            this.statPlayingSeen = false;
+            this.statInputBps = 0L;
+            this.statDemuxBps = 0L;
             ensureLayout();
             try {
                 this.player.stop();
@@ -359,6 +385,44 @@ final class VlcEngine implements LiveEngine {
             mediaPlayer.setTime(Math.max(0L, j));
         } catch (Throwable unused) {
             Quiet.ignored("VlcEngine", unused);
+        }
+    }
+
+    @Override // app.streamy2.LiveEngine
+    public float bufferingPercent() { return this.statBufferingPct; }
+
+    @Override // app.streamy2.LiveEngine
+    public int rebufferCount() { return this.statRebuffers; }
+
+    @Override // app.streamy2.LiveEngine
+    public long inputBitrateBps() { return this.statInputBps; }
+
+    @Override // app.streamy2.LiveEngine
+    public long demuxBitrateBps() { return this.statDemuxBps; }
+
+    @Override // app.streamy2.LiveEngine
+    public int lostPictures() { return this.statLostPictures; }
+
+    @Override // app.streamy2.LiveEngine
+    public void refreshStats() {
+        MediaPlayer mp = this.player;
+        if (mp == null) return;
+        org.videolan.libvlc.interfaces.IMedia media = null;
+        try {
+            media = mp.getMedia();
+            if (media == null) return;
+            org.videolan.libvlc.interfaces.IMedia.Stats st = media.getStats();
+            if (st != null) {
+                this.statInputBps = BufferStats.smooth(this.statInputBps, BufferStats.vlcBitrateToBps(st.inputBitrate));
+                this.statDemuxBps = BufferStats.smooth(this.statDemuxBps, BufferStats.vlcBitrateToBps(st.demuxBitrate));
+                this.statLostPictures = Math.max(0, st.lostPictures);
+            }
+        } catch (Throwable ignored) {
+            Quiet.ignored("VlcEngine", ignored);
+        } finally {
+            if (media != null) {
+                try { media.release(); } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
+            }
         }
     }
 }

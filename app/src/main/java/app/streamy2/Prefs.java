@@ -504,6 +504,15 @@ public class Prefs {
         this.p.edit().putString("buffer", str).apply();
     }
 
+    /** Player buffer indicator: "hud" (with controls, default), "always" (small overlay) or "off". */
+    public String bufferIndicator() {
+        return BufferStats.normMode(this.p.getString("bufferIndicator", BufferStats.MODE_HUD));
+    }
+
+    public void setBufferIndicator(String mode) {
+        this.p.edit().putString("bufferIndicator", BufferStats.normMode(mode)).apply();
+    }
+
     public int bufferMs() {
         String buffer = buffer();
         switch (buffer) {

@@ -78,6 +78,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView bufLow;
     private TextView bufMax;
     private TextView bufNorm;
+    private TextView bufIndHud;
+    private TextView bufIndAlways;
+    private TextView bufIndOff;
     private TextView chipCat;
     private TextView chipSort;
     private TextView cols1;
@@ -258,6 +261,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.bufNorm = (TextView) findViewById(R.id.bufNorm);
         this.bufHigh = (TextView) findViewById(R.id.bufHigh);
         this.bufMax = (TextView) findViewById(R.id.bufMax);
+        this.bufIndHud = (TextView) findViewById(R.id.bufIndHud);
+        this.bufIndAlways = (TextView) findViewById(R.id.bufIndAlways);
+        this.bufIndOff = (TextView) findViewById(R.id.bufIndOff);
         this.cols1 = (TextView) findViewById(R.id.cols1);
         this.cols2 = (TextView) findViewById(R.id.cols2);
         this.cols4 = (TextView) findViewById(R.id.cols4);
@@ -590,6 +596,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$30(view3);
             }
         });
+        if (this.bufIndHud != null) {
+            this.bufIndHud.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setBufferIndicator(BufferStats.MODE_HUD); }
+            });
+        }
+        if (this.bufIndAlways != null) {
+            this.bufIndAlways.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setBufferIndicator(BufferStats.MODE_ALWAYS); }
+            });
+        }
+        if (this.bufIndOff != null) {
+            this.bufIndOff.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { MainActivity.this.setBufferIndicator(BufferStats.MODE_OFF); }
+            });
+        }
         if (this.cols1 != null) {
             this.cols1.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) { MainActivity.this.setPosterColumns(1); }
@@ -1971,6 +1992,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintBuffer();
     }
 
+    private void setBufferIndicator(String mode) {
+        this.prefs.setBufferIndicator(mode);
+        paintBuffer();
+    }
+
     private void setPosterColumns(int cols) {
         this.prefs.setPosterColumns(cols);
         paintPosterColumns();
@@ -2050,6 +2076,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.bufNorm, "normal".equals(buffer), accent);
         paintChip(this.bufHigh, "high".equals(buffer), accent);
         paintChip(this.bufMax, "max".equals(buffer), accent);
+        String indicator = this.prefs.bufferIndicator();
+        if (this.bufIndHud != null) paintChip(this.bufIndHud, BufferStats.MODE_HUD.equals(indicator), accent);
+        if (this.bufIndAlways != null) paintChip(this.bufIndAlways, BufferStats.MODE_ALWAYS.equals(indicator), accent);
+        if (this.bufIndOff != null) paintChip(this.bufIndOff, BufferStats.MODE_OFF.equals(indicator), accent);
     }
 
     private void paintResize() {

@@ -36,11 +36,14 @@ import androidx.media3.common.Player;
 import androidx.media3.common.TrackSelectionOverride;
 import androidx.media3.common.Tracks;
 import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.TransferListener;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.DefaultLoadControl;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.Renderer;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory;
 import androidx.media3.exoplayer.hls.HlsMediaSource;
 import androidx.media3.exoplayer.source.MediaSource;
@@ -101,6 +104,21 @@ public class PlayerActivity extends AppCompatActivity {
     private TextView epgNext;
     private TextView epgNow;
     private SeekBar epgSeek;
+    // Buffer indicator (see BufferStats). All access guarded; never affects playback.
+    private TextView bufferInfo;
+    private TextView bufferOverlay;
+    private String bufferMode = BufferStats.MODE_HUD;
+    private final java.util.concurrent.atomic.AtomicLong bufBytesTotal = new java.util.concurrent.atomic.AtomicLong();
+    private long bufLastBytes = -1L;
+    private long bufLastAt;
+    private long bufThroughputBps;
+    private volatile long bufBandwidthEstimateBps;
+    private volatile int exoRebuffers;
+    private volatile boolean exoReadySeen;
+    private volatile boolean exoSeekPending;
+    private volatile boolean exoBuffering;
+    private String exoStatUri;
+    private int bufLastSecondary = -1;
     private View epgSheet;
     private TextView epgStart;
     private TextView errorView;
@@ -161,6 +179,7 @@ public class PlayerActivity extends AppCompatActivity {
         @Override // java.lang.Runnable
         public void run() {
             PlayerActivity.this.updateClockAndBar();
+            PlayerActivity.this.updateBufferIndicator();
             PlayerActivity.this.armVlcHudHideIfPlaying();
             PlayerActivity.UI.postDelayed(this, 1000L);
         }
@@ -367,6 +386,13 @@ public class PlayerActivity extends AppCompatActivity {
         this.epgStart = (TextView) findViewById(R.id.epgStart);
         this.epgEnd = (TextView) findViewById(R.id.epgEnd);
         this.epgSeek = (SeekBar) findViewById(R.id.epgSeek);
+        this.bufferInfo = (TextView) findViewById(R.id.bufferInfo);
+        this.bufferOverlay = (TextView) findViewById(R.id.bufferOverlay);
+        try {
+            this.bufferMode = new Prefs(this).bufferIndicator();
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
         this.badgeLive = (TextView) findViewById(R.id.badgeLive);
         this.archiveHint = (TextView) findViewById(R.id.archiveHint);
         this.topBar = findViewById(R.id.topBar);
@@ -599,6 +625,11 @@ public class PlayerActivity extends AppCompatActivity {
         hashMap.put(HttpHeaders.USER_AGENT, "VLC/3.0.21 LibVLC/3.0.21");
         hashMap.put(HttpHeaders.REFERER, originOf(stringExtra));
         this.http = new DefaultHttpDataSource.Factory().setUserAgent("VLC/3.0.21 LibVLC/3.0.21").setAllowCrossProtocolRedirects(true).setConnectTimeoutMs(6000).setReadTimeoutMs(8000).setDefaultRequestProperties((Map<String, String>) hashMap);
+        try {
+            this.http.setTransferListener(new BufferByteCounter(this.bufBytesTotal));
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
         applyHeaders(stringExtra);
         DefaultLoadControl build = buildLoadControl();
         DefaultRenderersFactory extensionRendererMode = new DefaultRenderersFactory(this).setEnableDecoderFallback(true).setExtensionRendererMode(0);
@@ -660,6 +691,11 @@ public class PlayerActivity extends AppCompatActivity {
         installPlayerFocusEffects();
         if (this.player != null) {
             this.player.addListener(new AnonymousClass3());
+            try {
+                this.player.addAnalyticsListener(new BufferAnalytics());
+            } catch (Throwable t) {
+                Quiet.ignored("PlayerActivity", t);
+            }
         }
         Handler handler = UI;
         handler.post(new PlayerActivity$$ExternalSyntheticLambda23(this));
@@ -1341,6 +1377,191 @@ public class PlayerActivity extends AppCompatActivity {
         }
     }
 
+    /** Counts bytes read by ExoPlayer's HTTP data sources (loader threads). */
+    private static final class BufferByteCounter implements TransferListener {
+        private final java.util.concurrent.atomic.AtomicLong total;
+
+        BufferByteCounter(java.util.concurrent.atomic.AtomicLong total) {
+            this.total = total;
+        }
+
+        @Override public void onTransferInitializing(DataSource source, DataSpec dataSpec, boolean isNetwork) {}
+
+        @Override public void onTransferStart(DataSource source, DataSpec dataSpec, boolean isNetwork) {}
+
+        @Override
+        public void onBytesTransferred(DataSource source, DataSpec dataSpec, boolean isNetwork, int bytesTransferred) {
+            if (bytesTransferred > 0) this.total.addAndGet(bytesTransferred);
+        }
+
+        @Override public void onTransferEnd(DataSource source, DataSpec dataSpec, boolean isNetwork) {}
+    }
+
+    /** Rebuffer counter + bandwidth estimate for the buffer indicator (main thread callbacks). */
+    private final class BufferAnalytics implements AnalyticsListener {
+        @Override
+        public void onPlaybackStateChanged(AnalyticsListener.EventTime eventTime, int state) {
+            try {
+                if (state == Player.STATE_READY) {
+                    PlayerActivity.this.exoReadySeen = true;
+                    PlayerActivity.this.exoSeekPending = false;
+                    PlayerActivity.this.exoBuffering = false;
+                } else if (state == Player.STATE_BUFFERING) {
+                    PlayerActivity.this.exoBuffering = true;
+                    if (PlayerActivity.this.exoReadySeen && !PlayerActivity.this.exoSeekPending) {
+                        PlayerActivity.this.exoRebuffers++;
+                    }
+                    PlayerActivity.this.exoSeekPending = false;
+                } else {
+                    // IDLE / ENDED: next start is an initial load, not a stutter.
+                    PlayerActivity.this.exoReadySeen = false;
+                    PlayerActivity.this.exoBuffering = false;
+                }
+            } catch (Throwable t) {
+                Quiet.ignored("PlayerActivity", t);
+            }
+        }
+
+        @Override
+        public void onPositionDiscontinuity(AnalyticsListener.EventTime eventTime, Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK || reason == Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) {
+                PlayerActivity.this.exoSeekPending = true;
+            }
+        }
+
+        @Override
+        public void onMediaItemTransition(AnalyticsListener.EventTime eventTime, MediaItem mediaItem, int reason) {
+            try {
+                String uri = mediaItem != null && mediaItem.localConfiguration != null ? String.valueOf(mediaItem.localConfiguration.uri) : null;
+                if (uri != null && !uri.equals(PlayerActivity.this.exoStatUri)) {
+                    PlayerActivity.this.exoStatUri = uri;
+                    PlayerActivity.this.exoRebuffers = 0;
+                    PlayerActivity.this.bufThroughputBps = 0L;
+                }
+            } catch (Throwable t) {
+                Quiet.ignored("PlayerActivity", t);
+            }
+        }
+
+        @Override
+        public void onBandwidthEstimate(AnalyticsListener.EventTime eventTime, int totalLoadTimeMs, long totalBytesLoaded, long bitrateEstimate) {
+            if (bitrateEstimate > 0) PlayerActivity.this.bufBandwidthEstimateBps = bitrateEstimate;
+        }
+    }
+
+    private static void setVisible(View view, boolean visible) {
+        if (view == null) return;
+        int want = visible ? View.VISIBLE : View.GONE;
+        if (view.getVisibility() != want) view.setVisibility(want);
+    }
+
+    private static int bufferLevelColor(int level) {
+        if (level == BufferStats.LEVEL_BAD) return 0xFFFF7A6B;
+        if (level == BufferStats.LEVEL_WARN) return 0xFFFFC857;
+        return 0xB3FFFFFF;
+    }
+
+    /** Called ~1x per second from {@link #tick} and on HUD changes. Never throws. */
+    void updateBufferIndicator() {
+        try {
+            long now = android.os.SystemClock.elapsedRealtime();
+            long bytes = this.bufBytesTotal.get();
+            if (this.bufLastBytes >= 0 && now > this.bufLastAt) {
+                long sample = BufferStats.rateBps(bytes - this.bufLastBytes, now - this.bufLastAt);
+                this.bufThroughputBps = BufferStats.smooth(this.bufThroughputBps, sample);
+            }
+            this.bufLastBytes = bytes;
+            this.bufLastAt = now;
+
+            String mode = this.bufferMode;
+            boolean off = BufferStats.MODE_OFF.equals(mode);
+            boolean hudVisible = this.bottomBar != null && this.bottomBar.getVisibility() == View.VISIBLE;
+            boolean showInline = !off && hudVisible;
+            boolean showOverlay = BufferStats.MODE_ALWAYS.equals(mode) && !hudVisible;
+            setVisible(this.bufferInfo, showInline);
+            setVisible(this.bufferOverlay, showOverlay);
+            updateBufferedSecondary(off);
+            if (!showInline && !showOverlay) return;
+
+            String line;
+            int level;
+            if (this.useVlc) {
+                LiveEngine engine = this.vlc;
+                if (engine == null) return;
+                engine.refreshStats();
+                float pct = engine.bufferingPercent();
+                line = BufferStats.vlcLine(pct, pct >= 100f && !engine.isPlaying(), engine.inputBitrateBps(), engine.demuxBitrateBps(), engine.lostPictures(), engine.rebufferCount());
+                level = BufferStats.vlcLevel(pct, 0, 0);
+            } else {
+                ExoPlayer exo = this.player;
+                if (exo == null) return;
+                long ahead = Math.max(0L, exo.getTotalBufferedDuration());
+                boolean buffering = exo.getPlaybackState() == Player.STATE_BUFFERING;
+                long throughput = this.bufThroughputBps > 0 ? this.bufThroughputBps : this.bufBandwidthEstimateBps;
+                long stream = exoStreamBitrate(exo);
+                boolean paused = !buffering && !exo.getPlayWhenReady();
+                line = BufferStats.exoLine(buffering, paused, ahead, throughput, stream, this.exoRebuffers);
+                level = BufferStats.exoLevel(buffering, ahead, throughput, stream);
+            }
+            int color = bufferLevelColor(level);
+            TextView target = showInline ? this.bufferInfo : this.bufferOverlay;
+            if (target != null) {
+                if (!line.contentEquals(target.getText())) target.setText(line);
+                if (target.getCurrentTextColor() != color) target.setTextColor(color);
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
+    private static long exoStreamBitrate(ExoPlayer exo) {
+        long total = 0L;
+        try {
+            Format v = exo.getVideoFormat();
+            if (v != null) total += Math.max(0, v.bitrate > 0 ? v.bitrate : Math.max(v.averageBitrate, v.peakBitrate));
+            Format a = exo.getAudioFormat();
+            if (a != null && total > 0) total += Math.max(0, a.bitrate > 0 ? a.bitrate : Math.max(a.averageBitrate, a.peakBitrate));
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+        return total;
+    }
+
+    /** Buffered part of VOD / catch-up on the seek bar (secondary progress). */
+    private void updateBufferedSecondary(boolean off) {
+        SeekBar bar = this.epgSeek;
+        if (bar == null) return;
+        int value = 0;
+        ExoPlayer exo = this.player;
+        if (!off && !this.useVlc && exo != null) {
+            long buffered = exo.getBufferedPosition();
+            if (!this.liveMode) {
+                value = BufferStats.secondaryProgress(buffered, 0L, vodDuration(), 1000);
+            } else if (this.catchup && this.current != null && this.catchupPendingTarget < 0) {
+                long start = this.current.start;
+                long span = Math.max(1L, this.current.stop - start);
+                value = BufferStats.secondaryProgress(CatchupSeek.shownTime(this.catchupStreamStartMs, buffered), start, span, 1000);
+            }
+        }
+        if (value != this.bufLastSecondary) {
+            this.bufLastSecondary = value;
+            bar.setSecondaryProgress(value);
+        }
+    }
+
+    private void cycleBufferIndicator() {
+        try {
+            Prefs prefs = new Prefs(this);
+            String next = BufferStats.nextMode(prefs.bufferIndicator());
+            prefs.setBufferIndicator(next);
+            this.bufferMode = next;
+            Toast.makeText(this, "Puffer-Anzeige: " + BufferStats.modeLabel(next), Toast.LENGTH_SHORT).show();
+            updateBufferIndicator();
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
     private void setHud(boolean z) {
         this.hud = z;
         boolean z2 = false;
@@ -1368,6 +1589,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (z && this.liveMode) {
             bindEpg();
         }
+        updateBufferIndicator();
         if (z) {
             if (Tv.isTv(this)) {
                 ensureTvControlsFocusable();
@@ -3043,6 +3265,7 @@ public class PlayerActivity extends AppCompatActivity {
         items.add("Video-Skalierung: " + resizeLabel());
         items.add("Sleep-Timer");
         items.add("Stream-Info");
+        items.add("Puffer-Anzeige: " + BufferStats.modeLabel(this.bufferMode));
         items.add(this.audioOnly ? "Video anzeigen" : "Nur Audio");
         if (this.liveMode) items.add("Programm");
         final AlertDialog dialog = new AlertDialog.Builder(this)
@@ -3055,6 +3278,7 @@ public class PlayerActivity extends AppCompatActivity {
                     else if (selected.startsWith("Video-Skalierung")) showResizeOptions();
                     else if (selected.equals("Sleep-Timer")) showSleepTimer();
                     else if (selected.equals("Stream-Info")) showDiagnostics();
+                    else if (selected.startsWith("Puffer-Anzeige")) cycleBufferIndicator();
                     else if (selected.equals("Nur Audio") || selected.equals("Video anzeigen")) toggleAudioOnly();
                     else if (selected.equals("Programm")) openEpg();
                 })
