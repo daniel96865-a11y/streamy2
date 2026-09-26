@@ -680,7 +680,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         updateEpgStatus();
         Tv.focusTree(this.mainPane);
         Tv.focusTree(this.settingsPane);
-        installSettingsTvLayout();
+        try {
+            installSettingsTvLayout();
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
         TextView textView4 = (TextView) findViewById(R.id.btnClosePicker);
         if (textView4 != null) {
             textView4.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda99
@@ -863,7 +867,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$1(View view, View view2) {
-        syncTvChrome(view2);
+        try {
+            syncTvChrome(view2);
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
     }
 
     /* JADX INFO: Access modifiers changed from: private */
@@ -1208,10 +1216,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (keyEvent.getAction() == 0 && Tv.isTv(this) && this.list != null && (((view2 = this.detailPane) == null || view2.getVisibility() != 0) && (view3 = this.settingsPane) != null && view3.getVisibility() != 0 && ((browserController2 = this.browser) == null || !browserController2.visible()))) {
             int keyCode2 = keyEvent.getKeyCode();
             View findFocus = this.list.findFocus();
-            int childAdapterPosition = findFocus == null ? -1 : this.list.getChildAdapterPosition(findFocus);
-            if (childAdapterPosition == -1 && findFocus != null && (findFocus.getParent() instanceof View)) {
-                childAdapterPosition = this.list.getChildAdapterPosition((View) findFocus.getParent());
-            }
+            int childAdapterPosition = listPosition(findFocus);
             ChannelAdapter channelAdapter = this.adapter;
             Object item = channelAdapter != null ? channelAdapter.getItem(childAdapterPosition) : null;
             if (item instanceof Models.Media) {
@@ -1228,7 +1233,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (keyEvent.getAction() == 0 && keyEvent.getKeyCode() == 19 && (recyclerView = this.list) != null && recyclerView.hasFocus() && (((browserController = this.browser) == null || !browserController.visible()) && (view = this.settingsPane) != null && view.getVisibility() != 0)) {
             View findFocus2 = this.list.findFocus();
-            if ((findFocus2 != null ? this.list.getChildAdapterPosition(findFocus2) : -1) == 0) {
+            if (listPosition(findFocus2) == 0) {
                 setTvChrome(true);
                 TextView textView = this.chipCat;
                 if (textView != null && textView.getVisibility() == 0) {
@@ -1367,11 +1372,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             setTvChrome(true);
             return;
         }
-        int childAdapterPosition = this.list.getChildAdapterPosition(view);
-        if (childAdapterPosition == -1 && (view.getParent() instanceof View)) {
-            childAdapterPosition = this.list.getChildAdapterPosition((View) view.getParent());
-        }
-        setTvChrome(childAdapterPosition <= 0);
+        setTvChrome(listPosition(view) <= 0);
     }
 
     private void setTvChrome(boolean z) {
@@ -1387,6 +1388,33 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         AppBarLayout appBarLayout = this.appBar;
         if (appBarLayout != null) {
             appBarLayout.setExpanded(true, false);
+        }
+    }
+
+    /**
+     * Adapter position of the list row that contains {@code view}, or -1.
+     * RecyclerView.getChildAdapterPosition() must only be called with a DIRECT child:
+     * for the RecyclerView itself (focused while the list is empty, e.g. while the
+     * catalog/EPG is still loading) or a nested view it throws ClassCastException
+     * (FrameLayout.LayoutParams -> RecyclerView.LayoutParams) and crashes the app.
+     */
+    private int listPosition(View view) {
+        RecyclerView rv = this.list;
+        if (rv == null || view == null || view == rv) {
+            return -1;
+        }
+        try {
+            View child = view;
+            while (child != null && child.getParent() != rv) {
+                if (!(child.getParent() instanceof View)) {
+                    return -1;
+                }
+                child = (View) child.getParent();
+            }
+            return child == null ? -1 : rv.getChildAdapterPosition(child);
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+            return -1;
         }
     }
 
@@ -2103,6 +2131,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void relinkFolds() {
+        try {
+            relinkFoldsUnsafe();
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
+    }
+
+    private void relinkFoldsUnsafe() {
         // D-pad links between the settings cards. Links follow the actually open
         // sections in both directions so Up/Down never skip an expanded section
         // (previously Down from "Player" jumped to the HLS/TS row and Up from a
@@ -2209,15 +2245,24 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         content.setPadding(content.getPaddingLeft(), content.getPaddingTop(),
                 content.getPaddingRight(), content.getPaddingBottom() + dp(24));
         scroll.getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
-            if (newFocus == null || this.settingsPane.getVisibility() != View.VISIBLE || !isUnder(scroll, newFocus)) {
-                return;
-            }
-            if (newFocus == focusableEdge(content, false)) {
-                scroll.post(() -> scroll.smoothScrollTo(0, Math.max(0, content.getHeight() - scroll.getHeight())));
-            } else if (newFocus == focusableEdge(content, true)) {
-                scroll.post(() -> scroll.smoothScrollTo(0, 0));
+            try {
+                followSettingsFocus(scroll, content, newFocus);
+            } catch (Throwable t) {
+                Quiet.ignored("MainActivity", t);
             }
         });
+    }
+
+    private void followSettingsFocus(final ScrollView scroll, final View content, View newFocus) {
+        if (newFocus == null || this.settingsPane == null
+                || this.settingsPane.getVisibility() != View.VISIBLE || !isUnder(scroll, newFocus)) {
+            return;
+        }
+        if (newFocus == focusableEdge(content, false)) {
+            scroll.post(() -> scroll.smoothScrollTo(0, Math.max(0, content.getHeight() - scroll.getHeight())));
+        } else if (newFocus == focusableEdge(content, true)) {
+            scroll.post(() -> scroll.smoothScrollTo(0, 0));
+        }
     }
 
     private static boolean open(View view) {
