@@ -949,7 +949,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /* JADX INFO: Access modifiers changed from: private */
     public /* synthetic */ void lambda$onCreate$15(View view) {
-        this.prefs.clearAccount();
+        // Demo is only a temporary preview: never delete a saved playlist for it.
         this.api = null;
         App.api = null;
         synchronized (this.epgAsked) {
@@ -1495,6 +1495,19 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         hideKeyboard();
         if (!z) {
             this.prefs.setEpgUrl(text(this.inEpgUrl));
+            // "+ Wiedergabeliste hinzufügen" and left without saving: drop the empty
+            // entry and return to the previous playlist instead of showing nothing.
+            try {
+                if (this.prefs.discardEmptyActiveProfile()) {
+                    App.api = null;
+                    App.live = null;
+                    App.guide = new EpgGuide();
+                    recreate();
+                    return;
+                }
+            } catch (Throwable t) {
+                Quiet.ignored("MainActivity", t);
+            }
         }
         this.settingsPane.setVisibility(z ? 0 : 8);
         this.mainPane.setVisibility(z ? 8 : 0);
@@ -1723,7 +1736,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (name == null || name.isEmpty()) {
                 name = this.prefs.user();
             }
-            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden");
+            int count = this.prefs.profileCount();
+            this.activeLabel.setText("Aktive Playlist: " + name + "  ·  Verbunden"
+                    + (count > 1 ? "\n" + count + " Playlists gespeichert – hier wechseln" : ""));
             this.activeLabel.setTextColor(accent.color);
             TextView textView = (TextView) findViewById(R.id.accHint);
             if (textView != null) {
@@ -3577,7 +3592,21 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 if (str4.isEmpty()) {
                     str4 = str2;
                 }
-                prefs.saveAccount(str4, xtreamApi.base, str2, str3);
+                // Keep all saved playlists: a different server/user becomes a NEW
+                // playlist instead of overwriting the active one.
+                String before = prefs.activeProfileId();
+                int countBefore = prefs.profileCount();
+                String saved = prefs.saveAccountAsPlaylist(str4, xtreamApi.base, str2, str3);
+                final boolean switched = !saved.equals(before);
+                final boolean added = prefs.profileCount() > countBefore;
+                if (switched) {
+                    UI.post(() -> {
+                        if (this.guide != null) this.guide.clear();
+                        Toast.makeText(this, added
+                                ? "Neue Playlist gespeichert · " + this.prefs.profileCount() + " Playlists"
+                                : "Playlist aktualisiert und ausgewählt", Toast.LENGTH_SHORT).show();
+                    });
+                }
                 this.api = xtreamApi;
                 App.api = xtreamApi;
                 final Models.Catalog loadLive = xtreamApi.loadLive();

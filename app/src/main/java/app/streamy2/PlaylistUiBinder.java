@@ -97,29 +97,46 @@ final class PlaylistUiBinder {
         final String active = prefs.activeProfileId();
         ArrayList<String> entries = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
-            String prefix = ids.get(i).equals(active) ? "✓ " : "";
+            String prefix = ids.get(i).equals(active) ? "✓ " : "    ";
             entries.add(prefix + names.get(i));
         }
         entries.add("＋ Neue Playlist hinzufügen");
-        entries.add("🗑 Aktive Playlist löschen");
 
         AlertDialog manager = new AlertDialog.Builder(main)
-                .setTitle("Wiedergabelisten")
+                .setTitle("Wiedergabelisten (" + ids.size() + ")")
                 .setItems(entries.toArray(new String[0]), (dialog, which) -> {
                     if (which < ids.size()) {
-                        activate(main, prefs, ids.get(which));
-                    } else if (which == ids.size()) {
-                        add(main, prefs);
+                        showEntry(main, prefs, ids.get(which));
                     } else {
-                        confirmDelete(main, prefs);
+                        add(main, prefs);
                     }
                 })
-                .setNegativeButton("Abbrechen", null)
+                .setNegativeButton("Schließen", null)
                 .show();
         Tv.styleDialog(manager);
     }
 
-    private static void activate(MainActivity main, Prefs prefs, String id) {
+    /** Per-playlist actions: use it, rename it or delete just this one. */
+    private static void showEntry(MainActivity main, Prefs prefs, String id) {
+        final boolean isActive = id.equals(prefs.activeProfileId());
+        String name = prefs.profileDisplayName(id);
+        String[] actions = new String[]{
+                isActive ? "✓ Wird verwendet" : "▶ Diese Playlist verwenden",
+                "✎ Umbenennen",
+                "🗑 Löschen"};
+        AlertDialog entry = new AlertDialog.Builder(main)
+                .setTitle(name)
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) activate(main, prefs, id);
+                    else if (which == 1) rename(main, prefs, id);
+                    else confirmDelete(main, prefs, id);
+                })
+                .setNegativeButton("Zurück", (dialog, which) -> showManager(main, new Prefs(main)))
+                .show();
+        Tv.styleDialog(entry);
+    }
+
+    static void activate(MainActivity main, Prefs prefs, String id) {
         if (id.equals(prefs.activeProfileId())) return;
         if (prefs.setActiveProfile(id)) {
             resetAppState();
@@ -127,24 +144,55 @@ final class PlaylistUiBinder {
         }
     }
 
+    private static void rename(MainActivity main, Prefs prefs, String id) {
+        final EditText input = new EditText(main);
+        input.setSingleLine(true);
+        input.setText(prefs.profileDisplayName(id));
+        input.setSelectAllOnFocus(true);
+        input.setTextColor(main.getColor(R.color.fg));
+        AlertDialog dialog = new AlertDialog.Builder(main)
+                .setTitle("Playlist umbenennen")
+                .setView(input)
+                .setPositiveButton("Speichern", (d, which) -> {
+                    String label = input.getText() == null ? "" : input.getText().toString();
+                    if (prefs.renameProfile(id, label)) {
+                        bindLabel(main, new Prefs(main));
+                        showManager(main, new Prefs(main));
+                    }
+                })
+                .setNegativeButton("Abbrechen", null)
+                .show();
+        Tv.styleDialog(dialog);
+        input.requestFocus();
+    }
+
     private static void add(MainActivity main, Prefs prefs) {
-        prefs.createProfile(null);
+        // Reuse an already empty active entry instead of piling up empty playlists.
+        if (prefs.profileHasAccount(prefs.activeProfileId()) || prefs.profileCount() == 0) {
+            prefs.createProfile(null);
+        }
         main.getSharedPreferences(PREFS, 0).edit().putBoolean(OPEN_SETTINGS, true).apply();
         resetAppState();
         main.recreate();
     }
 
-    private static void confirmDelete(MainActivity main, Prefs prefs) {
-        String name = prefs.activeProfileName();
+    private static void confirmDelete(MainActivity main, Prefs prefs, String id) {
+        String name = prefs.profileDisplayName(id);
+        final boolean wasActive = id.equals(prefs.activeProfileId());
         AlertDialog confirm = new AlertDialog.Builder(main)
                 .setTitle("Playlist löschen")
-                .setMessage("„" + name + "“ wirklich von diesem Gerät löschen?")
+                .setMessage("„" + name + "“ wirklich von diesem Gerät löschen? Andere Playlists bleiben erhalten.")
                 .setPositiveButton("Löschen", (dialog, which) -> {
-                    File cache = prefs.catalogCacheFile(main.getCacheDir());
+                    File cache = prefs.catalogCacheFile(main.getCacheDir(), id);
                     if (cache != null && cache.isFile()) cache.delete();
-                    prefs.deleteActiveProfile();
-                    resetAppState();
-                    main.recreate();
+                    prefs.deleteProfile(id);
+                    if (wasActive) {
+                        resetAppState();
+                        main.recreate();
+                    } else {
+                        bindLabel(main, new Prefs(main));
+                        showManager(main, new Prefs(main));
+                    }
                 })
                 .setNegativeButton("Abbrechen", null)
                 .show();
