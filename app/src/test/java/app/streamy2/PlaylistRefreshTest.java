@@ -25,6 +25,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowAlertDialog;
 import org.robolectric.shadows.ShadowToast;
 
 /** 3.80: manual "Playlist aktualisieren" reloads the active playlist from the server. */
@@ -100,6 +101,12 @@ public class PlaylistRefreshTest {
         return c;
     }
 
+    private static void clickItem(android.app.AlertDialog dialog, int position) {
+        android.widget.ListView list = dialog.getListView();
+        list.performItemClick(list.getAdapter().getView(position, null, list), position, position);
+        idle();
+    }
+
     private static TextView settingsRefreshButton(MainActivity a) {
         View label = a.findViewById(R.id.activeLabel);
         View button = ((ViewGroup) label.getParent()).findViewWithTag(PlaylistUiBinder.REFRESH_TAG);
@@ -113,27 +120,42 @@ public class PlaylistRefreshTest {
         MainActivity a = c.get();
         assertEquals(2, App.live.size());
 
-        // Button above the Live-TV list is visible with the playlist label.
-        TextView listButton = a.findViewById(R.id.btnRefreshMedia);
-        assertEquals(View.VISIBLE, listButton.getVisibility());
-        assertEquals("Playlist aktualisieren", listButton.getText().toString());
-        assertNotNull("vector icon", listButton.getCompoundDrawablesRelative()[0]);
+        // No refresh button above the Live-TV / Filme / Serien list (3.81).
+        View listButton = a.findViewById(R.id.btnRefreshMedia);
+        for (int tabId : new int[]{R.id.tabLive, R.id.tabMovies, R.id.tabSeries}) {
+            a.findViewById(tabId).performClick();
+            idle();
+            assertNotEquals("no list refresh button", View.VISIBLE, listButton.getVisibility());
+        }
+        a.findViewById(R.id.tabLive).performClick();
+        idle();
 
+        // Settings: "Playlist aktualisieren" below the active playlist.
+        TextView settingsButton = settingsRefreshButton(a);
+        assertEquals(View.VISIBLE, settingsButton.getVisibility());
+        assertTrue(settingsButton.isFocusable());
+        assertEquals("Playlist aktualisieren", settingsButton.getText().toString());
+        assertNotNull("vector icon", settingsButton.getCompoundDrawablesRelative()[0]);
         channels.set(5);
         int before = streamRequests.get();
-        listButton.performClick();
+        settingsButton.performClick();
         waitFor(() -> !a.isPlaylistRefreshing());
         assertTrue("must hit the network", streamRequests.get() > before);
         assertEquals("no-cache", lastCacheControl.get());
         assertEquals("Playlist aktualisiert: 5 Sender", ShadowToast.getTextOfLatestToast());
         assertEquals(5, App.live.size());
 
-        // Settings button does the same.
-        TextView settingsButton = settingsRefreshButton(a);
-        assertEquals(View.VISIBLE, settingsButton.getVisibility());
-        assertTrue(settingsButton.isFocusable());
+        // Playlist manager: active playlist -> "Playlist aktualisieren".
         channels.set(7);
-        settingsButton.performClick();
+        a.findViewById(R.id.activeLabel).performClick();
+        idle();
+        android.app.AlertDialog manager = (android.app.AlertDialog) ShadowAlertDialog.getLatestAlertDialog();
+        assertNotNull(manager);
+        clickItem(manager, 0);
+        android.app.AlertDialog entry = (android.app.AlertDialog) ShadowAlertDialog.getLatestAlertDialog();
+        assertNotSame(manager, entry);
+        assertEquals("Playlist aktualisieren", entry.getListView().getAdapter().getItem(1));
+        clickItem(entry, 1);
         waitFor(() -> !a.isPlaylistRefreshing());
         assertEquals("Playlist aktualisiert: 7 Sender", ShadowToast.getTextOfLatestToast());
         assertEquals(7, App.live.size());
@@ -150,8 +172,7 @@ public class PlaylistRefreshTest {
         String toast = ShadowToast.getTextOfLatestToast();
         assertTrue(toast, toast.startsWith("Playlist konnte nicht aktualisiert werden"));
         assertEquals("old list stays", 2, App.live.size());
-        TextView listButton = a.findViewById(R.id.btnRefreshMedia);
-        assertTrue("button usable again", listButton.isEnabled());
+        assertTrue("button usable again", settingsRefreshButton(a).isEnabled());
         c.pause().stop().destroy();
     }
 

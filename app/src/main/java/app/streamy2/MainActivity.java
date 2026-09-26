@@ -303,11 +303,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.btnRefreshMedia.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view2) {
-                    if (MainActivity.this.tab == 5) {
-                        MainActivity.this.refreshMediaNow();
-                    } else {
-                        MainActivity.this.refreshPlaylist();
-                    }
+                    MainActivity.this.refreshMediaNow();
                 }
             });
         }
@@ -864,7 +860,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         paintTabs();
-        updateRefreshButton();
         if (this.prefs.hasXtream()) {
             // Show shell UI immediately; heavy CatalogCache JSON parse runs off the main thread.
             if (this.loading != null) {
@@ -2446,7 +2441,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         // Switching section/tab always leaves the search: clear the query, drop focus
         // from the search field and hide the keyboard (3.79 fix).
         closeSearch();
-        updateRefreshButton();
+        if (this.btnRefreshMedia != null) {
+            this.btnRefreshMedia.setVisibility(i == 5 ? View.VISIBLE : View.GONE);
+        }
         this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
@@ -3948,34 +3945,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
     }
 
-    /**
-     * The refresh button above the list: Media Extra on its tab, otherwise the
-     * active playlist (Live-TV, Filme, Serien) when one is saved.
-     */
-    void updateRefreshButton() {
-        View view = this.btnRefreshMedia;
-        if (view == null) {
-            return;
-        }
-        int t = this.tab;
-        boolean playlistTab = (t == 0 || t == 1 || t == 2) && this.prefs != null && this.prefs.hasXtream();
-        view.setVisibility(t == 5 || playlistTab ? View.VISIBLE : View.GONE);
-        if (view instanceof TextView) {
-            TextView button = (TextView) view;
-            boolean busy = t != 5 && this.playlistRefreshing;
-            button.setText(busy ? "Wird aktualisiert…" : (t == 5 ? "Aktualisieren" : "Playlist aktualisieren"));
-            button.setContentDescription(t == 5 ? "Medien aktualisieren" : "Playlist aktualisieren");
-            button.setEnabled(!busy);
-            button.setAlpha(busy ? 0.7f : 1.0f);
-            try {
-                button.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(
-                        Theme.get(this.prefs.accent()).color));
-            } catch (Throwable t2) {
-                Quiet.ignored("MainActivity", t2);
-            }
-        }
-    }
-
     boolean isPlaylistRefreshing() {
         return this.playlistRefreshing;
     }
@@ -4106,7 +4075,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void setPlaylistRefreshBusy(boolean busy) {
-        updateRefreshButton();
         try {
             PlaylistUiBinder.setRefreshBusy(this, busy);
         } catch (Throwable t) {
