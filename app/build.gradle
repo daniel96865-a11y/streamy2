@@ -74,7 +74,10 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
-            all { jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED' }
+            all {
+                jvmArgs '--add-opens=java.base/java.io=ALL-UNNAMED'
+                testLogging { exceptionFormat 'full'; showStackTraces true; showCauses true }
+            }
         }
     }
 

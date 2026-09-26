@@ -38,8 +38,16 @@ public class TvMainActivityLaunchTest {
         if (tv) makeTv(RuntimeEnvironment.getApplication());
         ActivityController<MainActivity> controller = Robolectric.buildActivity(MainActivity.class);
         if (tv) makeTv(controller.get());
-        controller.create().start().postCreate(null).resume().visible();
-        ShadowLooper.idleMainLooper();
+        try {
+            controller.create().start().postCreate(null).resume().visible();
+            ShadowLooper.idleMainLooper();
+        } catch (Throwable t) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            t.printStackTrace(new java.io.PrintWriter(sw));
+            String trace = sw.toString();
+            System.err.println("LAUNCH CRASH: " + trace);
+            throw new AssertionError("MainActivity launch crashed (tv=" + tv + "):\n" + trace.substring(0, Math.min(6000, trace.length())), t);
+        }
         return controller;
     }
 
