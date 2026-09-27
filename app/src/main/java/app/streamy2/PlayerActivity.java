@@ -855,6 +855,15 @@ public class PlayerActivity extends AppCompatActivity {
         }
 
         @Override // androidx.media3.common.Player.Listener
+        public void onTimelineChanged(androidx.media3.common.Timeline timeline, int reason) {
+            try {
+                PlayerActivity.this.maybeApplyLiveDelay();
+            } catch (Throwable t) {
+                Quiet.ignored("PlayerActivity", t);
+            }
+        }
+
+        @Override // androidx.media3.common.Player.Listener
         public void onTracksChanged(Tracks tracks) {
             PlayerActivity.this.lastExoTracks = tracks;
             try {
@@ -2125,7 +2134,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             TextView textView8 = this.badgeLive;
             if (textView8 != null) {
-                textView8.setText(this.catchup ? "ARCHIV" : "LIVE");
+                textView8.setText(LiveDelay.badge(this.liveDelayMs, this.catchup));
             }
             updateClockAndBar();
         }
@@ -2635,6 +2644,9 @@ public class PlayerActivity extends AppCompatActivity {
         }
         try {
             String str = this.queue.get(this.index);
+            // Live-Verzögerung: read on every stream start (channel switch, restart, Live).
+            this.liveDelayMs = currentLiveDelayMs();
+            this.liveDelayPending = this.liveDelayMs > 0;
             boolean isPlayUrl = ExtraLiveSource.isPlayUrl(str);
             boolean z = isPlayUrl || ExtraLiveSource.isCdn(str);
             if (isPlayUrl) {
@@ -2708,7 +2720,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (z2) {
                 uri.setMimeType(MimeTypes.APPLICATION_M3U8);
                 if (this.liveMode) {
-                    uri.setLiveConfiguration(new MediaItem.LiveConfiguration.Builder().setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f).build());
+                    uri.setLiveConfiguration(liveConfiguration(str));
                 }
             } else if (str.toLowerCase(Locale.US).contains(".ts")) {
                 uri.setMimeType(MimeTypes.VIDEO_MP2T);
@@ -3048,6 +3060,77 @@ public class PlayerActivity extends AppCompatActivity {
         return switchToVlc();
     }
 
+    // --- 3.87: Live-Verzögerung ---
+    long liveDelayMs;
+    boolean liveDelayPending;
+    int[] loadControlBuffers;
+    /** Exact target offset per stream once its playlist was seen (restart / "Live" reuse it). */
+    final HashMap<String, Long> liveTargetByUrl = new HashMap<>();
+
+    long currentLiveDelayMs() {
+        return LiveDelay.delayMs(new Prefs(this).liveDelay(), this.liveMode, this.catchup);
+    }
+
+    /**
+     * Live configuration for a live HLS item. Delay off: exactly as before (speed 0.96–1.04,
+     * offset from the stream). Delay on: target offset = stream default + delay; the min offset
+     * is only set once the stream's window is known, so short windows are never overrun.
+     */
+    MediaItem.LiveConfiguration liveConfiguration(String url) {
+        MediaItem.LiveConfiguration.Builder b = new MediaItem.LiveConfiguration.Builder()
+                .setMinPlaybackSpeed(0.96f).setMaxPlaybackSpeed(1.04f);
+        long delay = currentLiveDelayMs();
+        if (delay > 0) {
+            Long known = url == null ? null : this.liveTargetByUrl.get(url);
+            if (known != null && known > 0) {
+                b.setTargetOffsetMs(known).setMinOffsetMs(Math.min(known, delay));
+            } else {
+                b.setTargetOffsetMs(LiveDelay.targetOffsetMs(delay, LiveDelay.ASSUMED_BASE_MS, 0L));
+            }
+        }
+        return b.build();
+    }
+
+    /**
+     * First timeline of a live HLS stream with delay on: compute the exact target from the
+     * playlist (HOLD-BACK or 3 × target duration, + delay, clamped to the window) and seek there
+     * once if the start position is off. After a seek Exo keeps that offset from the live edge.
+     */
+    void maybeApplyLiveDelay() {
+        if (!this.liveDelayPending || this.player == null || this.useVlc || this.catchup) return;
+        if (!this.player.isCurrentMediaItemLive()) return;
+        androidx.media3.common.Timeline timeline = this.player.getCurrentTimeline();
+        if (timeline == null || timeline.isEmpty()) return;
+        this.liveDelayPending = false;
+        androidx.media3.common.Timeline.Window window =
+                timeline.getWindow(this.player.getCurrentMediaItemIndex(), new androidx.media3.common.Timeline.Window());
+        long windowMs = window.getDurationMs();
+        long holdBackMs = 0L;
+        long targetDurationMs = 0L;
+        Object manifest = this.player.getCurrentManifest();
+        if (manifest instanceof androidx.media3.exoplayer.hls.HlsManifest) {
+            androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist pl =
+                    ((androidx.media3.exoplayer.hls.HlsManifest) manifest).mediaPlaylist;
+            if (pl.serverControl.holdBackUs != C.TIME_UNSET) holdBackMs = pl.serverControl.holdBackUs / 1000;
+            if (pl.targetDurationUs != C.TIME_UNSET) targetDurationMs = pl.targetDurationUs / 1000;
+        }
+        long base = LiveDelay.streamDefaultOffsetMs(holdBackMs, targetDurationMs);
+        long target = LiveDelay.targetOffsetMs(this.liveDelayMs, base, windowMs == C.TIME_UNSET ? 0L : windowMs);
+        if (target <= 0) return;
+        String url = this.index >= 0 && this.index < this.queue.size() ? this.queue.get(this.index) : null;
+        if (url != null) this.liveTargetByUrl.put(url, target);
+        long offset = this.player.getCurrentLiveOffset();
+        if (offset == C.TIME_UNSET) {
+            // Playlist without PROGRAM-DATE-TIME: the live edge is the end of the window.
+            if (windowMs == C.TIME_UNSET || windowMs <= 0) return;
+            offset = windowMs - this.player.getCurrentPosition();
+        }
+        if (LiveDelay.needsSeek(offset, target)) {
+            this.player.seekTo(LiveDelay.seekPositionMs(this.player.getCurrentPosition(), offset, target,
+                    windowMs == C.TIME_UNSET ? 0L : windowMs));
+        }
+    }
+
     private static final class AudioPick {
         final Tracks.Group group;
         final int index;
@@ -3183,6 +3266,14 @@ public class PlayerActivity extends AppCompatActivity {
             playback = Math.min(playback, 1000);
             afterRebuffer = Math.min(afterRebuffer, 1600);
         }
+        // Live-Verzögerung: further behind the live edge, so the buffer may hold more.
+        int[] withDelay = LiveDelay.buffers(LiveDelay.delayMs(prefs.liveDelay(), this.liveMode, this.catchup),
+                minBuf, maxBuf, playback, afterRebuffer, lowRam);
+        minBuf = withDelay[0];
+        maxBuf = withDelay[1];
+        playback = withDelay[2];
+        afterRebuffer = withDelay[3];
+        this.loadControlBuffers = withDelay;
         return new DefaultLoadControl.Builder()
                 .setBufferDurationsMs(minBuf, maxBuf, playback, afterRebuffer)
                 .setPrioritizeTimeOverSizeThresholds(true)
@@ -3292,6 +3383,8 @@ public class PlayerActivity extends AppCompatActivity {
             LiveEngine liveEngine = this.vlc;
             if (liveEngine != null) {
                 bindVlcPlaybackListener(liveEngine);
+                this.liveDelayMs = currentLiveDelayMs();
+                if (liveEngine instanceof VlcEngine) ((VlcEngine) liveEngine).setLiveDelayMs(this.liveDelayMs);
                 liveEngine.play(str, true ^ this.vlcSoft);
                 TextView textView = this.errorView;
                 if (textView != null) {

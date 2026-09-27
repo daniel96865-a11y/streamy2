@@ -551,6 +551,15 @@ public class Prefs {
         return AudioPref.normalize(this.p.getString("audioLang", AudioPref.DE));
     }
 
+    /** Live-Verzögerung in seconds: 0 (Aus, default), 10, 20 or 30. */
+    public int liveDelay() {
+        return LiveDelay.normalize(this.p.getInt("liveDelay", 0));
+    }
+
+    public void setLiveDelay(int seconds) {
+        this.p.edit().putInt("liveDelay", LiveDelay.normalize(seconds)).apply();
+    }
+
     public void setAudioLanguage(String value) {
         this.p.edit().putString("audioLang", AudioPref.normalize(value)).apply();
     }
