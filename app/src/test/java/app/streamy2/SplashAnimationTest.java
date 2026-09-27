@@ -14,16 +14,26 @@ import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowValueAnimator;
 
 /** 3.82: animated splash, no animation when the system turned animations off. */
 @RunWith(RobolectricTestRunner.class)
 @Config(sdk = {28, 34}, application = Application.class)
 public class SplashAnimationTest {
 
+    /** Same effect as the developer option "animator duration scale" (hidden API). */
+    private static void setScale(float scale) {
+        try {
+            java.lang.reflect.Method m = android.animation.ValueAnimator.class.getDeclaredMethod("setDurationScale", float.class);
+            m.setAccessible(true);
+            m.invoke(null, scale);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
     @After
     public void resetScale() {
-        ShadowValueAnimator.setDurationScale(1f);
+        setScale(1f);
     }
 
     @Test
@@ -43,7 +53,7 @@ public class SplashAnimationTest {
 
     @Test
     public void noAnimationWhenSystemAnimationsOff() {
-        ShadowValueAnimator.setDurationScale(0f);
+        setScale(0f);
         ActivityController<SplashActivity> c = Robolectric.buildActivity(SplashActivity.class).setup();
         SplashActivity a = c.get();
         assertFalse(SplashActivity.animationsEnabled(a));
