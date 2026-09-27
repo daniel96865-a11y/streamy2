@@ -79,4 +79,44 @@ public class AudioPrefTest {
         assertArrayEquals(new String[]{"de", "deu", "ger", "gsw"}, AudioPref.languageCodes("de"));
         assertEquals(0, AudioPref.languageCodes("auto").length);
     }
+
+    private static AudioPref.Track failed(AudioPref.Track t) {
+        t.failed = true;
+        return t;
+    }
+
+    @Test public void failedTracksAreNeverChosenAgain() {
+        List<AudioPref.Track> tracks = Arrays.asList(
+                failed(t("de", null, false, true, false)),   // AC3 whose decoder failed
+                t("en", null, true, false, false));
+        assertEquals(1, AudioPref.choose(tracks, "de"));
+        assertTrue(AudioPref.needsPick(tracks, "de", false));
+        List<AudioPref.Track> allFailed = Arrays.asList(failed(t("de", null, false, true, false)));
+        assertEquals(-1, AudioPref.choose(allFailed, "de"));
+        assertFalse(AudioPref.needsPick(allFailed, "de", false)); // no loop over broken tracks
+        // Selected English, German exists but failed: keep English.
+        List<AudioPref.Track> germanFailed = Arrays.asList(
+                t("en", null, true, false, true),
+                failed(t("de", null, true, false, false)));
+        assertFalse(AudioPref.needsPick(germanFailed, "de", false));
+    }
+
+    @Test public void decoderErrorRecovery() {
+        assertTrue(AudioPref.isDecoderError(4001)); // ERROR_CODE_DECODER_INIT_FAILED
+        assertTrue(AudioPref.isDecoderError(4005));
+        assertTrue(AudioPref.isDecoderError(5001)); // ERROR_CODE_AUDIO_TRACK_INIT_FAILED
+        assertFalse(AudioPref.isDecoderError(2001)); // network
+        assertFalse(AudioPref.isDecoderError(3001)); // parsing
+        List<AudioPref.Track> other = Arrays.asList(
+                failed(t("de", null, false, true, false)),
+                t("de", "Deutsch AAC", true, false, false));
+        assertEquals(AudioPref.RECOVER_OTHER_TRACK, AudioPref.recoveryAction(other, "de", true, false));
+        List<AudioPref.Track> none = Arrays.asList(failed(t("de", null, false, true, false)));
+        assertEquals(AudioPref.RECOVER_VLC, AudioPref.recoveryAction(none, "de", true, false));
+        assertEquals(AudioPref.RECOVER_WITHOUT_AUDIO, AudioPref.recoveryAction(none, "de", false, false));
+        assertEquals(AudioPref.RECOVER_WITHOUT_AUDIO,
+                AudioPref.recoveryAction(Arrays.<AudioPref.Track>asList(), "de", false, false));
+        // Audio already off and it still fails: a real error, shown to the user.
+        assertEquals(AudioPref.RECOVER_NONE, AudioPref.recoveryAction(none, "de", true, true));
+    }
 }
