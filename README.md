@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.83"><img alt="Version" src="https://img.shields.io/badge/Version-3.83-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-203-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.84"><img alt="Version" src="https://img.shields.io/badge/Version-3.84-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-204-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.83
+## 📥 Download – Version 3.84
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.83 (Build 203) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-TV-3.83.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.83 (Build 203) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-Mobile-3.83.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.84 (Build 204) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.84/Streamy2-TV-3.84.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.84 (Build 204) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.84/Streamy2-Mobile-3.84.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-TV-3.83.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.84/Streamy2-TV-3.84.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -48,12 +48,12 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 - 📡 **Eigene Playlists** — Zugang per Server-Adresse, Benutzername und Passwort (Xtream-kompatibel)
 - 🗂️ **Mehrere Wiedergabelisten** — beliebig viele Playlists speichern, aktive auswählen, umbenennen, einzeln löschen und in den Einstellungen per „Playlist aktualisieren“ jederzeit frisch vom Server laden; eigener Senderlisten-Cache je Playlist
 - 📺 **Live-TV** — Senderlisten mit Kategorien, Sortierung, Suche und Direktwahl per Sendernummer auf der Fernbedienung
-- 🗓️ **EPG / Programmführer** — „Jetzt“ und „Danach“ direkt in der Senderliste, Fortschrittsbalken, einstellbares Aktualisierungsintervall (6/12/24 Std.), optional eigene XMLTV-Adresse
+- 🗓️ **EPG / Programmführer** — „Jetzt“ und „Danach“ direkt in der Senderliste, Fortschrittsbalken, einstellbares Aktualisierungsintervall (6/12/24 Std.), optional eigene XMLTV-Adresse; EPG-Quelle wählbar (Automatisch, vom Anbieter oder EPG aus dem Netz), Sendezeiten immer in deutscher Zeit
 - ⏪ **Zurückblicken** — Sendungen nachholen und darin zurück-/vorspulen, sofern der Anbieter der Playlist das unterstützt
 - 🎬 **Filme & Serien** — Übersicht mit Postern, Staffeln und Episoden, Suche und wählbarer Spaltenanzahl
 - 🔍 **Suche** — über Sender, Filme und Serien; beim Wechsel von Bereich oder Kategorie oder mit Zurück wird sie beendet und die Tastatur ausgeblendet
 - ▶️ **Zwei Player** — eigener Player (ExoPlayer/Media3) und VLC; Auto wählt passend, getrennt einstellbar
-- 🔊 **Wiedergabe-Optionen** — Audiospur, Untertitel, Geschwindigkeit, Bildformat (Anpassen/Füllen/Strecken), Puffergröße, Surround oder Stereo, Sleep-Timer, Nur-Audio
+- 🔊 **Wiedergabe-Optionen** — Audiospur, Untertitel, Geschwindigkeit, Bildformat (Einpassen/Ausfüllen/Strecken, auf dem Handy per Zwei-Finger-Geste), Vollbild bis in die Kamera-Aussparung, Puffergröße, Surround oder Stereo, Sleep-Timer, Nur-Audio
 - 📶 **Puffer-Anzeige** — zeigt im Player Vorlauf in Sekunden, Datenrate und Nachlade-Zähler, damit Ruckler nachvollziehbar werden; einblendbar mit der Bedienleiste oder dauerhaft
 - 👆 **Wischen zum Umschalten** — auf dem Handy im Live-TV nach oben/unten wischen, um den Sender zu wechseln (abschaltbar)
 - 🎮 **Für die Fernbedienung gemacht** — komplette Bedienung mit D-Pad, gut sichtbare Auswahl, alle Einstellungen erreichbar; im Player spulen Links/Rechts, bei eingeblendeter Steuerung wählen sie die Schaltflächen
@@ -75,6 +75,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.84** – Handy-Player: Das Video nutzt den ganzen Bildschirm (Vollbild inkl. Kamera-Aussparung, maximale Größe im Hoch- und Querformat); Zwei-Finger-Geste für „Ausfüllen“/„Einpassen“, „Strecken“ auch mit VLC. EPG: neue Einstellung „EPG-Quelle“ (Automatisch/Vom Anbieter/Aus dem Netz), erweitertes EPG aus dem Netz für DE/AT/CH, bessere Senderzuordnung (HD/FHD, Umlaute, +1-Sender), Sendezeiten immer in deutscher Zeit.
 
 **3.83** – Animierter Startbildschirm (Logo ohne schwarzes Viereck) jetzt auch für Geräte, die 3.82 früh installiert hatten.
 
