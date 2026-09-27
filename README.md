@@ -58,7 +58,7 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 - 👆 **Wischen zum Umschalten** — auf dem Handy im Live-TV nach oben/unten wischen, um den Sender zu wechseln (abschaltbar)
 - 🎮 **Für die Fernbedienung gemacht** — komplette Bedienung mit D-Pad, gut sichtbare Auswahl, alle Einstellungen erreichbar; im Player spulen Links/Rechts, bei eingeblendeter Steuerung wählen sie die Schaltflächen
 - 🔗 **Kopplung per PIN** — Playlist bequem vom Handy an den Fernseher senden (gleiches WLAN)
-- 🎨 **Darstellung** — mehrere Akzentfarben, die die ganze Oberfläche einfärben, dunkles Design
+- 🎨 **Darstellung** — mehrere Akzentfarben, die die ganze Oberfläche einfärben, dunkles Design, animierter Startbildschirm
 - 🩺 **Diagnose** — Wiedergabe-Diagnose und Player-Test direkt in den Einstellungen
 - 🔄 **In-App-Update** — TV und Mobile haben getrennte Update-Kanäle und prüfen selbst auf neue Versionen
 
@@ -76,7 +76,7 @@ Sie können parallel installiert werden und erhalten ihre Updates unabhängig vo
 
 ## 🆕 Letzte Änderungen
 
-**3.82** – TV: Bei eingeblendeter Player-Steuerung bewegen Links/Rechts den Fokus zwischen den Schaltflächen (Fokusrahmen in Akzentfarbe) statt zu spulen; gespult wird bei ausgeblendeter Steuerung oder auf der Zeitleiste. Zurück schließt zuerst die Steuerung.
+**3.82** – TV: Bei eingeblendeter Player-Steuerung bewegen Links/Rechts den Fokus zwischen den Schaltflächen (Fokusrahmen in Akzentfarbe) statt zu spulen; gespult wird bei ausgeblendeter Steuerung oder auf der Zeitleiste. Zurück schließt zuerst die Steuerung. Animierter Startbildschirm (Logo, Schein, Ladebalken), Logo ohne schwarzes Quadrat.
 
 **3.81** – „Playlist aktualisieren“ nur noch in den Einstellungen und der Playlist-Verwaltung, Senderliste wieder wie in 3.79. Player: Position links, Gesamtdauer rechts unter der Zeitleiste, ab einer Stunde einheitlich h:mm:ss.
 
