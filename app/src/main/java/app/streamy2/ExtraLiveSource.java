@@ -40,13 +40,10 @@ final class ExtraLiveSource {
     static volatile String diagnosticStage = "Leerlauf";
     static volatile String diagnosticResolveHost = "";
     static volatile String diagnosticAuthHost = "";
-    static final String EPG_URL = "https://epg.pw/xmltv/epg_DE.xml.gz";
-    /** Network-first DE XMLTV sources (reachable). Cache is only for offline reuse after a successful pull. */
-    static final String[] EPG_URLS = {
-            "https://epg.pw/xmltv/epg_DE.xml.gz",
-            "https://epg.lat/files/de.xml.gz",
-            "https://epgshare01.online/epgshare01/epg_ripper_DE1.xml.gz"
-    };
+    /** Web XMLTV sources now live in EpgSources (stale mirror removed in 3.84). */
+    static final String[] EPG_URLS = EpgSources.WEB_URLS;
+    static final String EPG_URL = EPG_URLS[0];
+
     private static volatile String activeHost = "https://kool.to";
 
 

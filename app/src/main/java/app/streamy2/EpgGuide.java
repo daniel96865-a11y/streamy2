@@ -32,6 +32,65 @@ public class EpgGuide {
     public volatile int programmeCount;
     private final ConcurrentHashMap<String, List<Listing>> byId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> nameToId = new ConcurrentHashMap<>();
+    /** Name index per origin (3.84): provider XMLTV vs. EPG aus dem Netz. */
+    private final ConcurrentHashMap<String, String> providerNames = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> webNames = new ConcurrentHashMap<>();
+    private final java.util.Set<String> webIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final java.util.Set<String> providerIds = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** EpgSources mode: auto / provider / web. */
+    public volatile String sourceMode = EpgSources.AUTO;
+    /** Origin of the file currently being parsed (EpgRefresh runs on one IO thread). */
+    private volatile boolean parsingWeb;
+
+    /** Renamed / differently named channels: normalized name → EPG name. */
+    private static final Map<String, String> RENAMES = new HashMap<>();
+    static {
+        RENAMES.put("tnt comedy", "warner tv comedy");
+        RENAMES.put("tnt film", "warner tv film");
+        RENAMES.put("tnt serie", "warner tv serie");
+        RENAMES.put("tnt series", "warner tv serie");
+        RENAMES.put("warner comedy", "warner tv comedy");
+        RENAMES.put("warner film", "warner tv film");
+        RENAMES.put("warner serie", "warner tv serie");
+        RENAMES.put("sky 1", "sky one");
+        RENAMES.put("sky family", "sky cinema family");
+        RENAMES.put("sky thriller", "sky cinema thriller");
+        RENAMES.put("sky special", "sky cinema special");
+        RENAMES.put("sky best of", "sky cinema best of");
+        RENAMES.put("sky action", "sky cinema action");
+        RENAMES.put("sky premieren 24", "sky cinema premieren 24");
+        RENAMES.put("sky premieren", "sky cinema premieren");
+        RENAMES.put("sky formula 1", "sky sport f1");
+        RENAMES.put("sky formel 1", "sky sport f1");
+        RENAMES.put("sony axn", "axn");
+        RENAMES.put("n24 docu", "n24 doku");
+        RENAMES.put("qvc zwei", "qvc2");
+        RENAMES.put("qvc 2", "qvc2");
+        RENAMES.put("hse 24", "hse");
+        RENAMES.put("hse24", "hse");
+        RENAMES.put("hse 24 tv", "hse");
+        RENAMES.put("hse 24 extra", "hse extra");
+        RENAMES.put("hse24 extra", "hse extra");
+        RENAMES.put("hse 24 trend", "hse trend");
+        RENAMES.put("sport digital", "sportdigital fussball");
+        RENAMES.put("sportdigital", "sportdigital fussball");
+        RENAMES.put("sportdigital fusball", "sportdigital fussball");
+        RENAMES.put("rtl plus", "rtlup");
+        RENAMES.put("atv 1", "atv");
+        RENAMES.put("atv 2", "atv2");
+        RENAMES.put("wetter com tv", "wetter tv");
+        RENAMES.put("geo", "geo television");
+        RENAMES.put("sr", "sr fernsehen");
+        RENAMES.put("history", "the history channel");
+        RENAMES.put("history channel", "the history channel");
+        RENAMES.put("kinowelt tv", "kinowelt");
+        RENAMES.put("puls 8", "puls acht");
+        RENAMES.put("orf iii", "orf 3");
+        RENAMES.put("orf3", "orf 3");
+        RENAMES.put("srf 2", "srf zwei");
+        RENAMES.put("srf2", "srf zwei");
+        RENAMES.put("srf1", "srf 1");
+    }
 
     /** Extra Vavoo display-name → preferred XMLTV lookup keys (after normName). */
     private static final Map<String, String[]> DE_TOP = new HashMap<>();
@@ -96,6 +155,10 @@ public class EpgGuide {
     public void clear() {
         this.byId.clear();
         this.nameToId.clear();
+        this.providerNames.clear();
+        this.webNames.clear();
+        this.webIds.clear();
+        this.providerIds.clear();
         this.programmeCount = 0;
         this.channelCount = 0;
         this.error = null;
@@ -194,31 +257,33 @@ public class EpgGuide {
         }
         // Exact/alias name first (no fuzzy O(n) scan) so HD/FHD share a guide without
         // stalling the UI when apply() walks thousands of live rows.
-        String exactNameId = findNameId(normName(channel.name), false);
+        final long shift = timeshiftMs(channel.name);
+        String exactNameId = nameIdFor(channel, false);
         if (exactNameId != null) {
-            Models.Epg byName = current(exactNameId);
+            Models.Epg byName = current(exactNameId, shift);
             if (byName != null) {
-                channel.epgChannelId = exactNameId;
+                if (shift == 0) channel.epgChannelId = exactNameId;
                 return byName;
             }
         }
-        Models.Epg lookup3 = lookup(channel.epgChannelId);
+        if (shift != 0) return null;
+        Models.Epg lookup3 = allowedLookup(channel, channel.epgChannelId);
         if (lookup3 != null) {
             return lookup3;
         }
-        if (channel.epgChannelId != null && channel.epgChannelId.contains("@") && (lookup2 = lookup(channel.epgChannelId.substring(0, channel.epgChannelId.indexOf(64)))) != null) {
+        if (channel.epgChannelId != null && channel.epgChannelId.contains("@") && (lookup2 = allowedLookup(channel, channel.epgChannelId.substring(0, channel.epgChannelId.indexOf(64)))) != null) {
             return lookup2;
         }
-        Models.Epg lookup4 = lookup(channel.id);
+        Models.Epg lookup4 = allowedLookup(channel, channel.id);
         if (lookup4 != null) {
             return lookup4;
         }
-        if (channel.id != null && channel.id.startsWith("iptv:") && (lookup = lookup(channel.id.substring(5))) != null) {
+        if (channel.id != null && channel.id.startsWith("iptv:") && (lookup = allowedLookup(channel, channel.id.substring(5))) != null) {
             return lookup;
         }
         // Fuzzy name only as last resort off the UI thread (player seed).
         if (allowFuzzy && exactNameId == null) {
-            String fuzzyId = findNameId(normName(channel.name), true);
+            String fuzzyId = findNameIdIn(namesFor(channel), normName(channel.name), true);
             if (fuzzyId != null) {
                 Models.Epg byFuzzy = current(fuzzyId);
                 if (byFuzzy != null) {
@@ -236,8 +301,50 @@ public class EpgGuide {
             return false;
         }
         // Exact/alias only — fuzzy scan is too expensive for askEpg on the UI thread.
-        return findNameId(normName(channel.name), false) != null;
+        return nameIdFor(channel, false) != null;
     }
+
+    /** Name index that may feed this channel (built-in section: always web EPG). */
+    private Map<String, String> namesFor(Models.Channel channel) {
+        boolean builtin = EpgSources.isBuiltin(channel);
+        String mode = EpgSources.normalize(this.sourceMode);
+        if (builtin || EpgSources.WEB.equals(mode)) return this.webNames;
+        if (EpgSources.PROVIDER.equals(mode)) return this.providerNames;
+        return this.nameToId;
+    }
+
+    private String nameIdFor(Models.Channel channel, boolean allowFuzzy) {
+        if (channel == null) return null;
+        return findNameIdIn(namesFor(channel), normName(channel.name), allowFuzzy);
+    }
+
+    /** Is guide data under this XMLTV id allowed for the channel by the EPG source setting? */
+    boolean idAllowed(Models.Channel channel, String id) {
+        if (id == null) return false;
+        boolean builtin = EpgSources.isBuiltin(channel);
+        boolean web = this.webIds.contains(id);
+        boolean provider = !web || this.providerIds.contains(id);
+        return (web && EpgSources.allowWeb(this.sourceMode, builtin))
+                || (provider && EpgSources.allowProvider(this.sourceMode, builtin));
+    }
+
+    private Models.Epg allowedLookup(Models.Channel channel, String id) {
+        if (id == null || id.isEmpty() || "null".equalsIgnoreCase(id)) return null;
+        String key = norm(id);
+        if (!idAllowed(channel, key)) return null;
+        return current(key, 0L);
+    }
+
+    /** "RTL +1" style time-shift channels: same programme one (or two) hours later. */
+    static long timeshiftMs(String name) {
+        if (name == null) return 0L;
+        java.util.regex.Matcher m = TIMESHIFT.matcher(name);
+        if (!m.find()) return 0L;
+        return Integer.parseInt(m.group(1)) * 3600000L;
+    }
+
+    private static final java.util.regex.Pattern TIMESHIFT =
+            java.util.regex.Pattern.compile("(?:^|\\s)\\+\\s?([12])(?![0-9])");
 
     public List<Listing> listingsFor(Models.Channel channel) {
         List<Listing> list;
@@ -246,8 +353,21 @@ public class EpgGuide {
             return arrayList;
         }
         String keyOf = keyOf(channel);
+        long shift = timeshiftMs(channel.name);
         if (keyOf != null && (list = this.byId.get(keyOf)) != null) {
-            arrayList.addAll(list);
+            if (shift == 0) {
+                arrayList.addAll(list);
+            } else {
+                for (Listing l : list) {
+                    if (l == null) continue;
+                    Listing c = new Listing();
+                    c.title = l.title;
+                    c.desc = l.desc;
+                    c.start = l.start + shift;
+                    c.stop = l.stop + shift;
+                    arrayList.add(c);
+                }
+            }
         }
         arrayList.sort(new Comparator() { // from class: app.streamy2.EpgGuide$$ExternalSyntheticLambda1
             @Override // java.util.Comparator
@@ -288,8 +408,10 @@ public class EpgGuide {
             }
         });
         this.byId.put(norm, arrayList);
-        if (channel.name != null) {
+        this.providerIds.add(norm);
+        if (channel.name != null && !EpgSources.isBuiltin(channel)) {
             this.nameToId.put(normName(channel.name), norm);
+            this.providerNames.put(normName(channel.name), norm);
         }
         this.channelCount = this.byId.size();
         Iterator<List<Listing>> it = this.byId.values().iterator();
@@ -368,25 +490,29 @@ public class EpgGuide {
     }
 
     private String keyOf(Models.Channel channel) {
-        String nameId = findNameId(normName(channel.name), false);
+        String nameId = nameIdFor(channel, false);
         if (nameId != null && this.byId.containsKey(nameId)) {
             return nameId;
         }
         if (channel.epgChannelId != null && !channel.epgChannelId.isEmpty()) {
             String norm = norm(channel.epgChannelId);
-            if (this.byId.containsKey(norm)) {
+            if (this.byId.containsKey(norm) && idAllowed(channel, norm)) {
                 return norm;
             }
             int indexOf = norm.indexOf(64);
-            if (indexOf > 0 && this.byId.containsKey(norm.substring(0, indexOf))) {
+            if (indexOf > 0 && this.byId.containsKey(norm.substring(0, indexOf)) && idAllowed(channel, norm.substring(0, indexOf))) {
                 return norm.substring(0, indexOf);
             }
         }
-        return (channel.id == null || !this.byId.containsKey(norm(channel.id))) ? nameId : norm(channel.id);
+        return (channel.id == null || !this.byId.containsKey(norm(channel.id)) || !idAllowed(channel, norm(channel.id))) ? nameId : norm(channel.id);
     }
 
     private String findNameId(String str) {
-        return findNameId(str, true);
+        return findNameIdIn(this.nameToId, str, true);
+    }
+
+    private String findNameId(String str, boolean allowFuzzy) {
+        return findNameIdIn(this.nameToId, str, allowFuzzy);
     }
 
     /**
@@ -394,47 +520,55 @@ public class EpgGuide {
      * @param allowFuzzy when false, skip the O(nameToId) contains scan — required for
      *                   bulk apply()/askEpg on the UI thread after large internet XMLTV loads.
      */
-    private String findNameId(String str, boolean allowFuzzy) {
+    private String findNameIdIn(Map<String, String> names, String str, boolean allowFuzzy) {
         if (str == null || str.isEmpty()) {
             return null;
         }
-        String hit = lookupNameKey(str);
+        String hit = lookupNameKey(names, str);
         if (hit != null) {
             return hit;
+        }
+        String renamed = RENAMES.get(str);
+        if (renamed != null) {
+            hit = lookupNameKey(names, renamed);
+            if (hit == null) hit = lookupNameKey(names, renamed.replace(" ", ""));
+            if (hit != null) {
+                return hit;
+            }
         }
         String[] top = DE_TOP.get(str);
         if (top != null) {
             for (String alias : top) {
-                hit = lookupNameKey(alias);
+                hit = lookupNameKey(names, alias);
                 if (hit != null) {
                     return hit;
                 }
-                hit = lookupNameKey(alias.replace(" ", ""));
+                hit = lookupNameKey(names, alias.replace(" ", ""));
                 if (hit != null) {
                     return hit;
                 }
             }
         }
         String compact = str.replace(" ", "");
-        hit = lookupNameKey(compact);
+        hit = lookupNameKey(names, compact);
         if (hit != null) {
             return hit;
         }
         top = DE_TOP.get(compact);
         if (top != null) {
             for (String alias : top) {
-                hit = lookupNameKey(alias);
+                hit = lookupNameKey(names, alias);
                 if (hit != null) {
                     return hit;
                 }
             }
         }
         for (String alias : aliases(str)) {
-            hit = lookupNameKey(alias);
+            hit = lookupNameKey(names, alias);
             if (hit != null) {
                 return hit;
             }
-            hit = lookupNameKey(alias.replace(" ", ""));
+            hit = lookupNameKey(names, alias.replace(" ", ""));
             if (hit != null) {
                 return hit;
             }
@@ -443,20 +577,20 @@ public class EpgGuide {
         String stripped = str.replaceAll("\\b(ard|das|fs|fernsehen|deutschland|austria|osterr?eich|sat|backup|koeln|koln|hh|hamburg|sachsen|bw|baden|wuerttemberg|berlin|brandenburg|vip)\\b", " ")
                 .trim().replaceAll("\\s+", " ");
         if (!stripped.isEmpty() && !stripped.equals(str)) {
-            hit = findNameId(stripped, allowFuzzy);
+            hit = findNameIdIn(names, stripped, allowFuzzy);
             if (hit != null) {
                 return hit;
             }
         }
         String[] split = str.split(" ");
         if (split.length >= 2) {
-            hit = lookupNameKey(split[0] + " " + split[1]);
+            hit = lookupNameKey(names, split[0] + " " + split[1]);
             if (hit != null) {
                 return hit;
             }
             // Only known regional bases: "mdr sachsen" → mdr. Never "rtl crime" → rtl.
             if (isRegionalBase(split[0])) {
-                hit = lookupNameKey(split[0]);
+                hit = lookupNameKey(names, split[0]);
                 if (hit != null) {
                     return hit;
                 }
@@ -468,7 +602,7 @@ public class EpgGuide {
         // Fuzzy contains: longest known key contained in query (min length 4), or query contained in key
         String best = null;
         int bestLen = 0;
-        for (Map.Entry<String, String> e : this.nameToId.entrySet()) {
+        for (Map.Entry<String, String> e : names.entrySet()) {
             String key = e.getKey();
             if (key == null || key.length() < 4) {
                 continue;
@@ -492,11 +626,11 @@ public class EpgGuide {
                 || "swr".equals(token) || "orf".equals(token) || "sr".equals(token);
     }
 
-    private String lookupNameKey(String key) {
-        if (key == null || key.isEmpty()) {
+    private String lookupNameKey(Map<String, String> names, String key) {
+        if (key == null || key.isEmpty() || names == null) {
             return null;
         }
-        return this.nameToId.get(key);
+        return names.get(key);
     }
 
     private static void indexName(Map<String, String> map, String str, String str2) {
@@ -568,10 +702,12 @@ public class EpgGuide {
                 if (channel == null || channel.header || channel.name == null) {
                     continue;
                 }
-                String key = normName(channel.name);
-                if (key.isEmpty()) {
+                String base = normName(channel.name);
+                if (base.isEmpty()) {
                     continue;
                 }
+                // Built-in section and time-shift channels never share a guide with others.
+                String key = (EpgSources.isBuiltin(channel) ? "b" : "u") + timeshiftMs(channel.name) + "|" + base;
                 ArrayList<Models.Channel> g = groups.get(key);
                 if (g == null) {
                     g = new ArrayList<>();
@@ -582,9 +718,11 @@ public class EpgGuide {
             for (Map.Entry<String, ArrayList<Models.Channel>> e : groups.entrySet()) {
                 ArrayList<Models.Channel> g = e.getValue();
                 Models.Epg best = null;
-                String sharedId = findNameId(e.getKey(), false);
+                Models.Channel rep = g.get(0);
+                long shift = timeshiftMs(rep.name);
+                String sharedId = nameIdFor(rep, false);
                 if (sharedId != null) {
-                    best = current(sharedId);
+                    best = current(sharedId, shift);
                 }
                 if (best == null) {
                     for (Models.Channel c : g) {
@@ -599,7 +737,7 @@ public class EpgGuide {
                 }
                 for (Models.Channel c : g) {
                     c.epg = best;
-                    if (sharedId != null && !sharedId.isEmpty()) {
+                    if (sharedId != null && !sharedId.isEmpty() && shift == 0) {
                         c.epgChannelId = sharedId;
                     }
                     matched++;
@@ -623,9 +761,11 @@ public class EpgGuide {
                 return 0;
             }
             Models.Epg best = seed.epg;
-            String sharedId = findNameId(key, false);
+            final boolean seedBuiltin = EpgSources.isBuiltin(seed);
+            final long seedShift = timeshiftMs(seed.name);
+            String sharedId = nameIdFor(seed, false);
             if (sharedId != null) {
-                Models.Epg byName = current(sharedId);
+                Models.Epg byName = current(sharedId, seedShift);
                 if (byName != null) {
                     best = byName;
                 }
@@ -637,11 +777,12 @@ public class EpgGuide {
                 if (c == null || c.header || c.name == null) {
                     continue;
                 }
-                if (!key.equals(normName(c.name))) {
+                if (!key.equals(normName(c.name)) || EpgSources.isBuiltin(c) != seedBuiltin
+                        || timeshiftMs(c.name) != seedShift) {
                     continue;
                 }
                 c.epg = best;
-                if (sharedId != null && !sharedId.isEmpty()) {
+                if (sharedId != null && !sharedId.isEmpty() && seedShift == 0) {
                     c.epgChannelId = sharedId;
                 }
                 matched++;
@@ -658,6 +799,25 @@ public class EpgGuide {
 
     public void loadUrlMerge(String str, File file, boolean z) throws Exception {
         loadUrl(str, file, z, true);
+    }
+
+    /** Merge with origin: web = EPG aus dem Netz, otherwise provider EPG. */
+    public void loadUrlMerge(String str, File file, boolean z, boolean web) throws Exception {
+        this.parsingWeb = web;
+        try {
+            loadUrl(str, file, z, true);
+        } finally {
+            this.parsingWeb = false;
+        }
+    }
+
+    public void loadFileMerge(File file, boolean web) throws Exception {
+        this.parsingWeb = web;
+        try {
+            parseFile(file, true);
+        } finally {
+            this.parsingWeb = false;
+        }
     }
 
     private void loadUrl(String str, File file, boolean z, boolean z2) throws Exception {
@@ -882,6 +1042,14 @@ public class EpgGuide {
 
     public void loadFileMerge(File file) throws Exception { parseFile(file, true); }
 
+    static InputStream skipBom(InputStream in) throws java.io.IOException {
+        InputStream b = in.markSupported() ? in : new BufferedInputStream(in, 16384);
+        b.mark(3);
+        if (b.read() == 0xEF && b.read() == 0xBB && b.read() == 0xBF) return b;
+        b.reset();
+        return b;
+    }
+
     private void parseFile(File file, boolean z) throws Exception {
         if (file == null || !file.exists()) {
             throw new Exception("Kein EPG-Cache");
@@ -895,6 +1063,9 @@ public class EpgGuide {
             if (read == 31 && read2 == 139) {
                 bufferedInputStream = new GZIPInputStream(bufferedInputStream);
             }
+            // Several web XMLTV files start with a UTF-8 BOM; some pull parsers reject
+            // "<?xml" after it ("PI must not start with xml") and the whole file was lost.
+            bufferedInputStream = skipBom(bufferedInputStream);
             parse(bufferedInputStream, z);
         } finally {
             try {
@@ -997,6 +1168,24 @@ public class EpgGuide {
         }
         HashMap hashMap4 = hashMap3;
         if (hashMap2.isEmpty()) throw new Exception("XMLTV ohne Programme im Zeitfenster");
+        boolean web = this.parsingWeb;
+        java.util.Set<String> ids = web ? this.webIds : this.providerIds;
+        Map<String, String> originNames = web ? this.webNames : this.providerNames;
+        if (!z) {
+            this.providerNames.clear();
+            this.webNames.clear();
+            this.webIds.clear();
+            this.providerIds.clear();
+        }
+        for (Object k : hashMap2.keySet()) {
+            if (k instanceof String) ids.add((String) k);
+        }
+        for (Object raw : hashMap4.entrySet()) {
+            Map.Entry<?, ?> e = (Map.Entry<?, ?>) raw;
+            if (e.getKey() instanceof String && e.getValue() instanceof String) {
+                originNames.putIfAbsent((String) e.getKey(), (String) e.getValue());
+            }
+        }
         if (!z) {
             this.byId.clear();
             this.nameToId.clear();
@@ -1028,50 +1217,54 @@ public class EpgGuide {
         if (str == null || str.isEmpty() || "null".equalsIgnoreCase(str)) {
             return null;
         }
-        return current(norm(str));
+        return current(norm(str), 0L);
     }
 
     private Models.Epg current(String str) {
-        List<Listing> list = this.byId.get(str);
+        return current(str, 0L);
+    }
+
+    /**
+     * Programme airing now (+ next) for an XMLTV id. {@code shift} moves all slots
+     * (time-shift channels). With overlapping slots from merged feeds the latest-starting
+     * airing slot wins, and "next" is the first slot starting at/after it ends.
+     */
+    private Models.Epg current(String str, long shift) {
+        List<Listing> list = str == null ? null : this.byId.get(str);
         if (list == null || list.isEmpty()) {
             return null;
         }
-        long now = System.currentTimeMillis();
+        long now = System.currentTimeMillis() - shift;
         Listing airing = null;
-        Listing upcoming = null;
         for (Listing listing : list) {
             if (listing == null || listing.start <= 0 || listing.stop <= listing.start) {
                 continue;
             }
-            // Strict: only the slot that actually covers now is "Jetzt"
-            if (listing.start <= now && listing.stop > now) {
+            // Strict: only a slot that actually covers now is "Jetzt"
+            if (listing.start <= now && listing.stop > now
+                    && (airing == null || listing.start > airing.start)) {
                 airing = listing;
-            } else if (listing.start > now && (upcoming == null || listing.start < upcoming.start)) {
-                upcoming = listing;
             }
         }
         // Do NOT fall back to a future (or arbitrary past) programme as current —
         // that produced afternoon "Jetzt:" rows with a bogus full progress bar.
-        if (airing == null) {
+        if (airing == null || airing.title == null || airing.title.isEmpty()) {
             return null;
+        }
+        Listing upcoming = null;
+        for (Listing listing : list) {
+            if (listing == null || listing == airing || listing.stop <= listing.start) continue;
+            if (listing.start >= airing.stop - 60000L && listing.start > now
+                    && (upcoming == null || listing.start < upcoming.start)) {
+                upcoming = listing;
+            }
         }
         Models.Epg epg = new Models.Epg();
         epg.title = airing.title;
-        epg.start = airing.start;
-        epg.end = airing.stop;
-        if (upcoming == null) {
-            for (Listing listing : list) {
-                if (listing != null && listing.start >= airing.stop
-                        && (upcoming == null || listing.start < upcoming.start)) {
-                    upcoming = listing;
-                }
-            }
-        }
+        epg.start = airing.start + shift;
+        epg.end = airing.stop + shift;
         if (upcoming != null) {
             epg.nextTitle = upcoming.title;
-        }
-        if (epg.title == null || epg.title.isEmpty()) {
-            return null;
         }
         return epg;
     }
@@ -1138,7 +1331,14 @@ public class EpgGuide {
             return "";
         }
         String s = str.toLowerCase(Locale.GERMAN)
-                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
+        // Other accents (é, è, ô …) → base letter.
+        s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+        s = s
+                // Country prefixes of IPTV lists: "DE: ", "DE | ", "|DE| ".
+                .replaceFirst("^\\|?\\s*(de|at|ch|ger|deu)\\s*[|:]\\s*", "")
+                // Time-shift marker (see timeshiftMs), "sport1+" / "hd+" stay untouched.
+                .replaceAll("(?:^|\\s)\\+\\s?[12](?![0-9])", " ")
                 .replace("sat.1", "sat1").replace("sat 1", "sat1")
                 .replace("3sat", "3sat").replace("3 sat", "3sat")
                 .replace("proSieben", "prosieben").replace("pro sieben", "prosieben")
@@ -1153,11 +1353,12 @@ public class EpgGuide {
                 .replaceFirst("^de:\\s*", "")
                 .replaceFirst("^\\[+\\s*", "")
                 .replaceFirst("^vip\\s+", "")
-                .replaceAll("\\b(full\\s*hd|fullhd|ultra\\s*hd|ultrahd|fhd|uhd|hd\\+|hdtv|sd|4k|8k|hevc|h265|h264|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|universal|fernsehen|vip)\\b", " ")
+                .replaceAll("\\b(full\\s*hd|fullhd|ultra\\s*hd|ultrahd|fhd|uhd|hd\\+|hdtv|sd|4k|8k|hevc|h265|h264|raw|hq|backup|germany|deutschland|deutsch|german|austria|osterr?eich|oesterreich|schweiz|universal|fernsehen|vip)\\b", " ")
                 .replaceAll("(?<!\\w)hd(?!\\w)", " ")
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim()
                 .replaceAll("\\s+[bcsf]$", "")
+                .replaceAll("\\s+(de|ger|deu)$", "")
                 .replaceAll("\\s+", " ");
         // After punctuation wipe, re-apply compact brand maps (Vavoo often ships Kabel1/RTL2/n-tv)
         s = s.replace("kabel1", "kabel eins")

@@ -378,6 +378,15 @@ public class Prefs {
         return this.p.getString(activeKey("epgUrl"), "");
     }
 
+    /** EPG-Quelle: "auto" (default), "provider" or "web" (see EpgSources). */
+    public String epgSource() {
+        return EpgSources.normalize(this.p.getString("epgSource", EpgSources.AUTO));
+    }
+
+    public void setEpgSource(String mode) {
+        this.p.edit().putString("epgSource", EpgSources.normalize(mode)).apply();
+    }
+
     public int epgIntervalHours() {
         return this.p.getInt(activeKey("epgInterval"), 12);
     }
