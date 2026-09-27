@@ -364,6 +364,7 @@ public class PlayerActivity extends AppCompatActivity {
         App.playerOpen = true;
         getWindow().addFlags(128);
         setContentView(R.layout.activity_player);
+        installPhoneFullscreen();
         String stringExtra = getIntent().getStringExtra("url");
         String stringExtra2 = getIntent().getStringExtra("alt");
         this.liveMode = getIntent().getBooleanExtra("live", false);
@@ -1811,8 +1812,9 @@ public class PlayerActivity extends AppCompatActivity {
             if (Build.VERSION.SDK_INT >= 28) {
                 try {
                     WindowManager.LayoutParams attrs = getWindow().getAttributes();
-                    attrs.layoutInDisplayCutoutMode =
-                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                    attrs.layoutInDisplayCutoutMode = Build.VERSION.SDK_INT >= 30
+                            ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                            : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
                     getWindow().setAttributes(attrs);
                 } catch (Throwable ignored) {
                     Quiet.ignored("PlayerActivity", ignored);
@@ -1852,6 +1854,7 @@ public class PlayerActivity extends AppCompatActivity {
     public void onConfigurationChanged(Configuration configuration) {
         super.onConfigurationChanged(configuration);
         layoutStage();
+        refitVideo();
         setHud(true);
         scheduleHide();
     }
@@ -2456,11 +2459,11 @@ public class PlayerActivity extends AppCompatActivity {
         }
         LiveEngine liveEngine = this.vlc;
         if (liveEngine instanceof VlcEngine) {
-            ((VlcEngine) liveEngine).setZoom(zoom);
+            ((VlcEngine) liveEngine).setScaleMode(resize);
         }
         TextView textView = this.btnResize;
         if (textView != null) {
-            textView.setText(stretch ? "Strecken" : (zoom ? "Füllen" : "Anpassen"));
+            textView.setText(PinchZoom.label(resize));
             textView.setContentDescription("Video-Skalierung: " + resizeLabel());
         }
     }
@@ -3534,15 +3537,12 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private String resizeLabel() {
-        String value = new Prefs(this).resize();
-        if ("stretch".equals(value)) return "Strecken";
-        if ("zoom".equals(value)) return "Füllen";
-        return "Anpassen";
+        return PinchZoom.label(new Prefs(this).resize());
     }
 
     private void showResizeOptions() {
         final String[] values = new String[]{"fit", "zoom", "stretch"};
-        final String[] labels = new String[]{"Anpassen", "Füllen", "Strecken"};
+        final String[] labels = new String[]{"Einpassen", "Ausfüllen", "Strecken"};
         String current = new Prefs(this).resize();
         int checked = "zoom".equals(current) ? 1 : ("stretch".equals(current) ? 2 : 0);
         final AlertDialog dialog = new AlertDialog.Builder(this)
@@ -3636,6 +3636,10 @@ public class PlayerActivity extends AppCompatActivity {
     /** Returns true only when a channel swipe was recognised (the tap/click is then cancelled). */
     private boolean onSwipeZapTouch(View v, android.view.MotionEvent e) {
         try {
+            if (handlePinch(v, e)) {
+                this.swipeTracking = false;
+                return true;
+            }
             int action = e.getActionMasked();
             if (action == android.view.MotionEvent.ACTION_DOWN) {
                 boolean sheetOpen = this.epgSheet != null && this.epgSheet.getVisibility() == View.VISIBLE;
@@ -3670,6 +3674,168 @@ public class PlayerActivity extends AppCompatActivity {
             this.swipeTracking = false;
             return false;
         }
+    }
+
+    // --- Mobile: edge-to-edge video + pinch Einpassen/Ausfüllen (3.84) ---
+    private android.view.ScaleGestureDetector pinchDetector;
+    private boolean pinching;
+    private boolean pinchTapCancelled;
+    private float pinchFactor = 1f;
+    private int[] overlayBasePadding;
+
+    /**
+     * Phone: the video uses the whole window (behind system bars and the display cutout).
+     * Before 3.84 the AppCompat content container applied the window insets as padding
+     * (fitsSystemWindows + LAYOUT_STABLE), so status bar, navigation bar and cutout
+     * space was taken away from the picture. Now only the control overlays get insets.
+     */
+    private void installPhoneFullscreen() {
+        if (Tv.isTv(this)) return;
+        try {
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+            if (Build.VERSION.SDK_INT >= 28) {
+                WindowManager.LayoutParams attrs = getWindow().getAttributes();
+                attrs.layoutInDisplayCutoutMode = Build.VERSION.SDK_INT >= 30
+                        ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                        : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                getWindow().setAttributes(attrs);
+            }
+            View root = findViewById(R.id.playerRoot);
+            if (root == null) return;
+            View decor = getWindow().getDecorView();
+            for (View v = root; v != null && v != decor; ) {
+                v.setFitsSystemWindows(false);
+                v.setPadding(0, 0, 0, 0);
+                v = v.getParent() instanceof View ? (View) v.getParent() : null;
+            }
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+                androidx.core.graphics.Insets safe = insets.getInsets(
+                        androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                                | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+                applyOverlayInsets(safe.left, safe.top, safe.right, safe.bottom);
+                return androidx.core.view.WindowInsetsCompat.CONSUMED;
+            });
+            root.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+                if (r - l != or - ol || b - t != ob - ot) refitVideo();
+            });
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
+    /** Keep controls clear of bars / cutout without shrinking the video. */
+    private void applyOverlayInsets(int left, int top, int right, int bottom) {
+        View[] views = new View[]{this.topBar, this.bottomBar, this.epgSheet};
+        if (this.overlayBasePadding == null) {
+            this.overlayBasePadding = new int[views.length * 4];
+            for (int i = 0; i < views.length; i++) {
+                View v = views[i];
+                if (v == null) continue;
+                this.overlayBasePadding[i * 4] = v.getPaddingLeft();
+                this.overlayBasePadding[i * 4 + 1] = v.getPaddingTop();
+                this.overlayBasePadding[i * 4 + 2] = v.getPaddingRight();
+                this.overlayBasePadding[i * 4 + 3] = v.getPaddingBottom();
+            }
+        }
+        for (int i = 0; i < views.length; i++) {
+            View v = views[i];
+            if (v == null) continue;
+            int[] b = this.overlayBasePadding;
+            boolean top0 = v == this.bottomBar;
+            boolean bottom0 = v == this.topBar;
+            v.setPadding(b[i * 4] + left, b[i * 4 + 1] + (top0 ? 0 : top),
+                    b[i * 4 + 2] + right, b[i * 4 + 3] + (bottom0 ? 0 : bottom));
+        }
+    }
+
+    /** Re-fit after rotation / window or video size change (Exo refits itself). */
+    private void refitVideo() {
+        try {
+            if (this.playerView != null) this.playerView.requestLayout();
+            LiveEngine engine = this.vlc;
+            if (engine instanceof VlcEngine) ((VlcEngine) engine).refreshSurface();
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
+    /** Two-finger pinch on the phone: spread = Ausfüllen, pinch = Einpassen. */
+    private boolean handlePinch(View v, android.view.MotionEvent e) {
+        if (Tv.isTv(this)) return false;
+        if (this.pinchDetector == null) {
+            this.pinchDetector = new android.view.ScaleGestureDetector(this,
+                    new android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                        @Override public boolean onScaleBegin(android.view.ScaleGestureDetector d) {
+                            PlayerActivity.this.pinching = true;
+                            PlayerActivity.this.pinchFactor = 1f;
+                            return true;
+                        }
+
+                        @Override public boolean onScale(android.view.ScaleGestureDetector d) {
+                            PlayerActivity.this.pinchFactor *= d.getScaleFactor();
+                            return true;
+                        }
+
+                        @Override public void onScaleEnd(android.view.ScaleGestureDetector d) {
+                            PlayerActivity.this.onPinchFinished(PlayerActivity.this.pinchFactor);
+                        }
+                    });
+        }
+        this.pinchDetector.onTouchEvent(e);
+        int action = e.getActionMasked();
+        boolean multi = e.getPointerCount() > 1 || this.pinching;
+        if (action == android.view.MotionEvent.ACTION_DOWN) {
+            this.pinching = false;
+            this.pinchTapCancelled = false;
+            return false;
+        }
+        if (multi && !this.pinchTapCancelled) {
+            // Second finger: this is a pinch, not a tap / channel swipe.
+            android.view.MotionEvent cancel = android.view.MotionEvent.obtain(e);
+            cancel.setAction(android.view.MotionEvent.ACTION_CANCEL);
+            v.onTouchEvent(cancel);
+            cancel.recycle();
+            this.pinchTapCancelled = true;
+        }
+        if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+            boolean was = this.pinchTapCancelled;
+            this.pinching = false;
+            this.pinchTapCancelled = false;
+            return was;
+        }
+        return this.pinchTapCancelled;
+    }
+
+    void onPinchFinished(float factor) {
+        Prefs prefs = new Prefs(this);
+        String current = prefs.resize();
+        String next = PinchZoom.decide(current, factor);
+        if (next.equals(current) && factor > PinchZoom.IN && factor < PinchZoom.OUT) return;
+        if (!next.equals(current)) {
+            prefs.setResize(next);
+            applyResize();
+        }
+        showScaleOverlay(next);
+    }
+
+    private void showScaleOverlay(String mode) {
+        TextView overlay = (TextView) findViewById(R.id.zapOverlay);
+        if (overlay == null) return;
+        String text = PinchZoom.label(mode);
+        try {
+            if ("zoom".equals(mode) && !this.useVlc && this.player != null && this.playerView != null) {
+                androidx.media3.common.VideoSize vs = this.player.getVideoSize();
+                int crop = VideoFit.cropPercent(this.playerView.getWidth(), this.playerView.getHeight(),
+                        vs.width, vs.height, vs.pixelWidthHeightRatio);
+                if (crop >= 1) text = text + "  ·  " + crop + " % beschnitten";
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+        overlay.setText(text);
+        overlay.setVisibility(View.VISIBLE);
+        UI.removeCallbacks(this.hideZapOverlay);
+        UI.postDelayed(this.hideZapOverlay, 1200L);
     }
 
     private void showZapOverlay(int dir) {
