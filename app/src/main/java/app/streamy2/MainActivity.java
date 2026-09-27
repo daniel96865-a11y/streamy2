@@ -585,6 +585,36 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.audioStereo.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view3) { MainActivity.this.setAudioMode("stereo"); }
         });
+        {
+            View chip = findViewById(R.id.audioLangDe);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("de"); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.audioLangEn);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("en"); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.audioLangTr);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("tr"); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.audioLangPl);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("pl"); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.audioLangAuto);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("auto"); }
+            });
+        }
         this.bufLow.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
@@ -2171,6 +2201,18 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip(this.audioAuto, "auto".equals(audio), accent);
         paintChip(this.audioSurround, "surround".equals(audio), accent);
         paintChip(this.audioStereo, "stereo".equals(audio), accent);
+        String lang = this.prefs.audioLanguage();
+        paintChip((TextView) findViewById(R.id.audioLangDe), "de".equals(lang), accent);
+        paintChip((TextView) findViewById(R.id.audioLangEn), "en".equals(lang), accent);
+        paintChip((TextView) findViewById(R.id.audioLangTr), "tr".equals(lang), accent);
+        paintChip((TextView) findViewById(R.id.audioLangPl), "pl".equals(lang), accent);
+        paintChip((TextView) findViewById(R.id.audioLangAuto), "auto".equals(lang), accent);
+    }
+
+    private void setAudioLanguage(String value) {
+        this.prefs.setAudioLanguage(value);
+        paintPlayer();
+        Toast.makeText(this, "Bevorzugte Audiosprache: " + AudioPref.label(value), Toast.LENGTH_SHORT).show();
     }
 
     /** Non-auto engine string for PlayerActivity, or null for Auto. */

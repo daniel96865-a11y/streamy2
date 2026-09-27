@@ -76,7 +76,10 @@ final class VlcEngine implements LiveEngine {
                     }
                     VlcEngine.this.statBufferingPct = pct;
                 } catch (Throwable ignored) { Quiet.ignored("VlcEngine", ignored); }
+            } else if (event.type == MediaPlayer.Event.ESAdded || event.type == MediaPlayer.Event.ESSelected) {
+                VlcEngine.this.ensureAudioTrack();
             } else if (event.type == MediaPlayer.Event.Playing) {
+                VlcEngine.this.ensureAudioTrack();
                 VlcEngine.this.statPlayingSeen = true;
                 PlaybackListener l = VlcEngine.this.playbackListener;
                 if (l != null) {
@@ -118,6 +121,8 @@ final class VlcEngine implements LiveEngine {
             if (!"surround".equals(audioMode)) {
                 arrayList.add("--stereo-mode=1");
             }
+            String[] langs = AudioPref.languageCodes(new Prefs(this.ctx).audioLanguage());
+            if (langs.length > 0) arrayList.add("--audio-language=" + android.text.TextUtils.join(",", langs));
             this.lib = new LibVLC(this.ctx, arrayList);
             this.player = new MediaPlayer(this.lib);
             try {
@@ -147,6 +152,7 @@ final class VlcEngine implements LiveEngine {
                 return;
             }
             if (!str.equals(this.statUrl)) {
+                this.userAudioChoice = false;
                 this.statUrl = str;
                 this.statRebuffers = 0;
                 this.statLostPictures = 0;
@@ -212,6 +218,83 @@ final class VlcEngine implements LiveEngine {
         }
     }
 
+
+    // --- 3.85: always an audio track, preferred language ---
+    private volatile boolean userAudioChoice;
+
+    int[] audioTrackIds() {
+        try {
+            MediaPlayer.TrackDescription[] tracks = this.player == null ? null : this.player.getAudioTracks();
+            if (tracks == null) return new int[0];
+            int n = 0;
+            for (MediaPlayer.TrackDescription t : tracks) if (t != null && t.id >= 0) n++;
+            int[] ids = new int[n];
+            int k = 0;
+            for (MediaPlayer.TrackDescription t : tracks) if (t != null && t.id >= 0) ids[k++] = t.id;
+            return ids;
+        } catch (Throwable t) {
+            Quiet.ignored("VlcEngine", t);
+            return new int[0];
+        }
+    }
+
+    String[] audioTrackNames() {
+        try {
+            MediaPlayer.TrackDescription[] tracks = this.player == null ? null : this.player.getAudioTracks();
+            if (tracks == null) return new String[0];
+            java.util.ArrayList<String> names = new java.util.ArrayList<>();
+            for (MediaPlayer.TrackDescription t : tracks) {
+                if (t == null || t.id < 0) continue;
+                String name = t.name == null || t.name.trim().isEmpty() ? "Spur " + (names.size() + 1) : t.name.trim();
+                names.add(name);
+            }
+            return names.toArray(new String[0]);
+        } catch (Throwable t) {
+            Quiet.ignored("VlcEngine", t);
+            return new String[0];
+        }
+    }
+
+    int currentAudioTrack() {
+        try {
+            return this.player == null ? -1 : this.player.getAudioTrack();
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    void selectAudioTrack(int id, boolean manual) {
+        try {
+            if (manual) this.userAudioChoice = true;
+            if (this.player != null) this.player.setAudioTrack(id);
+        } catch (Throwable t) {
+            Quiet.ignored("VlcEngine", t);
+        }
+    }
+
+    /** No audio track active (-1) or not the preferred language → pick one (see AudioPref). */
+    void ensureAudioTrack() {
+        try {
+            MediaPlayer mp = this.player;
+            if (mp == null) return;
+            MediaPlayer.TrackDescription[] tracks = mp.getAudioTracks();
+            if (tracks == null) return;
+            int current = mp.getAudioTrack();
+            java.util.ArrayList<AudioPref.Track> infos = new java.util.ArrayList<>();
+            java.util.ArrayList<Integer> ids = new java.util.ArrayList<>();
+            for (MediaPlayer.TrackDescription t : tracks) {
+                if (t == null || t.id < 0) continue;
+                infos.add(new AudioPref.Track(null, t.name, true, false, t.id == current));
+                ids.add(t.id);
+            }
+            String pref = new Prefs(this.ctx).audioLanguage();
+            if (!AudioPref.needsPick(infos, pref, this.userAudioChoice)) return;
+            int pick = AudioPref.choose(infos, pref);
+            if (pick >= 0 && ids.get(pick) != current) mp.setAudioTrack(ids.get(pick));
+        } catch (Throwable t) {
+            Quiet.ignored("VlcEngine", t);
+        }
+    }
 
     /** Apply Fit vs Füllen to the VLC surface (Exo uses PlayerView resizeMode). */
     void setZoom(boolean zoom) {

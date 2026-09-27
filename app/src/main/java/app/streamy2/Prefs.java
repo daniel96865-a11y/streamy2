@@ -546,6 +546,15 @@ public class Prefs {
         return ("surround".equals(value) || "stereo".equals(value)) ? value : "auto";
     }
 
+    /** Bevorzugte Audiosprache: de (default), en, tr, pl or auto (= Original). */
+    public String audioLanguage() {
+        return AudioPref.normalize(this.p.getString("audioLang", AudioPref.DE));
+    }
+
+    public void setAudioLanguage(String value) {
+        this.p.edit().putString("audioLang", AudioPref.normalize(value)).apply();
+    }
+
     public void setAudioMode(String value) {
         if (!"surround".equals(value) && !"stereo".equals(value)) value = "auto";
         this.p.edit().putString("audioMode", value).apply();

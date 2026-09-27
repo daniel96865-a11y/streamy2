@@ -649,6 +649,8 @@ public class PlayerActivity extends AppCompatActivity {
         } else {
             exceedAudioConstraintsIfNecessary.setPreferredAudioMimeTypes(MimeTypes.AUDIO_AAC, MimeTypes.AUDIO_MPEG, MimeTypes.AUDIO_AC3, MimeTypes.AUDIO_E_AC3, MimeTypes.AUDIO_E_AC3_JOC);
         }
+        String[] audioLangs = AudioPref.languageCodes(new Prefs(this).audioLanguage());
+        if (audioLangs.length > 0) exceedAudioConstraintsIfNecessary.setPreferredAudioLanguages(audioLangs);
         defaultTrackSelector.setParameters(exceedAudioConstraintsIfNecessary);
         try {
             ExoPlayer build2 = new ExoPlayer.Builder(this).setRenderersFactory(extensionRendererMode).setTrackSelector(defaultTrackSelector).setLoadControl(build).setWakeMode(2).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), false).setHandleAudioBecomingNoisy(true).build();
@@ -2713,6 +2715,13 @@ public class PlayerActivity extends AppCompatActivity {
             } else {
                 createMediaSource = new ProgressiveMediaSource.Factory(factory, new DefaultExtractorsFactory().setTsExtractorFlags(73)).setLoadErrorHandlingPolicy((LoadErrorHandlingPolicy) liveRetry).createMediaSource(build);
             }
+            if (!str.equals(this.audioStreamUrl)) {
+                // New channel/stream: automatic audio choice again. A restart of the same
+                // stream keeps the user's manual track choice.
+                this.audioStreamUrl = str;
+                this.userAudioChoice = false;
+                this.audioForcedKey = null;
+            }
             long resumeAt = this.vodResumeMs;
             this.vodResumeMs = -1L;
             if (!this.liveMode && resumeAt > 0) {
@@ -2809,6 +2818,12 @@ public class PlayerActivity extends AppCompatActivity {
         if (this.player == null || tracks == null) {
             return;
         }
+        if (ensureAudioTrack(tracks)) {
+            return;
+        }
+        if (this.userAudioChoice) {
+            return; // keep the manual choice for this stream
+        }
         String mode = new Prefs(this).audioMode();
         Tracks.Group selectedGroup = null;
         int selectedIndex = -1;
@@ -2853,6 +2868,52 @@ public class PlayerActivity extends AppCompatActivity {
             }
         }
         applyAudioPick(best);
+    }
+
+    // --- 3.85: always an audio track, preferred language ---
+    boolean userAudioChoice;
+    private String audioStreamUrl;
+    private String audioForcedKey;
+    int audioAutoPicks;
+
+    /**
+     * Exo leaves audio unselected when the only track(s) look undecodable from the stream
+     * metadata (e.g. codec declared in the playlist) or none matches its preferences.
+     * Picking the track explicitly (as the Audiospur dialog did) makes it play.
+     * @return true when an override was applied
+     */
+    boolean ensureAudioTrack(Tracks tracks) {
+        if (this.player == null || tracks == null) return false;
+        if (this.player.getTrackSelectionParameters().disabledTrackTypes.contains(C.TRACK_TYPE_AUDIO)) return false;
+        ArrayList<AudioPref.Track> infos = new ArrayList<>();
+        ArrayList<Tracks.Group> groups = new ArrayList<>();
+        ArrayList<Integer> indexes = new ArrayList<>();
+        for (Tracks.Group group : tracks.getGroups()) {
+            if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
+            for (int i = 0; i < group.length; i++) {
+                Format f = group.getTrackFormat(i);
+                infos.add(new AudioPref.Track(f.language, f.label, group.isTrackSupported(i, false),
+                        (f.selectionFlags & C.SELECTION_FLAG_DEFAULT) != 0, group.isTrackSelected(i)));
+                groups.add(group);
+                indexes.add(i);
+            }
+        }
+        String pref = new Prefs(this).audioLanguage();
+        if (!AudioPref.needsPick(infos, pref, this.userAudioChoice)) return false;
+        int pick = AudioPref.choose(infos, pref);
+        if (pick < 0) return false;
+        Tracks.Group group = groups.get(pick);
+        int index = indexes.get(pick);
+        String key = this.audioStreamUrl + "|" + group.getMediaTrackGroup().id + "|" + index;
+        if (key.equals(this.audioForcedKey)) return false; // tried already, do not loop
+        this.audioForcedKey = key;
+        this.audioAutoPicks++;
+        this.player.setTrackSelectionParameters(this.player.getTrackSelectionParameters().buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), index))
+                .build());
+        return true;
     }
 
     private static final class AudioPick {
@@ -3407,6 +3468,10 @@ public class PlayerActivity extends AppCompatActivity {
 
     private void showTrackOptions(final int trackType) {
         final ExoPlayer exo = this.player;
+        if (this.useVlc && trackType == C.TRACK_TYPE_AUDIO && this.vlc instanceof VlcEngine) {
+            showVlcAudioTracks((VlcEngine) this.vlc);
+            return;
+        }
         if (exo == null || this.useVlc) {
             Toast.makeText(this, "Spurauswahl ist im Streamy Player verfügbar.", Toast.LENGTH_SHORT).show();
             return;
@@ -3461,7 +3526,29 @@ public class PlayerActivity extends AppCompatActivity {
                         params.setTrackTypeDisabled(trackType, false)
                                 .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), track));
                     }
+                    if (trackType == C.TRACK_TYPE_AUDIO) this.userAudioChoice = true;
                     exo.setTrackSelectionParameters(params.build());
+                    itemDialog.dismiss();
+                })
+                .setNegativeButton("Schließen", null)
+                .create();
+        showPlayerDialog(dialog, checked < 0 ? 0 : checked);
+    }
+
+    private void showVlcAudioTracks(final VlcEngine engine) {
+        final int[] ids = engine.audioTrackIds();
+        final String[] names = engine.audioTrackNames();
+        if (ids.length == 0) {
+            Toast.makeText(this, "Der Stream meldet keine Audiospuren.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        int current = engine.currentAudioTrack();
+        int checked = -1;
+        for (int i = 0; i < ids.length; i++) if (ids[i] == current) checked = i;
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Audiospur")
+                .setSingleChoiceItems(names, checked, (itemDialog, which) -> {
+                    engine.selectAudioTrack(ids[which], true);
                     itemDialog.dismiss();
                 })
                 .setNegativeButton("Schließen", null)
