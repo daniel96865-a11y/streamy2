@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.86"><img alt="Version" src="https://img.shields.io/badge/Version-3.86-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-206-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.87"><img alt="Version" src="https://img.shields.io/badge/Version-3.87-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-207-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.86
+## 📥 Download – Version 3.87
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.86 (Build 206) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-TV-3.86.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.86 (Build 206) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-Mobile-3.86.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.87 (Build 207) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.87/Streamy2-TV-3.87.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.87 (Build 207) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.87/Streamy2-Mobile-3.87.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-TV-3.86.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.87/Streamy2-TV-3.87.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -53,7 +53,7 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 - 🎬 **Filme & Serien** — Übersicht mit Postern, Staffeln und Episoden, Suche und wählbarer Spaltenanzahl
 - 🔍 **Suche** — über Sender, Filme und Serien; beim Wechsel von Bereich oder Kategorie oder mit Zurück wird sie beendet und die Tastatur ausgeblendet
 - ▶️ **Zwei Player** — eigener Player (ExoPlayer/Media3) und VLC; Auto wählt passend, getrennt einstellbar
-- 🔊 **Wiedergabe-Optionen** — Audiospur (automatische Auswahl, bevorzugte Audiosprache), Untertitel, Geschwindigkeit, Bildformat (Einpassen/Ausfüllen/Strecken, auf dem Handy per Zwei-Finger-Geste), Vollbild bis in die Kamera-Aussparung, Puffergröße, Surround oder Stereo, Sleep-Timer, Nur-Audio
+- 🔊 **Wiedergabe-Optionen** — Audiospur (automatische Auswahl, bevorzugte Audiosprache), Untertitel, Geschwindigkeit, Bildformat (Einpassen/Ausfüllen/Strecken, auf dem Handy per Zwei-Finger-Geste), Vollbild bis in die Kamera-Aussparung, Puffergröße, Live-Verzögerung (Aus/10/20/30 s), Surround oder Stereo, Sleep-Timer, Nur-Audio
 - 📶 **Puffer-Anzeige** — zeigt im Player Vorlauf in Sekunden, Datenrate und Nachlade-Zähler, damit Ruckler nachvollziehbar werden; einblendbar mit der Bedienleiste oder dauerhaft
 - 👆 **Wischen zum Umschalten** — auf dem Handy im Live-TV nach oben/unten wischen, um den Sender zu wechseln (abschaltbar)
 - 🎮 **Für die Fernbedienung gemacht** — komplette Bedienung mit D-Pad, gut sichtbare Auswahl, alle Einstellungen erreichbar; im Player spulen Links/Rechts, bei eingeblendeter Steuerung wählen sie die Schaltflächen
@@ -75,6 +75,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.87** – Neue Einstellung „Live-Verzögerung“ unter Wiedergabe (Aus, 10 s, 20 s, 30 s): Live-Sender laufen weiter hinter dem Live-Signal, damit der Puffer mehr Reserve hält; für ExoPlayer und VLC (HLS), angepasst an das Zeitfenster des Streams, Anzeige „LIVE −20 s“, „Live“ springt auf den eingestellten Abstand.
 
 **3.86** – Keine Fehlermeldung „DECODER_INIT_FAILED“ mehr: Kann das Gerät die automatisch gewählte Audiospur (z. B. AC3/E-AC3) nicht dekodieren, wechselt Streamy ohne Meldung auf eine andere Audiospur oder zu VLC. Jede Spur wird pro Stream nur einmal versucht, Fehlermeldungen erscheinen nur noch, wenn die Wiedergabe wirklich nicht möglich ist.
 
