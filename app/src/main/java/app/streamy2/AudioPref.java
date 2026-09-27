@@ -26,6 +26,8 @@ final class AudioPref {
         boolean supported = true;
         boolean isDefault;
         boolean selected;
+        /** Decoder already failed for this track on this stream: never pick it again. */
+        boolean failed;
 
         Track() {
         }
@@ -105,7 +107,7 @@ final class AudioPref {
         int bestScore = Integer.MIN_VALUE;
         for (int i = 0; i < tracks.size(); i++) {
             Track t = tracks.get(i);
-            if (t == null) continue;
+            if (t == null || t.failed) continue;
             int score = 0;
             if (t.supported) score += 4000;              // audible beats silent
             if (matches(pref, t.language, t.label)) score += 2000;
@@ -128,12 +130,41 @@ final class AudioPref {
         if (tracks == null || tracks.isEmpty()) return false;
         Track selected = null;
         for (Track t : tracks) if (t != null && t.selected) { selected = t; break; }
-        if (selected == null) return true;
+        if (selected == null) {
+            for (Track t : tracks) if (t != null && !t.failed) return true;
+            return false;
+        }
         if (userChose || AUTO.equals(normalize(pref))) return false;
         if (matches(pref, selected.language, selected.label)) return false;
         for (Track t : tracks) {
-            if (t != null && t != selected && t.supported && matches(pref, t.language, t.label)) return true;
+            if (t != null && t != selected && t.supported && !t.failed && matches(pref, t.language, t.label)) return true;
         }
         return false;
+    }
+
+    // --- 3.86: recovery from audio decoder errors ---
+    static final int RECOVER_NONE = 0;
+    static final int RECOVER_OTHER_TRACK = 1;
+    static final int RECOVER_VLC = 2;
+    static final int RECOVER_WITHOUT_AUDIO = 3;
+
+    /**
+     * Decoder/audio output errors (Media3 PlaybackException codes 4001-4006, 5001-5004):
+     * the stream itself is fine, only a decoder or the audio output could not handle a track.
+     */
+    static boolean isDecoderError(int errorCode) {
+        return (errorCode >= 4001 && errorCode <= 4006) || (errorCode >= 5001 && errorCode <= 5004);
+    }
+
+    /**
+     * What to do after the decoder of the current audio track failed. {@code tracks} has the
+     * failed track(s) marked. Another usable track first, then VLC (has its own decoders),
+     * finally keep the picture without audio; never a user-facing error for this case.
+     */
+    static int recoveryAction(List<Track> tracks, String pref, boolean vlcAllowed, boolean audioAlreadyOff) {
+        if (audioAlreadyOff) return RECOVER_NONE;          // failed even without audio: real error
+        if (choose(tracks, pref) >= 0) return RECOVER_OTHER_TRACK;
+        if (vlcAllowed) return RECOVER_VLC;
+        return RECOVER_WITHOUT_AUDIO;
     }
 }

@@ -64,6 +64,8 @@ import com.google.common.net.HttpHeaders;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
+import androidx.media3.exoplayer.ExoPlaybackException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -854,6 +856,7 @@ public class PlayerActivity extends AppCompatActivity {
 
         @Override // androidx.media3.common.Player.Listener
         public void onTracksChanged(Tracks tracks) {
+            PlayerActivity.this.lastExoTracks = tracks;
             try {
                 PlayerActivity.this.pickPlayableAudio(tracks);
             } catch (Throwable unused) {
@@ -880,6 +883,13 @@ public class PlayerActivity extends AppCompatActivity {
                     Quiet.ignored("PlayerActivity", ignored);
                 }
             }
+            try {
+                if (PlayerActivity.this.recoverAudioDecoderError(playbackException)) return;
+            } catch (Throwable ignored) {
+                Quiet.ignored("PlayerActivity", ignored);
+            }
+            // Other decoder errors: no message while another URL/VLC may still work.
+            final boolean quiet = playbackException != null && AudioPref.isDecoderError(playbackException.errorCode);
             String str;
             String str2;
             if (playbackException == null) {
@@ -893,7 +903,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             try {
                 PlayerActivity.this.lastExoError = str;
-                PlayerActivity.this.toastPlaybackError("Player: " + str);
+                if (!quiet) PlayerActivity.this.toastPlaybackError("Player: " + str);
             } catch (Throwable ignored) { Quiet.ignored("PlayerActivity", ignored); }
             if (PlayerActivity.this.extraLiveKeep != null && PlayerActivity.this.takeRecoverTry()) {
                 // A provider-side auth/resolve change can leave the cached signature valid-looking
@@ -916,7 +926,7 @@ public class PlayerActivity extends AppCompatActivity {
                 }, 400L);
                 return;
             }
-            if (PlayerActivity.this.errorView != null) {
+            if (PlayerActivity.this.errorView != null && !quiet) {
                 PlayerActivity.this.errorView.setVisibility(0);
                 PlayerActivity.this.errorView.setText("Live Extra: " + str);
             }
@@ -2721,6 +2731,14 @@ public class PlayerActivity extends AppCompatActivity {
                 this.audioStreamUrl = str;
                 this.userAudioChoice = false;
                 this.audioForcedKey = null;
+                this.lastExoTracks = null;
+                this.audioFailedKeys.clear();
+                this.audioRecoveries = 0;
+                if (this.audioOffByRecovery) {
+                    this.audioOffByRecovery = false;
+                    this.player.setTrackSelectionParameters(this.player.getTrackSelectionParameters().buildUpon()
+                            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build());
+                }
             }
             long resumeAt = this.vodResumeMs;
             this.vodResumeMs = -1L;
@@ -2892,8 +2910,10 @@ public class PlayerActivity extends AppCompatActivity {
             if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
             for (int i = 0; i < group.length; i++) {
                 Format f = group.getTrackFormat(i);
-                infos.add(new AudioPref.Track(f.language, f.label, group.isTrackSupported(i, false),
-                        (f.selectionFlags & C.SELECTION_FLAG_DEFAULT) != 0, group.isTrackSelected(i)));
+                AudioPref.Track info = new AudioPref.Track(f.language, f.label, group.isTrackSupported(i, false),
+                        (f.selectionFlags & C.SELECTION_FLAG_DEFAULT) != 0, group.isTrackSelected(i));
+                info.failed = this.audioFailedKeys.contains(audioKey(group, i));
+                infos.add(info);
                 groups.add(group);
                 indexes.add(i);
             }
@@ -2904,7 +2924,7 @@ public class PlayerActivity extends AppCompatActivity {
         if (pick < 0) return false;
         Tracks.Group group = groups.get(pick);
         int index = indexes.get(pick);
-        String key = this.audioStreamUrl + "|" + group.getMediaTrackGroup().id + "|" + index;
+        String key = audioKey(group, index);
         if (key.equals(this.audioForcedKey)) return false; // tried already, do not loop
         this.audioForcedKey = key;
         this.audioAutoPicks++;
@@ -2914,6 +2934,118 @@ public class PlayerActivity extends AppCompatActivity {
                 .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), index))
                 .build());
         return true;
+    }
+
+    private String audioKey(Tracks.Group group, int index) {
+        return this.audioStreamUrl + "|" + group.getMediaTrackGroup().id + "|" + index;
+    }
+
+    // --- 3.86: audio decoder errors are recovered silently ---
+    Tracks lastExoTracks;
+    final HashSet<String> audioFailedKeys = new HashSet<>();
+    boolean audioOffByRecovery;
+    int audioRecoveries;
+    int lastAudioRecovery = AudioPref.RECOVER_NONE;
+    private static final int MAX_AUDIO_RECOVERIES = 4;
+
+    private boolean vlcFallbackAllowed() {
+        return this.liveMode && !this.catchup && !isExtraLivePlayback()
+                && "auto".equals(playerPref()) && !this.useVlc && !this.queue.isEmpty();
+    }
+
+    /**
+     * The decoder of the (often force-selected) audio track could not start, e.g. AC3/E-AC3
+     * on a phone without such a decoder. Instead of an error message: mark the track as failed
+     * for this stream and continue with another audio track, VLC or the picture alone.
+     * Each track is tried once per stream, at most {@link #MAX_AUDIO_RECOVERIES} times.
+     * @return true when handled (no message, no further error handling)
+     */
+    boolean recoverAudioDecoderError(PlaybackException e) {
+        if (e == null || this.player == null || !AudioPref.isDecoderError(e.errorCode)) return false;
+        boolean audio = e.errorCode >= PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED;
+        Format failedFormat = null;
+        if (e instanceof ExoPlaybackException) {
+            ExoPlaybackException x = (ExoPlaybackException) e;
+            if (x.type == ExoPlaybackException.TYPE_RENDERER) {
+                String mime = x.rendererFormat == null ? null : x.rendererFormat.sampleMimeType;
+                boolean audioName = x.rendererName != null && x.rendererName.toLowerCase(Locale.US).contains("audio");
+                if (androidx.media3.common.MimeTypes.isAudio(mime) || (mime == null && audioName)) {
+                    audio = true;
+                    failedFormat = x.rendererFormat;
+                } else if (mime != null) {
+                    audio = false; // video/text decoder: normal error handling
+                }
+            }
+        }
+        if (!audio || this.audioRecoveries >= MAX_AUDIO_RECOVERIES) return false;
+        this.audioRecoveries++;
+        Tracks tracks = this.lastExoTracks != null ? this.lastExoTracks : this.player.getCurrentTracks();
+        ArrayList<AudioPref.Track> infos = new ArrayList<>();
+        ArrayList<Tracks.Group> groups = new ArrayList<>();
+        ArrayList<Integer> indexes = new ArrayList<>();
+        if (tracks != null) {
+            for (Tracks.Group group : tracks.getGroups()) {
+                if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
+                for (int i = 0; i < group.length; i++) {
+                    Format f = group.getTrackFormat(i);
+                    String key = audioKey(group, i);
+                    boolean failedNow = group.isTrackSelected(i)
+                            || (failedFormat != null && (failedFormat.equals(f)
+                                || (failedFormat.id != null && failedFormat.id.equals(f.id))));
+                    if (failedNow) this.audioFailedKeys.add(key);
+                    AudioPref.Track info = new AudioPref.Track(f.language, f.label, group.isTrackSupported(i, false),
+                            (f.selectionFlags & C.SELECTION_FLAG_DEFAULT) != 0, false);
+                    info.failed = this.audioFailedKeys.contains(key);
+                    infos.add(info);
+                    groups.add(group);
+                    indexes.add(i);
+                }
+            }
+        }
+        String pref = new Prefs(this).audioLanguage();
+        int action = AudioPref.recoveryAction(infos, pref, vlcFallbackAllowed(), this.audioOffByRecovery);
+        this.lastExoError = e.getErrorCodeName() + " (Audio, automatisch behoben)";
+        if (action == AudioPref.RECOVER_OTHER_TRACK) {
+            int pick = AudioPref.choose(infos, pref);
+            Tracks.Group group = groups.get(pick);
+            int index = indexes.get(pick);
+            this.audioForcedKey = audioKey(group, index);
+            this.lastFallbackReason = "Audio-Decoder fehlgeschlagen → andere Audiospur";
+            this.player.setTrackSelectionParameters(this.player.getTrackSelectionParameters().buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                    .setOverrideForType(new TrackSelectionOverride(group.getMediaTrackGroup(), index))
+                    .build());
+            this.player.prepare();
+        } else if (action == AudioPref.RECOVER_VLC && playAudioWithVlc()) {
+            this.lastFallbackReason = "Audio-Decoder fehlgeschlagen → VLC";
+        } else if (action != AudioPref.RECOVER_NONE) {
+            action = AudioPref.RECOVER_WITHOUT_AUDIO;
+            this.audioOffByRecovery = true;
+            this.lastFallbackReason = "Audio-Decoder fehlgeschlagen → Bild ohne Ton";
+            this.player.setTrackSelectionParameters(this.player.getTrackSelectionParameters().buildUpon()
+                    .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+                    .build());
+            this.player.prepare();
+        } else {
+            return false;
+        }
+        this.lastAudioRecovery = action;
+        if (this.errorView != null) this.errorView.setVisibility(8);
+        return true;
+    }
+
+    /** Test hook: forget the last forced track key. */
+    void audioForcedKey(String key) {
+        this.audioForcedKey = key;
+    }
+
+    /** Overridable in tests. */
+    boolean playAudioWithVlc() {
+        this.index = Math.max(0, Math.min(this.index, this.queue.size() - 1));
+        this.freezeTicks = 0;
+        return switchToVlc();
     }
 
     private static final class AudioPick {
@@ -2938,6 +3070,7 @@ public class PlayerActivity extends AppCompatActivity {
             if (group.getType() != C.TRACK_TYPE_AUDIO) continue;
             for (int i = 0; i < group.length; i++) {
                 if (!group.isTrackSupported(i, true)) continue;
+                if (this.audioFailedKeys.contains(audioKey(group, i))) continue;
                 Format format = group.getTrackFormat(i);
                 int channels = format.channelCount > 0 ? format.channelCount : 2;
                 if (stereoOnly && channels > 2) continue;
