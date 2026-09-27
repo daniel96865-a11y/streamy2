@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.85"><img alt="Version" src="https://img.shields.io/badge/Version-3.85-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-205-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.86"><img alt="Version" src="https://img.shields.io/badge/Version-3.86-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-206-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.85
+## 📥 Download – Version 3.86
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.85 (Build 205) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.85/Streamy2-TV-3.85.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.85 (Build 205) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.85/Streamy2-Mobile-3.85.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.86 (Build 206) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-TV-3.86.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.86 (Build 206) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-Mobile-3.86.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.85/Streamy2-TV-3.85.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.86/Streamy2-TV-3.86.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -75,6 +75,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.86** – Keine Fehlermeldung „DECODER_INIT_FAILED“ mehr: Kann das Gerät die automatisch gewählte Audiospur (z. B. AC3/E-AC3) nicht dekodieren, wechselt Streamy ohne Meldung auf eine andere Audiospur oder zu VLC. Jede Spur wird pro Stream nur einmal versucht, Fehlermeldungen erscheinen nur noch, wenn die Wiedergabe wirklich nicht möglich ist.
 
 **3.85** – Audiospur wird immer automatisch gewählt (auch bei Sendern, bei denen bisher kein Ton lief, bis man die Spur manuell auswählte), für ExoPlayer und VLC. Neue Einstellung „Bevorzugte Audiosprache“ (Deutsch, Englisch, Türkisch, Polnisch, Original), eigene Auswahl bleibt für den laufenden Stream erhalten, der Audiospur-Dialog zeigt die laufende Spur, auch im VLC-Player.
 
