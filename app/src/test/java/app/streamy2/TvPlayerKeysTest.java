@@ -98,7 +98,7 @@ public class TvPlayerKeysTest {
         assertTrue(press(a, KeyEvent.KEYCODE_DPAD_RIGHT));
         assertEquals(seeks + 1, a.keySeeks);
         assertTrue(hud(a));
-        assertSame("seekbar focused", seek, a.getCurrentFocus());
+        assertTrue("seekbar focused", seek.isFocused());
 
         // Seekbar focused: RIGHT keeps seeking.
         assertTrue(press(a, KeyEvent.KEYCODE_DPAD_RIGHT));

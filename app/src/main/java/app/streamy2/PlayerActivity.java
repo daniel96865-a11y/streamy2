@@ -1279,7 +1279,7 @@ public class PlayerActivity extends AppCompatActivity {
                     return true;
                 }
                 // HUD visible: activate focused control (do not force-pause)
-                if (this.epgSeek != null && getCurrentFocus() == this.epgSeek) {
+                if (this.epgSeek != null && this.epgSeek.isFocused()) {
                     togglePlay();
                     return true;
                 }
@@ -1341,7 +1341,7 @@ public class PlayerActivity extends AppCompatActivity {
             boolean left = keyCode == 21 || keyCode == 89;
             boolean dpad = keyCode == 21 || keyCode == 22;
             if (tv) {
-                int action = tvHorizontalKeyAction(this.hud, this.epgSeek != null && getCurrentFocus() == this.epgSeek,
+                int action = tvHorizontalKeyAction(this.hud, this.epgSeek != null && this.epgSeek.isFocused(),
                         dpad, this.liveMode, this.catchup && this.current != null);
                 if (action == TV_KEY_NAVIGATE) {
                     // Controls open, a button is focused: move focus, never seek.
@@ -1377,7 +1377,7 @@ public class PlayerActivity extends AppCompatActivity {
                 seekBy(left ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
                 return true;
             }
-            if (this.catchup && this.current != null && (!dpad || !tv || getCurrentFocus() == this.epgSeek)) {
+            if (this.catchup && this.current != null && (!dpad || !tv || (this.epgSeek != null && this.epgSeek.isFocused()))) {
                 // Archive: rewind / fast-forward by time; key repeats are combined and
                 // applied once the user stops pressing.
                 long step = dpad ? CatchupSeek.STEP_MS : CatchupSeek.MEDIA_STEP_MS;
@@ -1388,7 +1388,7 @@ public class PlayerActivity extends AppCompatActivity {
             }
             if (tv && dpad) {
                 View focus = getCurrentFocus();
-                if (focus != this.epgSeek) {
+                if (focus != this.epgSeek && (this.epgSeek == null || !this.epgSeek.isFocused())) {
                     // Move focus between bottom chips — do not timeshift/rewind
                     return super.dispatchKeyEvent(keyEvent);
                 }
