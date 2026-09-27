@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.82"><img alt="Version" src="https://img.shields.io/badge/Version-3.82-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-202-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.83"><img alt="Version" src="https://img.shields.io/badge/Version-3.83-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-203-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.82
+## 📥 Download – Version 3.83
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.82 (Build 202) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.82/Streamy2-TV-3.82.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.82 (Build 202) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.82/Streamy2-Mobile-3.82.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.83 (Build 203) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-TV-3.83.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.83 (Build 203) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-Mobile-3.83.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.82/Streamy2-TV-3.82.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.83/Streamy2-TV-3.83.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -76,6 +76,8 @@ Sie können parallel installiert werden und erhalten ihre Updates unabhängig vo
 
 ## 🆕 Letzte Änderungen
 
+**3.83** – Animierter Startbildschirm (Logo ohne schwarzes Viereck) jetzt auch für Geräte, die 3.82 früh installiert hatten.
+
 **3.82** – TV: Bei eingeblendeter Player-Steuerung bewegen Links/Rechts den Fokus zwischen den Schaltflächen (Fokusrahmen in Akzentfarbe) statt zu spulen; gespult wird bei ausgeblendeter Steuerung oder auf der Zeitleiste. Zurück schließt zuerst die Steuerung. Animierter Startbildschirm (Logo, Schein, Ladebalken), Logo ohne schwarzes Quadrat.
 
 **3.81** – „Playlist aktualisieren“ nur noch in den Einstellungen und der Playlist-Verwaltung, Senderliste wieder wie in 3.79. Player: Position links, Gesamtdauer rechts unter der Zeitleiste, ab einer Stunde einheitlich h:mm:ss.
@@ -83,8 +85,6 @@ Sie können parallel installiert werden und erhalten ihre Updates unabhängig vo
 **3.80** – Neue Schaltfläche „Playlist aktualisieren“ über der Senderliste, in den Einstellungen und in der Playlist-Verwaltung: lädt die aktive Playlist frisch vom Server, zeigt das Ergebnis (Anzahl Sender oder Fehlermeldung) und aktualisiert die Liste sofort.
 
 **3.79** – Suche: Beim Wechsel von Bereich oder Kategorie wird die Suche beendet und wieder der normale Inhalt gezeigt; die Tastatur bleibt danach geschlossen. Zurück schließt zuerst die Suche, Treffer öffnen sich mit ausgeblendeter Tastatur.
-
-**3.78** – Handy: Im Live-TV-Player per Wischen nach oben/unten den Sender wechseln, mit kurzer Einblendung von Nummer und Name; abschaltbar unter Wiedergabe.
 
 Alle Versionen: [Releases](https://github.com/daniel96865-a11y/streamy2/releases)
 
