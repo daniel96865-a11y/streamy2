@@ -615,6 +615,30 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 @Override public void onClick(View view3) { MainActivity.this.setAudioLanguage("auto"); }
             });
         }
+        {
+            View chip = findViewById(R.id.liveDelay0);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setLiveDelay(0); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.liveDelay10);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setLiveDelay(10); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.liveDelay20);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setLiveDelay(20); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.liveDelay30);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setLiveDelay(30); }
+            });
+        }
         this.bufLow.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
@@ -2207,6 +2231,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip((TextView) findViewById(R.id.audioLangTr), "tr".equals(lang), accent);
         paintChip((TextView) findViewById(R.id.audioLangPl), "pl".equals(lang), accent);
         paintChip((TextView) findViewById(R.id.audioLangAuto), "auto".equals(lang), accent);
+        int liveDelay = this.prefs.liveDelay();
+        paintChip((TextView) findViewById(R.id.liveDelay0), liveDelay == 0, accent);
+        paintChip((TextView) findViewById(R.id.liveDelay10), liveDelay == 10, accent);
+        paintChip((TextView) findViewById(R.id.liveDelay20), liveDelay == 20, accent);
+        paintChip((TextView) findViewById(R.id.liveDelay30), liveDelay == 30, accent);
+    }
+
+    private void setLiveDelay(int seconds) {
+        this.prefs.setLiveDelay(seconds);
+        paintPlayer();
+        Toast.makeText(this, "Live-Verzögerung: " + LiveDelay.label(seconds) + " (ab dem nächsten Senderstart)", Toast.LENGTH_SHORT).show();
     }
 
     private void setAudioLanguage(String value) {

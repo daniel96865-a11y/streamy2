@@ -56,6 +56,16 @@ final class VlcEngine implements LiveEngine {
     private volatile long statDemuxBps;
     private volatile int statLostPictures;
     private String statUrl;
+    /** Live-Verzögerung for the next play() (0 = off / VOD / catch-up). */
+    private volatile long liveDelayMs;
+
+    void setLiveDelayMs(long ms) {
+        this.liveDelayMs = Math.max(0L, ms);
+    }
+
+    long liveDelayMs() {
+        return this.liveDelayMs;
+    }
     private final MediaPlayer.EventListener eventListener = new MediaPlayer.EventListener() {
         @Override
         public void onEvent(MediaPlayer.Event event) {
@@ -196,6 +206,13 @@ final class VlcEngine implements LiveEngine {
                 int i = new Prefs(this.ctx).bufferMs();
                 media.addOption(":network-caching=" + i);
                 media.addOption(":live-caching=" + i);
+                // Live-Verzögerung (HLS/DASH via VLC's adaptive module): start further behind
+                // the live edge and allow a larger buffer. Plain TS streams: no live window.
+                int liveDelay = LiveDelay.vlcLiveDelayMs(this.liveDelayMs);
+                if (liveDelay > 0) {
+                    media.addOption(":adaptive-livedelay=" + liveDelay);
+                    media.addOption(":adaptive-maxbuffer=" + LiveDelay.vlcMaxBufferMs(this.liveDelayMs));
+                }
                 media.addOption(":http-reconnect");
                 media.addOption(":clock-jitter=0");
                 media.addOption(":clock-synchro=0");
