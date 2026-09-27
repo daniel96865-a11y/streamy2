@@ -1247,7 +1247,16 @@ public class PlayerActivity extends AppCompatActivity {
             }
             return super.dispatchKeyEvent(keyEvent);
         }
+        if (tv && this.hud) {
+            // Controls open on TV: every key press restarts the auto-hide timer.
+            scheduleHide();
+        }
         if (keyCode == 4 || keyCode == 111) {
+            if (tv && this.hud) {
+                // TV: Back closes the controls first, the next Back leaves the player.
+                hideTvHud();
+                return true;
+            }
             leave();
             return true;
         }
@@ -1270,6 +1279,10 @@ public class PlayerActivity extends AppCompatActivity {
                     return true;
                 }
                 // HUD visible: activate focused control (do not force-pause)
+                if (this.epgSeek != null && getCurrentFocus() == this.epgSeek) {
+                    togglePlay();
+                    return true;
+                }
                 return super.dispatchKeyEvent(keyEvent);
             }
             if (this.hud) {
@@ -1327,6 +1340,24 @@ public class PlayerActivity extends AppCompatActivity {
         if (keyCode == 21 || keyCode == 89 || keyCode == 22 || keyCode == 90) {
             boolean left = keyCode == 21 || keyCode == 89;
             boolean dpad = keyCode == 21 || keyCode == 22;
+            if (tv) {
+                int action = tvHorizontalKeyAction(this.hud, this.epgSeek != null && getCurrentFocus() == this.epgSeek,
+                        dpad, this.liveMode, this.catchup && this.current != null);
+                if (action == TV_KEY_NAVIGATE) {
+                    // Controls open, a button is focused: move focus, never seek.
+                    return super.dispatchKeyEvent(keyEvent);
+                }
+                if (action == TV_KEY_SHOW_AND_SEEK) {
+                    // Only video visible: show the controls with the seekbar focused and
+                    // seek right away; further LEFT/RIGHT keep seeking, DOWN goes to the buttons.
+                    setHud(true);
+                    scheduleHide();
+                    SeekBar bar = this.epgSeek;
+                    if (bar != null && bar.getVisibility() == View.VISIBLE) {
+                        bar.requestFocus();
+                    }
+                }
+            }
             if (!this.hud) {
                 setHud(true);
                 scheduleHide();
@@ -1342,6 +1373,7 @@ public class PlayerActivity extends AppCompatActivity {
                 }
             }
             if (!this.liveMode) {
+                this.keySeeks++;
                 seekBy(left ? -15000L : C.DEFAULT_SEEK_FORWARD_INCREMENT_MS);
                 return true;
             }
@@ -1349,6 +1381,7 @@ public class PlayerActivity extends AppCompatActivity {
                 // Archive: rewind / fast-forward by time; key repeats are combined and
                 // applied once the user stops pressing.
                 long step = dpad ? CatchupSeek.STEP_MS : CatchupSeek.MEDIA_STEP_MS;
+                this.keySeeks++;
                 catchupNudge(left ? -step : step);
                 scheduleHide();
                 return true;
@@ -1374,6 +1407,35 @@ public class PlayerActivity extends AppCompatActivity {
             return true;
         }
         return super.dispatchKeyEvent(keyEvent);
+    }
+
+    static final int TV_KEY_NAVIGATE = 1;
+    static final int TV_KEY_SEEK = 2;
+    static final int TV_KEY_SHOW_AND_SEEK = 3;
+    static final int TV_KEY_LEGACY = 4;
+
+    /** Number of seeks triggered by LEFT/RIGHT/REW/FF (for tests). */
+    int keySeeks;
+
+    /**
+     * TV remote LEFT/RIGHT/REW/FF in the player.
+     * Controls hidden: seek (films/series and catch-up), plain live keeps its old behaviour.
+     * Controls visible: DPAD moves focus between the buttons unless the seekbar is focused.
+     * Media keys (REW/FF) always seek.
+     */
+    static int tvHorizontalKeyAction(boolean hudVisible, boolean seekBarFocused, boolean dpad,
+                                     boolean liveMode, boolean catchup) {
+        if (!dpad) return TV_KEY_SEEK;
+        if (hudVisible) return seekBarFocused ? TV_KEY_SEEK : TV_KEY_NAVIGATE;
+        if (!liveMode || catchup) return TV_KEY_SHOW_AND_SEEK;
+        return TV_KEY_LEGACY;
+    }
+
+    private void hideTvHud() {
+        UI.removeCallbacks(this.hideHud);
+        setHud(false);
+        View focus = getCurrentFocus();
+        if (focus != null) focus.clearFocus();
     }
 
     private void toggleHud() {
@@ -1635,6 +1697,29 @@ public class PlayerActivity extends AppCompatActivity {
         View tap = findViewById(R.id.tapLayer);
         if (tap != null) {
             tap.setFocusable(false);
+        }
+        SeekBar bar = this.epgSeek;
+        if (bar != null) {
+            bar.setNextFocusDownId(R.id.btnPlay);
+            int[] row = new int[]{R.id.btnPrevCh, R.id.btnPlay, R.id.btnNextCh, R.id.btnEpg, R.id.btnPlayer,
+                    R.id.btnResize, R.id.btnDiag, R.id.badgeLive};
+            for (int id : row) {
+                View v = findViewById(id);
+                if (v != null) v.setNextFocusUpId(R.id.epgSeek);
+            }
+            if (bar.getOnFocusChangeListener() == null) {
+                bar.setOnFocusChangeListener((v, focused) -> {
+                    try {
+                        int accent = AccentTheme.accent(PlayerActivity.this);
+                        bar.setThumbTintList(android.content.res.ColorStateList.valueOf(
+                                focused ? accent : Color.TRANSPARENT));
+                        bar.setScaleY(focused ? 1.6f : 1.0f);
+                    } catch (Throwable t) {
+                        Quiet.ignored("PlayerActivity", t);
+                    }
+                    if (focused) scheduleHide();
+                });
+            }
         }
     }
 
