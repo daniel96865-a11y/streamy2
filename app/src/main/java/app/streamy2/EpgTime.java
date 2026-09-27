@@ -14,5 +14,14 @@ final class EpgTime {
         }
         return current;
     }
+    /** All guide times are shown in German time (CET/CEST), independent of the device zone. */
+    static final java.util.TimeZone ZONE = java.util.TimeZone.getTimeZone("Europe/Berlin");
+
+    static java.text.SimpleDateFormat format(String pattern) {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat(pattern, java.util.Locale.GERMANY);
+        f.setTimeZone(ZONE);
+        return f;
+    }
+
     private EpgTime() {}
 }

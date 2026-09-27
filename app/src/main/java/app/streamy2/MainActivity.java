@@ -667,6 +667,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 MainActivity.this.lambda$onCreate$33(view3);
             }
         });
+        View srcAuto = findViewById(R.id.epgSrcAuto);
+        if (srcAuto != null) srcAuto.setOnClickListener(v -> setEpgSource(EpgSources.AUTO));
+        View srcProvider = findViewById(R.id.epgSrcProvider);
+        if (srcProvider != null) srcProvider.setOnClickListener(v -> setEpgSource(EpgSources.PROVIDER));
+        View srcWeb = findViewById(R.id.epgSrcWeb);
+        if (srcWeb != null) srcWeb.setOnClickListener(v -> setEpgSource(EpgSources.WEB));
         findViewById(R.id.btnRefreshEpg).setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda96
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
@@ -2206,7 +2212,37 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintEpgInterval();
     }
 
+    private void setEpgSource(String mode) {
+        String next = EpgSources.normalize(mode);
+        if (next.equals(this.prefs.epgSource())) {
+            paintEpgSource();
+            return;
+        }
+        this.prefs.setEpgSource(next);
+        if (App.guide != null) App.guide.sourceMode = next;
+        paintEpgSource();
+        Toast.makeText(this, "EPG-Quelle: " + EpgSources.label(next), Toast.LENGTH_SHORT).show();
+        // Source change: clear rows so no data of the old source stays visible, then reload.
+        try {
+            java.util.List<Models.Channel> live = App.live;
+            if (live != null) for (Models.Channel c : new java.util.ArrayList<>(live)) if (c != null) c.epg = null;
+            if (this.adapter != null) this.adapter.notifyEpg();
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
+        ensureNetEpg(false);
+    }
+
+    private void paintEpgSource() {
+        Theme.Accent accent = Theme.get(this.prefs.accent());
+        String mode = this.prefs.epgSource();
+        paintChip((TextView) findViewById(R.id.epgSrcAuto), EpgSources.AUTO.equals(mode), accent);
+        paintChip((TextView) findViewById(R.id.epgSrcProvider), EpgSources.PROVIDER.equals(mode), accent);
+        paintChip((TextView) findViewById(R.id.epgSrcWeb), EpgSources.WEB.equals(mode), accent);
+    }
+
     private void paintEpgInterval() {
+        paintEpgSource();
         Theme.Accent accent = Theme.get(this.prefs.accent());
         int epgIntervalHours = this.prefs.epgIntervalHours();
         paintChip(this.epg6, epgIntervalHours == 6, accent);
@@ -3164,7 +3200,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (channel.epg != null && channel.epg.title != null) {
             str = channel.epg.title;
             if (channel.epg.start > 0 && channel.epg.end > 0) {
-                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("HH:mm", Locale.GERMANY);
+                SimpleDateFormat simpleDateFormat = EpgTime.format("HH:mm");
                 str = str + "  ·  " + simpleDateFormat.format(new Date(channel.epg.start)) + "–" + simpleDateFormat.format(new Date(channel.epg.end));
             }
         } else {
@@ -4560,7 +4596,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     });
                 }
 
-            } else if ((channel.extraLiveUrl == null || channel.extraLiveUrl.isEmpty()) && this.api != null) {
+            } else if ((channel.extraLiveUrl == null || channel.extraLiveUrl.isEmpty()) && this.api != null
+                    && EpgSources.allowProvider(this.prefs.epgSource(), EpgSources.isBuiltin(channel))) {
                 synchronized (this.epgAsked) {
                     if (this.epgAsked.contains(channel.id)) {
                         return;
@@ -4671,7 +4708,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (this.guide.channelCount > 0) {
             if (this.prefs.epgLast() > 0) {
-                str2 = new SimpleDateFormat("dd.MM. HH:mm", Locale.GERMANY).format(new Date(this.prefs.epgLast()));
+                str2 = EpgTime.format("dd.MM. HH:mm").format(new Date(this.prefs.epgLast()));
             } else {
                 str2 = "jetzt";
             }

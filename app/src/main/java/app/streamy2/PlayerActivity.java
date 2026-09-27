@@ -174,7 +174,7 @@ public class PlayerActivity extends AppCompatActivity {
     private final List<String> queue = new ArrayList();
     private boolean hud = true;
     private final List<EpgGuide.Listing> programmes = new ArrayList();
-    private final SimpleDateFormat clockFmt = new SimpleDateFormat("HH:mm", Locale.GERMANY);
+    private final SimpleDateFormat clockFmt = EpgTime.format("HH:mm");
     private final Runnable tick = new Runnable() { // from class: app.streamy2.PlayerActivity.1
         @Override // java.lang.Runnable
         public void run() {
@@ -1997,7 +1997,8 @@ public class PlayerActivity extends AppCompatActivity {
         if (!this.liveMode || (channel = this.channel) == null) {
             return;
         }
-        if ((channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) || App.api == null) {
+        if ((channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) || App.api == null
+                || !EpgSources.allowProvider(new Prefs(this).epgSource(), EpgSources.isBuiltin(channel))) {
             Handler handler = UI;
             handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 600L);
             handler.postDelayed(new PlayerActivity$$ExternalSyntheticLambda23(this), 2000);

@@ -62,6 +62,7 @@ final class EpgRefresh {
         EpgGuide guide = App.guide;
         if (guide == null) App.guide = guide = new EpgGuide();
         final EpgGuide target = guide;
+        target.sourceMode = EpgSources.normalize(new Prefs(app).epgSource());
         target.loading = true;
         IO.execute(() -> {
             // Parsing multi-MB XMLTV must never compete with video decoding / segment loads.
@@ -83,46 +84,47 @@ final class EpgRefresh {
 
     private static String refresh(Context context, EpgGuide guide, boolean force) throws Exception {
         Prefs prefs = new Prefs(context);
-        LinkedHashSet<String> sources = new LinkedHashSet<>();
         String primary = prefs.epgUrl();
         if (primary.isEmpty() && prefs.hasXtream()) {
             primary = new XtreamApi(prefs.url(), prefs.user(), prefs.pass(), prefs.format()).xmltvUrl();
         }
-        if (!primary.isEmpty()) sources.add(primary);
-        for (String url : ExtraLiveSource.EPG_URLS) sources.add(url);
-        String key = digest(primary);
+        String mode = EpgSources.normalize(prefs.epgSource());
+        List<EpgSources.Source> plan = EpgSources.plan(mode, primary, EpgSources.hasBuiltin(App.live));
+        String key = digest(mode + "|" + primary);
         if (!key.equals(sourceKey)) { guide.clear(); hydratedAt = 0; sourceKey = key; }
+        guide.sourceMode = mode;
         long now = System.currentTimeMillis();
         boolean hydrate = guide.programmeCount == 0 || due(hydratedAt, now, hydrateIntervalMillis(App.playerOpen));
         List<String> failures = new ArrayList<>();
         boolean downloaded = false;
         int fallbackLoaded = 0;
-        for (String url : sources) {
+        for (EpgSources.Source source : plan) {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
-            boolean fallback = !url.equals(primary);
+            String url = source.url;
+            boolean fallback = source.web;
             if (fallback && fallbackLoaded > 0 && App.isLowRam()) break;
             File cache = new File(context.getFilesDir(), "epg/" + digest(url) + ".xml");
             boolean fresh = cache.isFile() && !due(cache.lastModified(), now, intervalMillis(prefs.epgIntervalHours()));
             boolean loaded = false;
             if (hydrate && cache.isFile()) {
-                try { guide.loadFileMerge(cache); loaded = true; }
+                try { guide.loadFileMerge(cache, source.web); loaded = true; }
                 catch (Exception ignored) { fresh = false; }
             }
             if (force || !fresh) {
                 Long lastFailure = failedAt.get(url);
                 if (!force && lastFailure != null && !due(lastFailure, now, 5 * 60000L)) {
-                    failures.add(fallback ? "Zusatzquelle" : "Playlist-EPG");
+                    failures.add(fallback ? "EPG aus dem Netz" : "Playlist-EPG");
                     if (fallback && loaded) fallbackLoaded++;
                     continue;
                 }
                 try {
-                    guide.loadUrlMerge(url, cache, true);
+                    guide.loadUrlMerge(url, cache, true, source.web);
                     failedAt.remove(url);
                     downloaded = true;
                     loaded = true;
                 } catch (Exception e) {
                     failedAt.put(url, now);
-                    failures.add(fallback ? "Zusatzquelle" : "Playlist-EPG");
+                    failures.add(fallback ? "EPG aus dem Netz" : "Playlist-EPG");
                 }
             } else if (!hydrate) loaded = true;
             if (fallback && loaded) fallbackLoaded++;

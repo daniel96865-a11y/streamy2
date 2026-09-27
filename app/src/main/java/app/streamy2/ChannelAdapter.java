@@ -51,7 +51,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     private int gridColumns = 1;
     private static final int TYPE_ROW = 0;
     private static final int TYPE_POSTER = 1;
-    private final SimpleDateFormat clock = new SimpleDateFormat("HH:mm", Locale.GERMANY);
+    private final SimpleDateFormat clock = EpgTime.format("HH:mm");
 
     public interface Listener {
         void onChannel(Models.Channel channel);
