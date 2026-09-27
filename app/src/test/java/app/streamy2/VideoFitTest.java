@@ -19,7 +19,7 @@ public class VideoFitTest {
         // 2400x1080 (20:9) in landscape: 16:9 fills the height, bars only left/right.
         assertSize(1920, 1080, VideoFit.size(2400, 1080, 1920, 1080, 1f, "fit"));
         // 21:9 cinema scope on the same phone: full width.
-        assertSize(2400, 1029, VideoFit.size(2400, 1080, 2560, 1097, 1f, "fit"));
+        assertSize(2400, 1028, VideoFit.size(2400, 1080, 2560, 1097, 1f, "fit"));
     }
 
     @Test public void tabletAndAnamorphicSources() {
