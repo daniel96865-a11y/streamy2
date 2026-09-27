@@ -668,11 +668,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         });
         View srcAuto = findViewById(R.id.epgSrcAuto);
-        if (srcAuto != null) srcAuto.setOnClickListener(v -> setEpgSource(EpgSources.AUTO));
+        if (srcAuto != null) srcAuto.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { MainActivity.this.setEpgSource(EpgSources.AUTO); } });
         View srcProvider = findViewById(R.id.epgSrcProvider);
-        if (srcProvider != null) srcProvider.setOnClickListener(v -> setEpgSource(EpgSources.PROVIDER));
+        if (srcProvider != null) srcProvider.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { MainActivity.this.setEpgSource(EpgSources.PROVIDER); } });
         View srcWeb = findViewById(R.id.epgSrcWeb);
-        if (srcWeb != null) srcWeb.setOnClickListener(v -> setEpgSource(EpgSources.WEB));
+        if (srcWeb != null) srcWeb.setOnClickListener(new View.OnClickListener() { @Override public void onClick(View v) { MainActivity.this.setEpgSource(EpgSources.WEB); } });
         findViewById(R.id.btnRefreshEpg).setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda96
             @Override // android.view.View.OnClickListener
             public final void onClick(View view3) {
