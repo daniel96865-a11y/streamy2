@@ -42,6 +42,7 @@ final class VlcEngine implements LiveEngine {
     private boolean attached;
     /** true = fill/zoom (crop), false = fit (letterbox). Default fill for phones/TV live. */
     private boolean zoomWanted = true;
+    private volatile String scaleMode = "fit";
     private final Context ctx;
     private final ViewGroup host;
     private VLCVideoLayout layout;
@@ -214,8 +215,25 @@ final class VlcEngine implements LiveEngine {
 
     /** Apply Fit vs Füllen to the VLC surface (Exo uses PlayerView resizeMode). */
     void setZoom(boolean zoom) {
-        this.zoomWanted = zoom;
+        setScaleMode(zoom ? "zoom" : "fit");
+    }
+
+    /** "fit" = Einpassen, "zoom" = Ausfüllen (crop), "stretch" = Strecken. */
+    void setScaleMode(String mode) {
+        this.scaleMode = "zoom".equals(mode) || "stretch".equals(mode) ? mode : "fit";
+        this.zoomWanted = "zoom".equals(this.scaleMode);
         applyVideoScale();
+    }
+
+    /** Re-fit the surface after rotation / window size changes. */
+    void refreshSurface() {
+        applyVideoScale();
+    }
+
+    static MediaPlayer.ScaleType scaleTypeFor(String mode) {
+        if ("zoom".equals(mode)) return MediaPlayer.ScaleType.SURFACE_FIT_SCREEN;
+        if ("stretch".equals(mode)) return MediaPlayer.ScaleType.SURFACE_FILL;
+        return MediaPlayer.ScaleType.SURFACE_BEST_FIT;
     }
 
     private void applyVideoScale() {
@@ -224,9 +242,8 @@ final class VlcEngine implements LiveEngine {
             if (mediaPlayer == null) {
                 return;
             }
-            mediaPlayer.setVideoScale(this.zoomWanted
-                    ? MediaPlayer.ScaleType.SURFACE_FIT_SCREEN
-                    : MediaPlayer.ScaleType.SURFACE_BEST_FIT);
+            // Before 3.84 "Strecken" fell back to best-fit on VLC.
+            mediaPlayer.setVideoScale(scaleTypeFor(this.scaleMode));
             try {
                 mediaPlayer.updateVideoSurfaces();
             } catch (Throwable ignored) {

@@ -1250,7 +1250,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
-                            android:text="Anpassen zeigt das ganze Bild. Füllen zoomt auf den Bildschirm. Strecken nutzt die gesamte Fläche."/>
+                            android:text="Einpassen zeigt das ganze Bild in maximaler Größe. Ausfüllen füllt den Bildschirm (Ränder werden beschnitten). Strecken nutzt die gesamte Fläche. Handy: im Player mit zwei Fingern aufziehen = Ausfüllen, zusammenziehen = Einpassen."/>
                         <LinearLayout
                             android:orientation="horizontal"
                             android:layout_width="match_parent"
@@ -1265,7 +1265,7 @@
                                 android:clickable="true"
                                 android:layout_width="wrap_content"
                                 android:layout_height="40dp"
-                                android:text="Anpassen"
+                                android:text="Einpassen"
                                 android:paddingStart="16dp"
                                 android:paddingEnd="16dp"/>
                             <TextView
@@ -1277,7 +1277,7 @@
                                 android:clickable="true"
                                 android:layout_width="wrap_content"
                                 android:layout_height="40dp"
-                                android:text="Füllen"
+                                android:text="Ausfüllen"
                                 android:paddingStart="16dp"
                                 android:paddingEnd="16dp"
                                 android:layout_marginStart="8dp"/>

@@ -181,11 +181,11 @@ public class PlayerRegressionTest {
         androidx.media3.ui.PlayerView view = (androidx.media3.ui.PlayerView) field("playerView");
         assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM, view.getResizeMode());
         TextView btn = (TextView) field("btnResize");
-        assertEquals("Füllen", btn.getText().toString());
+        assertEquals("Ausfüllen", btn.getText().toString());
         new Prefs(RuntimeEnvironment.getApplication()).setResize("fit");
         call("applyResize", new Class[]{});
         assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT, view.getResizeMode());
-        assertEquals("Anpassen", btn.getText().toString());
+        assertEquals("Einpassen", btn.getText().toString());
         new Prefs(RuntimeEnvironment.getApplication()).setResize("stretch");
         call("applyResize", new Class[]{});
         assertEquals(androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL, view.getResizeMode());
