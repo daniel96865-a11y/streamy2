@@ -78,6 +78,13 @@ public class TvPlayerKeysTest {
         assertTrue("TV mode", Tv.isTv(a));
         View seek = a.findViewById(R.id.epgSeek);
         View play = a.findViewById(R.id.btnPlay);
+        // Robolectric windows start in touch mode; a real TV remote is not. Allow focus
+        // like in non-touch (D-pad) mode.
+        for (int id : new int[]{R.id.epgSeek, R.id.btnPrevCh, R.id.btnPlay, R.id.btnNextCh, R.id.btnEpg,
+                R.id.btnPlayer, R.id.btnBack}) {
+            View v = a.findViewById(id);
+            if (v != null) v.setFocusableInTouchMode(true);
+        }
 
         // Back with controls visible only closes the controls.
         if (!hud(a)) press(a, KeyEvent.KEYCODE_DPAD_CENTER);
