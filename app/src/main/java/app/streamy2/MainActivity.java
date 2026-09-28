@@ -616,6 +616,34 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             });
         }
         {
+            View pipBox = findViewById(R.id.pipSettings);
+            if (pipBox != null && !Pip.isMobileFlavor(BuildConfig.FLAVOR)) pipBox.setVisibility(View.GONE);
+        }
+        {
+            View chip = findViewById(R.id.pipOn);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setPip(true, null); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.pipOff);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setPip(false, null); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.pipAutoOn);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setPip(null, true); }
+            });
+        }
+        {
+            View chip = findViewById(R.id.pipAutoOff);
+            if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View view3) { MainActivity.this.setPip(null, false); }
+            });
+        }
+        {
             View chip = findViewById(R.id.liveDelay0);
             if (chip != null) chip.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View view3) { MainActivity.this.setLiveDelay(0); }
@@ -2236,6 +2264,28 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         paintChip((TextView) findViewById(R.id.liveDelay10), liveDelay == 10, accent);
         paintChip((TextView) findViewById(R.id.liveDelay20), liveDelay == 20, accent);
         paintChip((TextView) findViewById(R.id.liveDelay30), liveDelay == 30, accent);
+        boolean pip = this.prefs.pipEnabled();
+        boolean pipAuto = this.prefs.pipAuto();
+        paintChip((TextView) findViewById(R.id.pipOn), pip, accent);
+        paintChip((TextView) findViewById(R.id.pipOff), !pip, accent);
+        paintChip((TextView) findViewById(R.id.pipAutoOn), pip && pipAuto, accent);
+        paintChip((TextView) findViewById(R.id.pipAutoOff), pip && !pipAuto, accent);
+        View pipAutoOn = findViewById(R.id.pipAutoOn);
+        View pipAutoOff = findViewById(R.id.pipAutoOff);
+        if (pipAutoOn != null) pipAutoOn.setAlpha(pip ? 1f : 0.4f);
+        if (pipAutoOff != null) pipAutoOff.setAlpha(pip ? 1f : 0.4f);
+    }
+
+    private void setPip(Boolean on, Boolean auto) {
+        if (on != null) this.prefs.setPipEnabled(on);
+        if (auto != null) {
+            if (!this.prefs.pipEnabled()) return; // automatic needs Bild-in-Bild on
+            this.prefs.setPipAuto(auto);
+        }
+        paintPlayer();
+        String msg = on != null ? "Bild-in-Bild: " + (on ? "An" : "Aus")
+                : "Bild-in-Bild automatisch: " + (auto ? "An" : "Aus");
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
     private void setLiveDelay(int seconds) {

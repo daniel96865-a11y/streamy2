@@ -293,6 +293,16 @@
                     android:visibility="gone" />
 
                 <TextView
+                    android:id="@+id/btnPip"
+                    style="@style/StreamyPlayerCircle"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_marginStart="9dp"
+                    android:contentDescription="Bild-in-Bild"
+                    android:drawableTop="@drawable/ic_player_pip"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/badgeLive"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"

@@ -501,6 +501,7 @@ public class PlayerActivity extends AppCompatActivity {
                 }
             });
         }
+        setupPip();
         TextView btnDiag = (TextView) findViewById(R.id.btnDiag);
         if (btnDiag != null) {
             btnDiag.setOnClickListener(new View.OnClickListener() {
@@ -852,6 +853,11 @@ public class PlayerActivity extends AppCompatActivity {
                 return;
             }
             PlayerActivity.this.playCurrent();
+        }
+
+        @Override // androidx.media3.common.Player.Listener
+        public void onVideoSizeChanged(androidx.media3.common.VideoSize videoSize) {
+            PlayerActivity.this.updatePipParams();
         }
 
         @Override // androidx.media3.common.Player.Listener
@@ -1564,10 +1570,10 @@ public class PlayerActivity extends AppCompatActivity {
             this.bufLastAt = now;
 
             String mode = this.bufferMode;
-            boolean off = BufferStats.MODE_OFF.equals(mode);
+            boolean off = BufferStats.MODE_OFF.equals(mode) || this.inPip;
             boolean hudVisible = this.bottomBar != null && this.bottomBar.getVisibility() == View.VISIBLE;
             boolean showInline = !off && hudVisible;
-            boolean showOverlay = BufferStats.MODE_ALWAYS.equals(mode) && !hudVisible;
+            boolean showOverlay = BufferStats.MODE_ALWAYS.equals(mode) && !hudVisible && !this.inPip;
             setVisible(this.bufferInfo, showInline);
             setVisible(this.bufferOverlay, showOverlay);
             updateBufferedSecondary(off);
@@ -1653,6 +1659,7 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     private void setHud(boolean z) {
+        if (this.inPip) z = false; // Bild-in-Bild: no controls/overlays
         this.hud = z;
         boolean z2 = false;
         int i = z ? 0 : 8;
@@ -1906,6 +1913,7 @@ public class PlayerActivity extends AppCompatActivity {
 
     /* JADX INFO: Access modifiers changed from: private */
     public void updatePlayIcon() {
+        updatePipParams();
         ExoPlayer exoPlayer;
         LiveEngine liveEngine;
         if (this.btnPlay == null) {
@@ -2613,6 +2621,7 @@ public class PlayerActivity extends AppCompatActivity {
     */
 
     private void toastPlaybackError(final String msg) {
+        if (this.inPip) return; // no messages in the small window
         try {
             runOnUiThread(new Runnable() {
                 @Override public void run() {
@@ -3129,6 +3138,211 @@ public class PlayerActivity extends AppCompatActivity {
             this.player.seekTo(LiveDelay.seekPositionMs(this.player.getCurrentPosition(), offset, target,
                     windowMs == C.TIME_UNSET ? 0L : windowMs));
         }
+    }
+
+    // --- 3.88: Bild-in-Bild (mobile app only) ---
+    boolean inPip;
+    /** PiP was entered and not yet expanded back or closed. */
+    boolean pipActive;
+    /** PiP window just went away while started; onResume confirms "expanded", onStop means closed. */
+    boolean pipExpandPending;
+    boolean pipPausedByStop;
+    boolean pipClosed;
+    private android.content.BroadcastReceiver pipReceiver;
+
+    boolean isPipMode() {
+        return android.os.Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode();
+    }
+
+    boolean pipAllowed() {
+        boolean supports;
+        try {
+            supports = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE);
+        } catch (Throwable t) {
+            supports = false;
+        }
+        return Pip.allowed(Pip.isMobileFlavor(BuildConfig.FLAVOR), android.os.Build.VERSION.SDK_INT, supports,
+                new Prefs(this).pipEnabled());
+    }
+
+    boolean isPlayingNow() {
+        if (this.userPaused) return false;
+        if (this.useVlc) return this.vlc != null;
+        return this.player != null && this.player.getPlayWhenReady()
+                && this.player.getPlaybackState() != androidx.media3.common.Player.STATE_IDLE
+                && this.player.getPlaybackState() != androidx.media3.common.Player.STATE_ENDED;
+    }
+
+    private void setupPip() {
+        View btn = findViewById(R.id.btnPip);
+        boolean allowed = pipAllowed();
+        if (btn != null) {
+            btn.setVisibility(allowed ? View.VISIBLE : View.GONE);
+            btn.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    PlayerActivity.this.enterPip();
+                }
+            });
+        }
+        if (!Pip.isMobileFlavor(BuildConfig.FLAVOR) || android.os.Build.VERSION.SDK_INT < 26) return;
+        this.pipReceiver = new android.content.BroadcastReceiver() {
+            @Override public void onReceive(android.content.Context c, Intent intent) {
+                if (intent == null || !Pip.ACTION_CONTROL.equals(intent.getAction())) return;
+                if (intent.getIntExtra(Pip.EXTRA_CONTROL, 0) == Pip.CONTROL_PLAY_PAUSE) {
+                    PlayerActivity.this.togglePlay();
+                    PlayerActivity.this.updatePipParams();
+                }
+            }
+        };
+        try {
+            androidx.core.content.ContextCompat.registerReceiver(this, this.pipReceiver,
+                    new android.content.IntentFilter(Pip.ACTION_CONTROL),
+                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED);
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+            this.pipReceiver = null;
+        }
+        updatePipParams();
+    }
+
+    /** Video size {w, h} and pixel ratio of the current engine, or zeros. */
+    private float[] currentVideoSize() {
+        try {
+            if (this.useVlc) {
+                if (this.vlc instanceof VlcEngine) {
+                    int[] vs = ((VlcEngine) this.vlc).videoSize();
+                    if (vs != null) return new float[]{vs[0], vs[1], vs[2] > 0 && vs[3] > 0 ? (float) vs[2] / vs[3] : 1f};
+                }
+            } else if (this.player != null) {
+                androidx.media3.common.VideoSize vs = this.player.getVideoSize();
+                return new float[]{vs.width, vs.height, vs.pixelWidthHeightRatio};
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+        return new float[]{0, 0, 1f};
+    }
+
+    @android.annotation.TargetApi(26)
+    android.app.PictureInPictureParams buildPipParams() {
+        float[] vs = currentVideoSize();
+        int[] ar = Pip.aspect((int) vs[0], (int) vs[1], vs[2]);
+        android.app.PictureInPictureParams.Builder b = new android.app.PictureInPictureParams.Builder()
+                .setAspectRatio(new android.util.Rational(ar[0], ar[1]));
+        View video = this.useVlc ? this.vlcHost : this.playerView;
+        android.graphics.Rect hint = new android.graphics.Rect();
+        if (video != null && video.getGlobalVisibleRect(hint) && !hint.isEmpty()) b.setSourceRectHint(hint);
+        boolean playing = isPlayingNow();
+        Intent i = new Intent(Pip.ACTION_CONTROL).setPackage(getPackageName()).putExtra(Pip.EXTRA_CONTROL, Pip.CONTROL_PLAY_PAUSE);
+        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(this, Pip.CONTROL_PLAY_PAUSE, i,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        String title = playing ? "Pause" : "Abspielen";
+        android.graphics.drawable.Icon icon = android.graphics.drawable.Icon.createWithResource(this,
+                playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play);
+        java.util.ArrayList<android.app.RemoteAction> actions = new java.util.ArrayList<>();
+        actions.add(new android.app.RemoteAction(icon, title, title, pi));
+        b.setActions(actions);
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            b.setAutoEnterEnabled(Pip.autoEnter(pipAllowed(), new Prefs(this).pipAuto(), playing, isFinishing()));
+            b.setSeamlessResizeEnabled(true);
+        }
+        return b.build();
+    }
+
+    /** Keep the system's PiP params (aspect ratio, play/pause, auto-enter) up to date. */
+    void updatePipParams() {
+        if (android.os.Build.VERSION.SDK_INT < 26 || !Pip.isMobileFlavor(BuildConfig.FLAVOR)) return;
+        try {
+            if (!pipAllowed()) {
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    setPictureInPictureParams(new android.app.PictureInPictureParams.Builder().setAutoEnterEnabled(false).build());
+                }
+                return;
+            }
+            setPictureInPictureParams(buildPipParams());
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+    }
+
+    /** PiP button / leaving the app: switch to the small window. */
+    boolean enterPip() {
+        if (android.os.Build.VERSION.SDK_INT < 26 || !pipAllowed() || isFinishing()) return false;
+        try {
+            setHud(false);
+            return enterPictureInPictureMode(buildPipParams());
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+            return false;
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        // Android 12+ enters automatically via setAutoEnterEnabled.
+        if (Pip.useLeaveHint(android.os.Build.VERSION.SDK_INT)
+                && Pip.autoEnter(pipAllowed(), new Prefs(this).pipAuto(), isPlayingNow(), isFinishing())) {
+            enterPip();
+        }
+    }
+
+    @Override
+    public void onPictureInPictureModeChanged(boolean inPictureInPictureMode, Configuration newConfig) {
+        super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig);
+        onPipModeChanged(inPictureInPictureMode,
+                getLifecycle().getCurrentState().isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED));
+    }
+
+    void onPipModeChanged(boolean nowInPip, boolean started) {
+        boolean was = this.pipActive;
+        this.inPip = nowInPip;
+        if (nowInPip) {
+            this.pipActive = true;
+            this.pipExpandPending = false;
+            setHud(false);
+            hideView(this.errorView);
+            hideView(findViewById(R.id.zapOverlay));
+            hideView(this.bufferOverlay);
+            hideView(this.bufferInfo);
+            hideView(this.epgSheet);
+            try { if (this.playerView != null) this.playerView.setUseController(false); } catch (Throwable t) { Quiet.ignored("PlayerActivity", t); }
+            return;
+        }
+        if (Pip.closedByUser(was, false, started)) {
+            closePip();
+            return;
+        }
+        this.pipActive = false;
+        this.pipExpandPending = was;
+        updateBufferIndicator();
+        setHud(true);
+        scheduleHide();
+    }
+
+    private static void hideView(View v) {
+        if (v != null) v.setVisibility(View.GONE);
+    }
+
+    /** The user closed the PiP window: stop playback (no audio in background) and finish. */
+    void closePip() {
+        if (this.pipClosed) return;
+        this.pipClosed = true;
+        this.pipActive = false;
+        this.pipExpandPending = false;
+        this.inPip = false;
+        this.resumePlayback = false;
+        this.restartOnResume = false;
+        try {
+            if (this.vlc != null) this.vlc.pause();
+            if (this.player != null) {
+                this.player.setPlayWhenReady(false);
+                this.player.stop();
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("PlayerActivity", t);
+        }
+        finish(); // onDestroy stops and releases both engines
     }
 
     private static final class AudioPick {
@@ -4512,6 +4726,7 @@ public class PlayerActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        this.pipExpandPending = false;
         foreground = true;
         acquireWifiLock();
         UI.removeCallbacks(tick);
@@ -4534,6 +4749,11 @@ public class PlayerActivity extends AppCompatActivity {
 
     @Override
     protected void onPause() {
+        if (isPipMode()) {
+            // Bild-in-Bild: keep playing in the small window.
+            super.onPause();
+            return;
+        }
         resumePlayback = !userPaused;
         restartOnResume = resolving || vlcStarting;
         foreground = false;
@@ -4548,14 +4768,34 @@ public class PlayerActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+        if (this.pipPausedByStop && isPipMode() && !userPaused) {
+            // Screen back on while in Bild-in-Bild: continue.
+            if (useVlc && vlc != null) vlc.resume();
+            else if (player != null) player.setPlayWhenReady(true);
+        }
+        this.pipPausedByStop = false;
+    }
+
+    @Override
     protected void onStop() {
         if (vlc != null) vlc.pause();
         if (player != null) player.setPlayWhenReady(false);
+        if (isPipMode()) {
+            this.pipPausedByStop = true;       // screen off or window closing: no audio in background
+        } else if (this.pipActive || this.pipExpandPending) {
+            closePip();                        // PiP window was closed by the user
+        }
         super.onStop();
     }
 
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onDestroy() {
+        if (this.pipReceiver != null) {
+            try { unregisterReceiver(this.pipReceiver); } catch (Throwable t) { Quiet.ignored("PlayerActivity", t); }
+            this.pipReceiver = null;
+        }
         UI.removeCallbacks(this.catchupSeekRun);
         UI.removeCallbacks(this.hideZapOverlay);
         App.playerOpen = false;

@@ -63,6 +63,20 @@ final class VlcEngine implements LiveEngine {
         this.liveDelayMs = Math.max(0L, ms);
     }
 
+    /** Current video {width, height, sarNum, sarDen}, or null when unknown (for Bild-in-Bild). */
+    int[] videoSize() {
+        try {
+            MediaPlayer mp = this.player;
+            if (mp == null) return null;
+            org.videolan.libvlc.interfaces.IMedia.VideoTrack t = mp.getCurrentVideoTrack();
+            if (t == null || t.width <= 0 || t.height <= 0) return null;
+            return new int[]{t.width, t.height, t.sarNum, t.sarDen};
+        } catch (Throwable e) {
+            Quiet.ignored("VlcEngine", e);
+            return null;
+        }
+    }
+
     long liveDelayMs() {
         return this.liveDelayMs;
     }

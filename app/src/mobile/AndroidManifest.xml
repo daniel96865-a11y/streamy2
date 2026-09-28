@@ -4,5 +4,12 @@
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        tools:replace="android:icon,android:roundIcon" />
+        tools:replace="android:icon,android:roundIcon">
+        <!-- Bild-in-Bild only in the mobile app. -->
+        <activity android:name=".PlayerActivity"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+            tools:node="merge" />
+    </application>
 </manifest>
