@@ -551,6 +551,24 @@ public class Prefs {
         return AudioPref.normalize(this.p.getString("audioLang", AudioPref.DE));
     }
 
+    /** Bild-in-Bild (mobile app only), on by default. */
+    public boolean pipEnabled() {
+        return this.p.getBoolean("pip", true);
+    }
+
+    public void setPipEnabled(boolean on) {
+        this.p.edit().putBoolean("pip", on).apply();
+    }
+
+    /** Enter Bild-in-Bild automatically when leaving the app while a video plays. */
+    public boolean pipAuto() {
+        return this.p.getBoolean("pipAuto", true);
+    }
+
+    public void setPipAuto(boolean on) {
+        this.p.edit().putBoolean("pipAuto", on).apply();
+    }
+
     /** Live-Verzögerung in seconds: 0 (Aus, default), 10, 20 or 30. */
     public int liveDelay() {
         return LiveDelay.normalize(this.p.getInt("liveDelay", 0));

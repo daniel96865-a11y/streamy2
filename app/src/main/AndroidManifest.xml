@@ -63,7 +63,6 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
             android:exported="false"
             android:launchMode="singleTop"
-            android:supportsPictureInPicture="true"
             android:theme="@style/Theme.Streamy"/>
 
         <activity android:name=".UpdateActivity" android:exported="false"/>
