@@ -12,9 +12,20 @@ import java.util.regex.Pattern;
 
 public final class Updates {
     private static final String BASE = "https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/";
+    /**
+     * Same feed file via the GitHub contents API. raw.githubusercontent.com is a CDN that caches
+     * for 5 minutes and ignores query strings, so right after a release the raw feed can still
+     * show the previous version. The API answer is only cached for 60 s.
+     */
+    private static final String API = "https://api.github.com/repos/daniel96865-a11y/streamy2/contents/docs/";
+    private static final String API_ACCEPT = "application/vnd.github.raw+json";
 
     public static String[] feeds() {
-        String channel = BuildConfig.UPDATE_CHANNEL;
+        return feedsFor(BuildConfig.UPDATE_CHANNEL);
+    }
+
+    /** Feed URLs for an update channel: raw JSON, raw TXT and (new channels only) the API copy. */
+    static String[] feedsFor(String channel) {
         String stem;
         if ("mobile".equals(channel)) {
             stem = "streamy2-mobile";
@@ -22,8 +33,10 @@ public final class Updates {
             stem = "streamy2-tv";
         } else {
             stem = "streamy2";
+            // Legacy feed is frozen on purpose; no API fallback for it.
+            return new String[]{BASE + stem + ".json", BASE + stem + ".txt"};
         }
-        return new String[]{BASE + stem + ".json", BASE + stem + ".txt"};
+        return new String[]{BASE + stem + ".json", BASE + stem + ".txt", API + stem + ".json?ref=main"};
     }
 
     public static class Info {
@@ -37,14 +50,18 @@ public final class Updates {
         Info info = null;
         for (String str : feeds()) {
             try {
-                Info parse = parse(get(str, 12000));
-                if (parse != null && parse.versionCode > 0 && !parse.apkUrl.isEmpty()
-                        && (info == null || parse.versionCode > info.versionCode)) {
-                    info = parse;
-                }
+                info = newer(info, parse(get(str, 12000)));
             } catch (Exception unused) { Quiet.ignored("Updates", unused); }
         }
         return info;
+    }
+
+    /** Keeps the candidate with the higher versionCode (valid entries only). */
+    static Info newer(Info current, Info candidate) {
+        if (candidate == null || candidate.versionCode <= 0 || candidate.apkUrl == null || candidate.apkUrl.isEmpty()) {
+            return current;
+        }
+        return current == null || candidate.versionCode > current.versionCode ? candidate : current;
     }
 
     public static void download(String url, File file) throws Exception {
@@ -156,7 +173,7 @@ public final class Updates {
         throw new Exception("zu viele Redirects");
     }
 
-    private static Info parse(String str) {
+    static Info parse(String str) {
         if (str == null || str.isEmpty()) return null;
         String replace = str.replace("&amp;quot;", "\"").replace("&quot;", "\"")
                 .replace("&#34;", "\"").replace("&amp;", "&");
@@ -185,7 +202,8 @@ public final class Updates {
         connection.setRequestProperty("Cache-Control", "no-cache, no-store, max-age=0");
         connection.setRequestProperty("Pragma", "no-cache");
         connection.setRequestProperty(HttpHeaders.USER_AGENT, "Mozilla/5.0 Streamy2/" + BuildConfig.VERSION_NAME);
-        connection.setRequestProperty(HttpHeaders.ACCEPT, "text/plain, application/json, text/html, */*");
+        connection.setRequestProperty(HttpHeaders.ACCEPT, str.startsWith(API) ? API_ACCEPT
+                : "text/plain, application/json, text/html, */*");
         try {
             return readLimited(connection, 192000);
         } finally {
