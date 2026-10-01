@@ -303,6 +303,50 @@ public class PlayerActivity extends AppCompatActivity {
         context.startActivity(intent);
     }
 
+    /** Opens a live channel and starts the archived programme [start, stop) from its beginning. */
+    public static void openCatchup(Context context, String url, String alt, String title, String sub,
+                                   String forceEngine, long start, long stop, String programme, String desc) {
+        Intent intent = new Intent(context, (Class<?>) PlayerActivity.class);
+        intent.putExtra("url", url);
+        intent.putExtra("alt", alt);
+        intent.putExtra("title", title);
+        intent.putExtra("sub", sub);
+        intent.putExtra("live", true);
+        intent.putExtra("extra_live", false);
+        if (forceEngine != null && !forceEngine.isEmpty()) intent.putExtra("forceEngine", forceEngine);
+        intent.putExtra("catchupStart", start);
+        intent.putExtra("catchupStop", stop);
+        intent.putExtra("catchupTitle", programme);
+        intent.putExtra("catchupDesc", desc);
+        context.startActivity(intent);
+    }
+
+    /** Programme guide "Von Anfang an": switch to the archive once the player is set up. */
+    void startCatchupFromIntent(Intent intent) {
+        if (intent == null) return;
+        final long start = intent.getLongExtra("catchupStart", 0L);
+        final long stop = intent.getLongExtra("catchupStop", 0L);
+        if (start <= 0 || stop <= start) return;
+        final EpgGuide.Listing listing = new EpgGuide.Listing();
+        listing.start = start;
+        listing.stop = stop;
+        String t = intent.getStringExtra("catchupTitle");
+        String d = intent.getStringExtra("catchupDesc");
+        listing.title = t == null ? "" : t;
+        listing.desc = d == null ? "" : d;
+        intent.removeExtra("catchupStart");
+        UI.post(new Runnable() {
+            @Override public void run() {
+                if (isFinishing() || isDestroyed()) return;
+                try {
+                    playCatchup(listing, start);
+                } catch (Throwable t) {
+                    Quiet.ignored("PlayerActivity", t);
+                }
+            }
+        });
+    }
+
     /** Parse scraped duration (minutes as digits, or HH:MM:SS / Xm) into ms. */
     public static long parseDurationMs(String str) {
         if (str == null) {
@@ -502,6 +546,7 @@ public class PlayerActivity extends AppCompatActivity {
             });
         }
         setupPip();
+        startCatchupFromIntent(getIntent());
         TextView btnDiag = (TextView) findViewById(R.id.btnDiag);
         if (btnDiag != null) {
             btnDiag.setOnClickListener(new View.OnClickListener() {
@@ -1251,6 +1296,7 @@ public class PlayerActivity extends AppCompatActivity {
         }
         setHud(true);
         scheduleHide();
+        startCatchupFromIntent(intent);
     }
 
     @Override // androidx.appcompat.app.AppCompatActivity, androidx.core.app.ComponentActivity, android.app.Activity, android.view.Window.Callback

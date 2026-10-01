@@ -10,4 +10,11 @@
     <attr name="streamyAccentSurface" format="color" />
     <attr name="streamyAccentSurfaceDim" format="color" />
     <attr name="streamyAccentSurfaceGlass" format="color" />
+    <!-- Design (Einstellungen → Darstellung → Design): Dunkel = defaults in Theme.Streamy,
+         OLED-Schwarz = ThemeOverlay.Streamy.Design.Oled (see AccentTheme). -->
+    <attr name="streamyBg" format="color" />
+    <attr name="streamySurface" format="color" />
+    <attr name="streamyCard" format="color" />
+    <attr name="streamyElevated" format="color" />
+    <attr name="streamyLiveBg" format="color" />
 </resources>

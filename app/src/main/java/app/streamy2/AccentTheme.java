@@ -29,7 +29,10 @@ public final class AccentTheme {
     static String apply(Activity activity) {
         String id = Theme.ALL[0].id;
         try {
-            id = Theme.get(new Prefs(activity).accent()).id;
+            Prefs prefs = new Prefs(activity);
+            int design = Design.overlayFor(prefs.design());
+            if (design != 0) activity.getTheme().applyStyle(design, true);
+            id = Theme.get(prefs.accent()).id;
             int style = overlayFor(id);
             if (style != 0) activity.getTheme().applyStyle(style, true);
         } catch (Throwable t) {
@@ -52,6 +55,18 @@ public final class AccentTheme {
                 try { a.recycle(); } catch (Throwable ignored) { Quiet.ignored("AccentTheme", ignored); }
             }
         }
+    }
+
+    static int background(Context context) {
+        return color(context, R.attr.streamyBg, Design.DARK_BG);
+    }
+
+    static int card(Context context) {
+        return color(context, R.attr.streamyCard, Design.DARK_CARD);
+    }
+
+    static int elevated(Context context) {
+        return color(context, R.attr.streamyElevated, Design.DARK_ELEVATED);
     }
 
     static int accent(Context context) {

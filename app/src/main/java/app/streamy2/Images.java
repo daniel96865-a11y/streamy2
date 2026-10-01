@@ -125,6 +125,43 @@ public class Images {
         }
     }
 
+    /** Bitmap callback for custom-drawn views (timeline guide). */
+    public interface BitmapCallback {
+        void onBitmap(String url, Bitmap bitmap);
+    }
+
+    /** Cached logo bitmap for {@code url} (still image, small bucket) or null; never blocks. */
+    public static Bitmap cachedBitmap(String url) {
+        if (url == null || url.isEmpty()) return null;
+        Bitmap b = BITMAPS.get(url + "#bmp");
+        return b != null && !b.isRecycled() ? b : null;
+    }
+
+    /** Loads a still logo bitmap in the background; the callback runs on the UI thread. */
+    public static void loadBitmap(final Context context, final String url, final BitmapCallback callback) {
+        if (context == null || url == null || url.isEmpty() || callback == null) return;
+        final Context app = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+        IO.execute(new Runnable() {
+            @Override public void run() {
+                Bitmap bmp = null;
+                try {
+                    byte[] data = readCached(app, url);
+                    if (data == null) data = download(app, url);
+                    if (data != null && data.length > 0) bmp = decodeStill(data, 160);
+                } catch (Throwable t) {
+                    Quiet.ignored("Images", t);
+                }
+                final Bitmap result = bmp;
+                if (result != null) BITMAPS.put(url + "#bmp", result);
+                UI.post(new Runnable() {
+                    @Override public void run() {
+                        callback.onBitmap(url, result);
+                    }
+                });
+            }
+        });
+    }
+
     public static void unbind(ImageView imageView) {
         if (imageView == null) {
             return;
