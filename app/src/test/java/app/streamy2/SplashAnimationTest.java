@@ -146,6 +146,8 @@ public class SplashAnimationTest {
         assertEquals(0, root.getChildCount());
     }
 
+    /** Fire OS 7 level (API 28); Robolectric's API 34 window keeps no focus without real input. */
+    @Config(sdk = 28)
     @Test
     public void remoteKeySkipsAndFocusLandsOnStartScreenOnTv() throws Exception {
         // Remote control: the TV window is not in touch mode.
@@ -165,9 +167,8 @@ public class SplashAnimationTest {
         assertNull(a.intro);
         View home = a.findViewById(R.id.homePane);
         assertEquals(View.VISIBLE, home.getVisibility());
-        View f = a.getCurrentFocus();
-        assertNotNull("focus after the intro; touchMode=" + home.isInTouchMode() + " first=" + a.homeFirst
-                + " shown=" + (a.homeFirst != null && a.homeFirst.isShown()), f);
+        assertNotNull(a.homeFirst);
+        assertTrue("focus on the first element of the Start screen: " + a.homeFirst, a.homeFirst.isFocused());
         assertTrue("focus on the Start screen", home.hasFocus());
         c.pause().stop().destroy();
     }
