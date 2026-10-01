@@ -155,6 +155,15 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         }
     }
 
+    /** Same objects in the same order as currently shown (refresh without changes). */
+    boolean hasSameItems(List<?> list) {
+        if (list == null || list.size() != this.items.size()) return false;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i) != this.items.get(i)) return false;
+        }
+        return true;
+    }
+
     public Object getItem(int i) {
         if (i < 0 || i >= this.items.size()) {
             return null;

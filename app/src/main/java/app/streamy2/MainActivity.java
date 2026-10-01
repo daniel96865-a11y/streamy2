@@ -90,6 +90,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView bufIndAlways;
     /** Live-TV chip that opens the programme guide (timeline). */
     private TextView chipGuide;
+    /**
+     * True while renderList() runs for data that arrived in the background (cache, network
+     * catalog, Live Extra, library). Such refreshes must not move the remote focus (3.92).
+     */
+    private boolean dataRefresh;
+    /** List had rows before the current renderList() (first fill vs. refresh). */
+    private boolean listHadRows;
     private TextView bufIndOff;
     private TextView swipeZapOn;
     private TextView swipeZapOff;
@@ -1629,7 +1636,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             Quiet.ignored("MainActivity", t);
         }
         UI.removeCallbacks(epgTick);
-        UI.postDelayed(epgTick, 1000L);
+        // First start: give the remote and the first catalog a few seconds before the
+        // multi-MB XMLTV hydration starts (allocations/GC on low-RAM sticks, 3.92).
+        UI.postDelayed(epgTick, this.epgTickStarted ? 1000L : STARTUP_EPG_DELAY_MS);
+        this.epgTickStarted = true;
         UI.removeCallbacks(this.accessValidationTick);
         UI.post(this.accessValidationTick);
         this.resumeAt = SystemClock.uptimeMillis();
@@ -1697,8 +1707,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /** First catalog is shown in the list (Live-TV); the start animation may end. */
     void showFirstCatalog() {
-        renderList();
+        refreshListData();
         markIntroReady();
+    }
+
+    /**
+     * Re-render after background data arrived (3.92 TV fix): an unchanged list is not rebound,
+     * and the remote focus stays where the user moved it instead of jumping to the first row.
+     */
+    void refreshListData() {
+        boolean prev = this.dataRefresh;
+        this.dataRefresh = true;
+        try {
+            renderList();
+        } finally {
+            this.dataRefresh = prev;
+        }
     }
 
     /**
@@ -1725,6 +1749,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onPause() {
         UI.removeCallbacks(epgTick);
+        UI.removeCallbacks(this.startupEpg);
         UI.removeCallbacks(this.accessValidationTick);
         BrowserController browserController = this.browser;
         if (browserController != null) {
@@ -2871,6 +2896,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             return;
         }
         try {
+            this.listHadRows = this.adapter != null && this.adapter.getItemCount() > 0;
             applyListLayout();
             int i = 0;
             this.chips.setVisibility(0);
@@ -2904,6 +2930,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             str = "Nichts gefunden.";
             if (i2 == 0 || i2 == 4) {
                 List<Models.Channel> filterLive = filterLive();
+                if (this.dataRefresh && this.listHadRows && this.adapter.hasSameItems(filterLive)) {
+                    // Same channels in the same order (e.g. cache == network): no rebind, no focus move.
+                    this.empty.setVisibility(filterLive.isEmpty() ? 0 : 8);
+                    return;
+                }
                 this.adapter.setChannels(filterLive);
                 TextView textView2 = this.empty;
                 if (!filterLive.isEmpty()) {
@@ -2983,6 +3014,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (this.list == null) {
             return;
         }
+        if (this.dataRefresh && this.listHadRows) {
+            // Background refresh while the user may be navigating: keep the current element.
+            // RecyclerView restores focus to the same adapter position after notifyDataSetChanged.
+            return;
+        }
         EditText editText = this.search;
         if (editText == null || !(editText.hasFocus() || this.lockSearchFocus)) {
             this.list.post(new Runnable() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda118
@@ -3015,39 +3051,26 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             } catch (Throwable t) {
                 return arrayList;
             }
+            // Once per render, not once per channel (5000 channels = 10000 regex runs on the UI thread).
+            final boolean unlocked = FeatureAccess.isUnlocked(this);
+            final boolean all = "all".equals(this.catId);
             for (Models.Channel channel : liveSnap) {
                 if (channel != null) {
                     String str2 = channel.name == null ? "" : channel.name;
-                    if (!FeatureAccess.isUnlocked(this) && channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
+                    if (!unlocked && channel.extraLiveUrl != null && !channel.extraLiveUrl.isEmpty()) {
                         continue;
                     }
-                    if ("all".equals(this.catId) || (channel.categoryId != null && this.catId.equals(channel.categoryId))) {
-                        if (lowerCase.isEmpty() || str2.toLowerCase(Locale.GERMAN).contains(lowerCase)) {
-                            arrayList.add(channel);
-                        }
+                    if (!all && (channel.categoryId == null || !this.catId.equals(channel.categoryId))) {
+                        continue;
+                    }
+                    if (lowerCase.isEmpty() || str2.toLowerCase(Locale.GERMAN).contains(lowerCase)) {
+                        arrayList.add(channel);
                     }
                 }
             }
             try {
-                if (this.sort == 1) {
-                    arrayList.sort(Comparator.comparing(new Function() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda16
-                        @Override // java.util.function.Function
-                        public final Object apply(Object obj) {
-                            String lowerCase2;
-                            lowerCase2 = (((Models.Channel) obj).name == null ? "" : ((Models.Channel) obj).name).toLowerCase(Locale.GERMAN);
-                            return lowerCase2;
-                        }
-                    }));
-                }
-                if (this.sort == 2) {
-                    arrayList.sort(new Comparator() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda17
-                        @Override // java.util.Comparator
-                        public final int compare(Object obj, Object obj2) {
-                            int compareTo;
-                            compareTo = (((Models.Channel) obj2).name == null ? "" : ((Models.Channel) obj2).name).toLowerCase(Locale.GERMAN).compareTo((((Models.Channel) obj).name != null ? ((Models.Channel) obj).name : "").toLowerCase(Locale.GERMAN));
-                            return compareTo;
-                        }
-                    });
+                if (this.sort == 1 || this.sort == 2) {
+                    sortByName(arrayList, this.sort == 2);
                 }
                 if (this.sort == 3) {
                     arrayList.sort(Comparator.comparingInt(new ToIntFunction() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda18
@@ -3064,6 +3087,28 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
         }
         return arrayList;
+    }
+
+    /** Name sort with one lower-case key per channel (not two per comparison). */
+    static void sortByName(List<Models.Channel> list, boolean descending) {
+        final int n = list.size();
+        final String[] keys = new String[n];
+        Integer[] order = new Integer[n];
+        for (int k = 0; k < n; k++) {
+            Models.Channel c = list.get(k);
+            keys[k] = (c == null || c.name == null ? "" : c.name).toLowerCase(Locale.GERMAN);
+            order[k] = k;
+        }
+        java.util.Arrays.sort(order, new Comparator<Integer>() {
+            @Override public int compare(Integer x, Integer y) {
+                int r = keys[x].compareTo(keys[y]);
+                return descending ? -r : r;
+            }
+        });
+        ArrayList<Models.Channel> sorted = new ArrayList<>(n);
+        for (Integer k : order) sorted.add(list.get(k));
+        list.clear();
+        list.addAll(sorted);
     }
 
     private List<Models.Media> filterMedia(List<Models.Media> list, List<Models.Category> list2) {
@@ -4558,7 +4603,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                         if (this.catalog == catalogFinal) {
                             App.live = catalogFinal.live;
                             if (this.tab == 0 || this.tab == 4) {
-                                renderList();
+                                refreshListData();
                             }
                         }
                     });
@@ -4608,7 +4653,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             App.live = catalog2.live;
             int i2 = this.tab;
             if (i2 == 0 || i2 == 4) {
-                renderList();
+                refreshListData();
             }
         }
         if (this.tab == 4) {
@@ -4682,7 +4727,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                             MainActivity.this.loadKino();
                                         }
                                         MainActivity.this.prefetchEpg();
-                                        MainActivity.this.ensureLiveEpg(false);
+                                        MainActivity.this.ensureLiveEpgSoon();
                                     } catch (Throwable ignored) {
                                         Quiet.ignored("MainActivity", ignored);
                                     }
@@ -4740,7 +4785,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             showFirstCatalog();
         }
         prefetchEpg();
-        ensureLiveEpg(false);
+        ensureLiveEpgSoon();
         if (FeatureAccess.isUnlocked(this)) {
             loadExtraLive();
             loadKino();
@@ -4820,7 +4865,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             target.vod = library.vod;
             target.series = library.series;
             paintTabs();
-            renderList();
+            // Films/series only: do not rebuild (and refocus) the Live-TV list on TV.
+            if (this.tab == 1 || this.tab == 2) refreshListData();
             if (message != null) Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         });
     }
@@ -4956,6 +5002,22 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void ensureExtraLiveEpg(boolean force) { ensureNetEpg(force); }
+
+    /** Delay after the first catalog before the XMLTV refresh/hydration starts (3.92). */
+    static final long STARTUP_EPG_DELAY_MS = 4000L;
+    private boolean epgTickStarted;
+    private final Runnable startupEpg = new Runnable() {
+        @Override public void run() {
+            if (isFinishing() || isDestroyed()) return;
+            ensureLiveEpg(false);
+        }
+    };
+
+    /** Startup: coalesce the XMLTV request and run it once the list is usable. */
+    private void ensureLiveEpgSoon() {
+        UI.removeCallbacks(this.startupEpg);
+        UI.postDelayed(this.startupEpg, STARTUP_EPG_DELAY_MS);
+    }
     private void ensureLiveEpg(boolean force) { ensureNetEpg(force); }
 
     private void updateEpgStatus() {
