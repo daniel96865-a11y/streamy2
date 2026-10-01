@@ -80,6 +80,8 @@ public class SplashAnimationTest {
 
     /** Remote control: the window leaves touch mode (as after the first D-pad key on a TV). */
     private static void leaveTouchMode(android.app.Activity a) {
+        // First frame: the window is attached and laid out (the Choreographer is paused in these tests).
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(50));
         try {
             Object root = a.getWindow().getDecorView().getClass().getMethod("getViewRootImpl").invoke(a.getWindow().getDecorView());
             java.lang.reflect.Method m = root.getClass().getDeclaredMethod("ensureTouchMode", boolean.class);
