@@ -51,8 +51,8 @@
     <style name="Theme.Streamy.Splash" parent="Theme.Streamy">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">@drawable/bg_splash</item>
-        <item name="android:navigationBarColor">#020816</item>
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
         <item name="android:windowNoTitle">true</item>
     </style>
 
