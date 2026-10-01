@@ -28,6 +28,9 @@ final class IntroWaves {
     static void frame(float t, float w, float h, float[] out) {
         int k = 0;
         float step = 1.2f / (PER_BAND - 1);
+        // Band thickness follows a 16:9-ish reference height, so portrait phones get slim
+        // aurora bands instead of huge blobs.
+        float th = Math.min(h, w * 0.9f);
         for (int band = 0; band < 2; band++) {
             for (int i = 0; i < PER_BAND; i++) {
                 float u = -0.1f + i * step + 0.04f * (float) Math.sin(t * 0.7f + i * 1.7f + band);
@@ -48,7 +51,7 @@ final class IntroWaves {
                 out[k] = u * w;
                 out[k + 1] = cy * h;
                 out[k + 2] = w * step * 1.9f;
-                out[k + 3] = h * ry;
+                out[k + 3] = th * ry;
                 out[k + 4] = alpha;
                 out[k + 5] = band == 0 ? 0 : (i < 2 ? 2 : 1);
                 k += STRIDE;
@@ -58,7 +61,7 @@ final class IntroWaves {
         out[k] = w * 0.5f;
         out[k + 1] = h * 0.52f;
         out[k + 2] = w * 0.75f;
-        out[k + 3] = h * 0.62f;
+        out[k + 3] = Math.min(h * 0.62f, th * 0.9f);
         out[k + 4] = 0.10f;
         out[k + 5] = 0;
     }
