@@ -86,6 +86,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView tabHome;
     private View homePane;
     private HomeScreen homeScreen;
+    /** First focusable view of the Start screen (hero button or first chip). */
+    View homeFirst;
     /** "Farbwellen" start animation on top of the first screen (3.90), null when not showing. */
     IntroOverlay intro;
     private boolean freshStart;
@@ -1728,7 +1730,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (!Tv.isTv(this)) return;
             if (this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE) return;
             if (this.tab == TAB_HOME && this.homePane != null && this.homePane.getVisibility() == View.VISIBLE) {
-                if (!this.homePane.hasFocus()) this.homePane.requestFocus();
+                if (!this.homePane.hasFocus()) {
+                    View first = this.homeFirst;
+                    if (first == null || !first.isShown() || !first.requestFocus()) this.homePane.requestFocus();
+                }
                 return;
             }
             View f = getCurrentFocus();
@@ -2732,6 +2737,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             HomeRows.Home home = HomeRows.build(live, cats, this.prefs.recentChannels(), favs,
                     HomeScreen.lookup(this.guide), now);
             View first = this.homeScreen.render(home, favs, now);
+            this.homeFirst = first;
             if (first != null && (hadFocus || (Tv.isTv(this) && (getCurrentFocus() == null || !getCurrentFocus().isShown())))) {
                 first.requestFocus();
             }

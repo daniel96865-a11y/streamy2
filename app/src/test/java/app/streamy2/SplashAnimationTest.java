@@ -166,7 +166,8 @@ public class SplashAnimationTest {
         View home = a.findViewById(R.id.homePane);
         assertEquals(View.VISIBLE, home.getVisibility());
         View f = a.getCurrentFocus();
-        assertNotNull("focus after the intro", f);
+        assertNotNull("focus after the intro; touchMode=" + home.isInTouchMode() + " first=" + a.homeFirst
+                + " shown=" + (a.homeFirst != null && a.homeFirst.isShown()), f);
         assertTrue("focus on the Start screen", home.hasFocus());
         c.pause().stop().destroy();
     }
