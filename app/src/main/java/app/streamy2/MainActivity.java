@@ -2935,7 +2935,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     this.empty.setVisibility(filterLive.isEmpty() ? 0 : 8);
                     return;
                 }
+                int keepPos = this.dataRefresh && this.listHadRows && this.list != null ? listPosition(this.list.findFocus()) : -1;
                 this.adapter.setChannels(filterLive);
+                if (keepPos >= 0 && !filterLive.isEmpty()) restoreListFocus(Math.min(keepPos, filterLive.size() - 1));
                 TextView textView2 = this.empty;
                 if (!filterLive.isEmpty()) {
                     i = 8;
@@ -3008,6 +3010,44 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         } catch (Exception unused) {
             Quiet.ignored("MainActivity", unused);
         }
+    }
+
+    /**
+     * After a background refresh rebound all rows: if the focused row was lost (focus fell back
+     * to the top bar), put it back on the same position (3.92).
+     */
+    private void restoreListFocus(final int pos) {
+        final RecyclerView rv = this.list;
+        if (rv == null) return;
+        final Runnable fix = new Runnable() {
+            @Override public void run() {
+                try {
+                    if (isFinishing() || isDestroyed() || rv.getVisibility() != View.VISIBLE) return;
+                    if (listPosition(rv.findFocus()) >= 0) return;
+                    RecyclerView.ViewHolder vh = rv.findViewHolderForAdapterPosition(pos);
+                    if (vh != null) {
+                        vh.itemView.requestFocus();
+                    } else {
+                        rv.scrollToPosition(pos);
+                        rv.post(new Runnable() {
+                            @Override public void run() {
+                                RecyclerView.ViewHolder h = rv.findViewHolderForAdapterPosition(pos);
+                                if (h != null && listPosition(rv.findFocus()) < 0) h.itemView.requestFocus();
+                            }
+                        });
+                    }
+                } catch (Throwable t) {
+                    Quiet.ignored("MainActivity", t);
+                }
+            }
+        };
+        rv.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override public void onGlobalLayout() {
+                rv.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                fix.run();
+            }
+        });
+        rv.postDelayed(fix, 60L);
     }
 
     private void focusFirstRow() {
