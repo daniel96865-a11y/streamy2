@@ -86,6 +86,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView tabHome;
     private View homePane;
     private HomeScreen homeScreen;
+    /** "Farbwellen" start animation on top of the first screen (3.90), null when not showing. */
+    IntroOverlay intro;
+    private boolean freshStart;
+    private boolean startTabApplied;
     /** Tab index of the start screen (rows + hero). */
     static final int TAB_HOME = 6;
     /** Set before recreate() after an accent change, so settings reopen at "Darstellung". */
@@ -229,6 +233,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.appliedDesign = Design.normalize(new Prefs(this).design());
         super.onCreate(bundle);
         setContentView(R.layout.activity_main);
+        this.freshStart = bundle == null;
+        maybeStartIntro(bundle);
         this.prefs = new Prefs(this);
         this.prefs.ensureMobilePlayerDefaults346();
         if (App.guide == null) {
@@ -986,6 +992,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.catalog = build;
             App.live = build.live;
             renderList();
+            markIntroReady();
             // Defer secondary hydrations until after first paint
             UI.post(new Runnable() {
                 @Override
@@ -1357,6 +1364,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         View view2;
         View view3;
         BrowserController browserController2;
+        if (this.intro != null && this.intro.isShowing()) {
+            // Any key during the start animation just ends it (fade-out); keys are not lost later.
+            if (keyEvent.getAction() == KeyEvent.ACTION_DOWN) this.intro.skip();
+            return true;
+        }
         if (keyEvent.getAction() == KeyEvent.ACTION_DOWN && keyEvent.getKeyCode() == KeyEvent.KEYCODE_GUIDE
                 && this.settingsPane != null && this.settingsPane.getVisibility() != View.VISIBLE) {
             onHomeGuide(this.tab == 0 && this.catId != null && !"all".equals(this.catId) ? this.catId : null);
@@ -1664,6 +1676,65 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             this.adapter.notifyEpg();
         } catch (Throwable unused) {
             Quiet.ignored("MainActivity", unused);
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        // Leaving during the start animation: drop it, the app is ready when coming back.
+        if (this.intro != null) this.intro.finish();
+        super.onStop();
+    }
+
+    // --- Start animation "Farbwellen" (3.90) ---
+
+    private void maybeStartIntro(Bundle bundle) {
+        if (bundle != null || getIntent() == null || !getIntent().getBooleanExtra(SplashActivity.EXTRA_INTRO, false)) return;
+        getIntent().removeExtra(SplashActivity.EXTRA_INTRO);
+        try {
+            this.intro = IntroOverlay.show(this, new IntroOverlay.Listener() {
+                @Override public void onIntroFinished() {
+                    MainActivity.this.intro = null;
+                    MainActivity.this.focusFirstScreen();
+                }
+            });
+        } catch (Throwable t) {
+            this.intro = null;
+            Quiet.ignored("MainActivity", t);
+        }
+    }
+
+    /** First screen has content: the start animation may end (after its minimum time). */
+    void markIntroReady() {
+        if (this.intro != null) this.intro.markReady();
+    }
+
+    /** First catalog of a fresh start: open the Start screen (3.89 rows) instead of the list. */
+    void showFirstCatalog() {
+        boolean settingsOpen = this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE;
+        if (this.freshStart && !this.startTabApplied && this.tab == 0 && this.seriesOpen == null && !settingsOpen
+                && this.catalog != null && this.catalog.live != null && !this.catalog.live.isEmpty()) {
+            this.startTabApplied = true;
+            setTab(TAB_HOME);
+        } else {
+            renderList();
+        }
+        markIntroReady();
+    }
+
+    /** After the start animation: remote focus on the Start screen (TV), like 3.89. */
+    void focusFirstScreen() {
+        try {
+            if (!Tv.isTv(this)) return;
+            if (this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE) return;
+            if (this.tab == TAB_HOME && this.homePane != null && this.homePane.getVisibility() == View.VISIBLE) {
+                if (!this.homePane.hasFocus()) this.homePane.requestFocus();
+                return;
+            }
+            View f = getCurrentFocus();
+            if ((f == null || !f.isShown()) && this.tabLive != null) this.tabLive.requestFocus();
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
         }
     }
 
@@ -4678,7 +4749,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                                 MainActivity.this.loading.setVisibility(8);
                             }
                             MainActivity.this.paintTabs();
-                            MainActivity.this.renderList();
+                            MainActivity.this.showFirstCatalog();
                             MainActivity.this.setStatus("Cache · " + cached.live.size() + " Sender", false);
                             // After first interactive frame: Live Extra/Kino/EPG in background
                             UI.post(new Runnable() {
@@ -4743,8 +4814,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (z) {
             showSettings(false);
+            renderList();
+        } else {
+            showFirstCatalog();
         }
-        renderList();
         prefetchEpg();
         ensureLiveEpg(false);
         if (FeatureAccess.isUnlocked(this)) {
@@ -4772,6 +4845,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             renderList();
             loadExtraLive();
         }
+        markIntroReady();
     }
 
     private void prefetchEpg() {
