@@ -114,16 +114,7 @@ public class SplashAnimationTest {
         ActivityController<MainActivity> c = launchWithIntro();
         MainActivity a = c.get();
         IntroOverlay o = overlayIn(a);
-        if (o == null) {
-            try {
-                IntroOverlay.show(a, null);
-                fail("show ok but intro missing; extra=" + a.getIntent().getExtras());
-            } catch (Throwable t) {
-                java.io.StringWriter sw = new java.io.StringWriter();
-                t.printStackTrace(new java.io.PrintWriter(sw));
-                fail(sw.toString().substring(0, Math.min(3000, sw.toString().length())));
-            }
-        }
+        assertNotNull("overlay shown", o);
         assertSame(o, a.intro);
         assertFalse(o.timing.reduced);
         assertEquals(Design.DARK_BG, o.background);
@@ -147,11 +138,7 @@ public class SplashAnimationTest {
         root.addView(o);
         o.start();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3600));
-        if (!o.isShowing()) {
-            java.io.StringWriter sw = new java.io.StringWriter();
-            o.finishTrace.printStackTrace(new java.io.PrintWriter(sw));
-            fail(sw.toString().substring(0, Math.min(3000, sw.toString().length())));
-        }
+        assertTrue(o.isShowing());
         assertTrue(o.dots.alpha > 0f);
         o.markReady();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
@@ -160,16 +147,27 @@ public class SplashAnimationTest {
     }
 
     @Test
-    public void remoteKeySkipsAndFocusLandsOnFirstScreenOnTv() {
+    public void remoteKeySkipsAndFocusLandsOnStartScreenOnTv() throws Exception {
+        // Remote control: the TV window is not in touch mode.
+        org.robolectric.shadows.ShadowWindowManagerGlobal.setInTouchMode(false);
         ActivityController<MainActivity> c = launchWithIntro(true);
         MainActivity a = c.get();
         assertNotNull(a.intro);
-        a.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_DOWN));
+        // First screen with a playlist = Start screen (3.89 rows).
+        java.lang.reflect.Method setTab = MainActivity.class.getDeclaredMethod("setTab", int.class);
+        setTab.setAccessible(true);
+        setTab.invoke(a, MainActivity.TAB_HOME);
+        shadowOf(Looper.getMainLooper()).idle();
+        // Keys during the animation only end it; they do not move focus underneath.
+        assertTrue(a.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_DOWN)));
+        assertNotNull(a.intro);
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         assertNull(a.intro);
+        View home = a.findViewById(R.id.homePane);
+        assertEquals(View.VISIBLE, home.getVisibility());
         View f = a.getCurrentFocus();
         assertNotNull("focus after the intro", f);
-        assertTrue(f.isShown());
+        assertTrue("focus on the Start screen", home.hasFocus());
         c.pause().stop().destroy();
     }
 

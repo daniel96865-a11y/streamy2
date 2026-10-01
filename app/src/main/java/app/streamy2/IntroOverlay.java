@@ -123,11 +123,8 @@ final class IntroOverlay extends FrameLayout {
     }
 
     /** Stops the animation, detaches and releases everything. */
-    Throwable finishTrace;
-
     void finish() {
         if (finished) return;
-        finishTrace = new Throwable("finish at " + SystemClock.uptimeMillis() + " start " + timing.start);
         finished = true;
         running = false;
         Choreographer.getInstance().removeFrameCallback(frame);
