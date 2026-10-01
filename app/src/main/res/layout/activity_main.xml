@@ -74,10 +74,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
                         <TextView
-                            android:id="@+id/tabHome"
-                            android:text="Start"
-                            style="@style/Tab"/>
-                        <TextView
                             android:id="@+id/tabLive"
                             android:text="Live-TV"
                             style="@style/Tab"/>
@@ -177,6 +173,22 @@
                         android:paddingStart="16dp"
                         android:paddingEnd="16dp"
                         android:layout_marginStart="8dp"/>
+                    <TextView
+                        android:textSize="13sp"
+                        android:textColor="@color/fg"
+                        android:gravity="center"
+                        android:id="@+id/chipGuide"
+                        android:background="@drawable/bg_chip"
+                        android:focusable="true"
+                        android:clickable="true"
+                        android:layout_width="wrap_content"
+                        android:layout_height="44dp"
+                        android:text="Programm"
+                        android:singleLine="true"
+                        android:contentDescription="Programm (Zeitleiste) öffnen"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:layout_marginStart="8dp"/>
                 </LinearLayout>
                 <LinearLayout
                     android:gravity="center_vertical"
@@ -233,22 +245,6 @@
                 android:layout_height="match_parent"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"/>
-            <androidx.core.widget.NestedScrollView
-                android:id="@+id/homePane"
-                android:background="?attr/streamyBg"
-                android:visibility="gone"
-                android:fillViewport="true"
-                android:clipChildren="false"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
-                <LinearLayout
-                    android:id="@+id/homeBody"
-                    android:orientation="vertical"
-                    android:clipChildren="false"
-                    android:descendantFocusability="afterDescendants"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"/>
-            </androidx.core.widget.NestedScrollView>
             <FrameLayout
                 android:id="@+id/browserPane"
                 android:background="?attr/streamyBg"

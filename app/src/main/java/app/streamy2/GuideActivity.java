@@ -14,7 +14,6 @@ import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import java.util.ArrayList;
 import java.util.Date;
@@ -26,13 +25,12 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
 
     private EpgTimelineView grid;
     private TextView infoChannel, infoTitle, infoMeta, infoDesc;
-    private TextView btnWatch, btnStart, btnFav;
+    private TextView btnWatch, btnStart;
     private LinearLayout dayRow;
     private final List<Integer> days = new ArrayList<>();
     private final List<TextView> dayChips = new ArrayList<>();
     private boolean tv;
     private int accent, accentFg;
-    private Prefs prefs;
 
     public static void open(Activity from, String categoryId) {
         Intent i = new Intent(from, GuideActivity.class);
@@ -44,7 +42,6 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
     protected void onCreate(Bundle savedInstanceState) {
         AccentTheme.apply(this);
         super.onCreate(savedInstanceState);
-        prefs = new Prefs(this);
         tv = Tv.isTv(this);
         accent = AccentTheme.accent(this);
         accentFg = AccentTheme.color(this, R.attr.streamyOnAccent, 0xFF061428);
@@ -131,10 +128,8 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         btnWatch = button("Jetzt ansehen", true);
         btnStart = button("Von Anfang an", false);
-        btnFav = button("Favorit", false);
         buttons.addView(btnWatch);
         buttons.addView(btnStart);
-        buttons.addView(btnFav);
         HorizontalScrollView bscroll = new HorizontalScrollView(this);
         bscroll.setHorizontalScrollBarEnabled(false);
         bscroll.addView(buttons);
@@ -152,7 +147,6 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
         root.addView(grid, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         btnWatch.setNextFocusDownId(grid.getId());
         btnStart.setNextFocusDownId(grid.getId());
-        btnFav.setNextFocusDownId(grid.getId());
 
         btnWatch.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
@@ -165,15 +159,6 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
                 Models.Channel c = grid.focusedChannel();
                 EpgGuide.Listing l = grid.focusedListing();
                 if (LivePlay.canCatchup(c, l, System.currentTimeMillis())) LivePlay.catchup(GuideActivity.this, c, l);
-            }
-        });
-        btnFav.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                Models.Channel c = grid.focusedChannel();
-                if (c == null) return;
-                boolean fav = prefs.toggleFavoriteChannel(HomeRows.key(c));
-                Toast.makeText(GuideActivity.this, fav ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt", Toast.LENGTH_SHORT).show();
-                updateInfo(c, grid.focusedListing());
             }
         });
         return root;
@@ -264,7 +249,6 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
             infoMeta.setText("Bitte zuerst eine Wiedergabeliste laden.");
             btnWatch.setVisibility(View.GONE);
             btnStart.setVisibility(View.GONE);
-            btnFav.setVisibility(View.GONE);
         }
     }
 
@@ -358,7 +342,7 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
                 Models.Epg e = new Models.Epg();
                 e.start = l.start;
                 e.end = l.stop;
-                meta += "  ·  " + HomeRows.remaining(e, now);
+                meta += "  ·  " + GuideActions.remaining(e, now);
             }
             infoMeta.setText(meta);
             String desc = l.desc == null ? "" : Text.clean(l.desc).trim();
@@ -369,8 +353,6 @@ public class GuideActivity extends AppCompatActivity implements EpgTimelineView.
         btnWatch.setText(current ? "Jetzt ansehen" : "Live ansehen");
         btnWatch.setVisibility(View.VISIBLE);
         btnStart.setVisibility(LivePlay.canCatchup(c, l, now) ? View.VISIBLE : View.GONE);
-        btnFav.setVisibility(View.VISIBLE);
-        btnFav.setText(prefs.isFavoriteChannel(HomeRows.key(c)) ? "Favorit entfernen" : "Favorit");
     }
 
     @Override

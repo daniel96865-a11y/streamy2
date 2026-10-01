@@ -62,7 +62,7 @@ import java.util.function.ToIntFunction;
 import org.json.JSONObject;
 
 /* loaded from: classes.dex */
-public class MainActivity extends AppCompatActivity implements ChannelAdapter.Listener, HomeScreen.Listener {
+public class MainActivity extends AppCompatActivity implements ChannelAdapter.Listener {
     private LinearLayout accentRow;
     private TextView activeLabel;
     private TextView accessStatus;
@@ -83,20 +83,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     /** Accent id the current activity theme was built with (see AccentTheme). */
     private String appliedAccent;
     private String appliedDesign;
-    private TextView tabHome;
-    private View homePane;
-    private HomeScreen homeScreen;
-    /** First focusable view of the Start screen (hero button or first chip). */
-    View homeFirst;
     /** "Farbwellen" start animation on top of the first screen (3.90), null when not showing. */
     IntroOverlay intro;
-    private boolean freshStart;
-    private boolean startTabApplied;
-    /** Tab index of the start screen (rows + hero). */
-    static final int TAB_HOME = 6;
     /** Set before recreate() after an accent change, so settings reopen at "Darstellung". */
     static boolean reopenLookAfterAccent;
     private TextView bufIndAlways;
+    /** Live-TV chip that opens the programme guide (timeline). */
+    private TextView chipGuide;
     private TextView bufIndOff;
     private TextView swipeZapOn;
     private TextView swipeZapOff;
@@ -235,7 +228,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.appliedDesign = Design.normalize(new Prefs(this).design());
         super.onCreate(bundle);
         setContentView(R.layout.activity_main);
-        this.freshStart = bundle == null;
         maybeStartIntro(bundle);
         this.prefs = new Prefs(this);
         this.prefs.ensureMobilePlayerDefaults346();
@@ -247,12 +239,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.settingsPane = findViewById(R.id.settingsPane);
         this.chips = findViewById(R.id.chips);
         this.detailPane = findViewById(R.id.detailPane);
-        this.tabHome = (TextView) findViewById(R.id.tabHome);
-        this.homePane = findViewById(R.id.homePane);
-        View homeBody = findViewById(R.id.homeBody);
-        if (homeBody instanceof LinearLayout) {
-            this.homeScreen = new HomeScreen(this, (LinearLayout) homeBody, this);
-        }
         this.tabLive = (TextView) findViewById(R.id.tabLive);
         this.tabMovies = (TextView) findViewById(R.id.tabMovies);
         this.tabSeries = (TextView) findViewById(R.id.tabSeries);
@@ -411,11 +397,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             }
         });
-        if (this.tabHome != null) {
-            this.tabHome.setOnClickListener(new View.OnClickListener() {
+        this.chipGuide = (TextView) findViewById(R.id.chipGuide);
+        if (this.chipGuide != null) {
+            this.chipGuide.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     MainActivity.this.releaseSearchFocus();
-                    MainActivity.this.setTab(TAB_HOME);
+                    MainActivity.this.openGuide(MainActivity.this.guideCategory());
                 }
             });
         }
@@ -1373,7 +1360,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         }
         if (keyEvent.getAction() == KeyEvent.ACTION_DOWN && keyEvent.getKeyCode() == KeyEvent.KEYCODE_GUIDE
                 && this.settingsPane != null && this.settingsPane.getVisibility() != View.VISIBLE) {
-            onHomeGuide(this.tab == 0 && this.catId != null && !"all".equals(this.catId) ? this.catId : null);
+            openGuide(guideCategory());
             return true;
         }
         View view4;
@@ -1655,9 +1642,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (this.tab == 5) {
                 loadKino();
             }
-            if (this.tab == TAB_HOME) {
-                renderHome();
-            }
             if (this.adapter == null || this.tab != 0 || (recyclerView = this.list) == null) {
                 return;
             }
@@ -1711,33 +1695,28 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (this.intro != null) this.intro.markReady();
     }
 
-    /** First catalog of a fresh start: open the Start screen (3.89 rows) instead of the list. */
+    /** First catalog is shown in the list (Live-TV); the start animation may end. */
     void showFirstCatalog() {
-        boolean settingsOpen = this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE;
-        if (this.freshStart && !this.startTabApplied && this.tab == 0 && this.seriesOpen == null && !settingsOpen
-                && this.catalog != null && this.catalog.live != null && !this.catalog.live.isEmpty()) {
-            this.startTabApplied = true;
-            setTab(TAB_HOME);
-        } else {
-            renderList();
-        }
+        renderList();
         markIntroReady();
     }
 
-    /** After the start animation: remote focus on the Start screen (TV), like 3.89. */
+    /**
+     * After the start animation (TV): keep the focused element if it is on screen,
+     * otherwise the first channel of the list gets the remote focus (as in 3.88).
+     */
     void focusFirstScreen() {
         try {
             if (!Tv.isTv(this)) return;
             if (this.settingsPane != null && this.settingsPane.getVisibility() == View.VISIBLE) return;
-            if (this.tab == TAB_HOME && this.homePane != null && this.homePane.getVisibility() == View.VISIBLE) {
-                if (!this.homePane.hasFocus()) {
-                    View first = this.homeFirst;
-                    if (first == null || !first.isShown() || !first.requestFocus()) this.homePane.requestFocus();
-                }
-                return;
-            }
             View f = getCurrentFocus();
-            if ((f == null || !f.isShown()) && this.tabLive != null) this.tabLive.requestFocus();
+            if (f != null && f.isShown() && f != this.list) return;
+            RecyclerView rv = this.list;
+            if (rv != null && rv.getVisibility() == View.VISIBLE && rv.getChildCount() > 0) {
+                View first = rv.getChildAt(0);
+                if (first != null && first.requestFocus()) return;
+            }
+            if (this.tabLive != null) this.tabLive.requestFocus();
         } catch (Throwable t) {
             Quiet.ignored("MainActivity", t);
         }
@@ -2706,71 +2685,17 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         textView.setTextColor(z ? accent.onColor : getColor(R.color.fg));
     }
 
-    // --- Start screen (3.89) ---
-
-    private void showHome(boolean show) {
-        if (this.homePane != null) this.homePane.setVisibility(show ? View.VISIBLE : View.GONE);
-        if (!show) return;
-        if (this.search != null) this.search.setVisibility(View.GONE);
-        if (this.chips != null) this.chips.setVisibility(View.GONE);
-        if (this.list != null) this.list.setVisibility(View.GONE);
-        if (this.empty != null) this.empty.setVisibility(View.GONE);
-        if (this.btnRefreshMedia != null) this.btnRefreshMedia.setVisibility(View.GONE);
+    /** Category passed to the guide: the selected Live-TV category, or all channels. */
+    String guideCategory() {
+        return this.tab == 0 && this.catId != null && !"all".equals(this.catId) ? this.catId : null;
     }
 
-    private void refreshHomeIfIdle() {
-        if (this.tab != TAB_HOME || this.homePane == null) return;
-        // Keep the remote focus where it is: only rebuild while nothing on the start screen is focused.
-        if (this.homePane.hasFocus()) return;
-        renderHome();
-    }
-
-    private void renderHome() {
-        if (this.homeScreen == null || this.prefs == null) return;
-        try {
-            Models.Catalog cat = this.catalog;
-            List<Models.Channel> live = cat != null ? cat.live : App.live;
-            List<Models.Category> cats = cat != null ? cat.liveCats : null;
-            boolean hadFocus = this.homePane != null && this.homePane.hasFocus();
-            long now = System.currentTimeMillis();
-            List<String> favs = this.prefs.favoriteChannels();
-            HomeRows.Home home = HomeRows.build(live, cats, this.prefs.recentChannels(), favs,
-                    HomeScreen.lookup(this.guide), now);
-            View first = this.homeScreen.render(home, favs, now);
-            this.homeFirst = first;
-            if (first != null && (hadFocus || (Tv.isTv(this) && (getCurrentFocus() == null || !getCurrentFocus().isShown())))) {
-                first.requestFocus();
-            }
-        } catch (Throwable t) {
-            Quiet.ignored("MainActivity", t);
-        }
-    }
-
-    @Override public void onHomePlay(Models.Channel channel) {
-        if (channel == null) return;
-        onChannel(channel);
-    }
-
-    @Override public void onHomeGuide(String categoryId) {
+    /** Opens the programme guide (timeline) for the playlist's live channels. */
+    void openGuide(String categoryId) {
         App.guide = this.guide;
         App.api = this.api;
         if (this.catalog != null && this.catalog.live != null) App.live = this.catalog.live;
         GuideActivity.open(this, categoryId);
-    }
-
-    @Override public void onHomeCategory(String categoryId) {
-        setTab(0);
-        this.catId = categoryId == null ? "all" : categoryId;
-        renderList();
-        RecyclerView rv = this.list;
-        if (rv != null) rv.scrollToPosition(0);
-    }
-
-    @Override public void onHomeFavoriteToggle(Models.Channel channel) {
-        if (channel == null) return;
-        boolean fav = this.prefs.toggleFavoriteChannel(HomeRows.key(channel));
-        Toast.makeText(this, fav ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt", Toast.LENGTH_SHORT).show();
-        renderHome();
     }
 
     private void bindDesignChips() {
@@ -2818,16 +2743,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
-            showHome(false);
             showBrowser(true);
-        } else if (i == TAB_HOME) {
-            showBrowser(false);
-            showHome(true);
-            ensureLiveEpg(false);
-            renderHome();
         } else {
             showBrowser(false);
-            showHome(false);
             if (i == 5) {
                 loadKino();
             }
@@ -2905,7 +2823,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void paintTabs() {
-        colorTab(this.tabHome, this.tab == TAB_HOME);
         colorTab(this.tabLive, this.tab == 0);
         colorTab(this.tabMovies, this.tab == 1);
         colorTab(this.tabSeries, this.tab == 2);
@@ -2916,7 +2833,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (view == null) {
             return;
         }
-        if (this.tab == 3 || this.tab == TAB_HOME) {
+        if (this.chipGuide != null) {
+            this.chipGuide.setVisibility(this.tab == 0 ? View.VISIBLE : View.GONE);
+        }
+        if (this.tab == 3) {
             view.setVisibility(8);
             TextView textView = this.chipSort;
             if (textView != null) {
@@ -2948,10 +2868,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public void renderList() {
         String str;
         if (this.tab == 3) {
-            return;
-        }
-        if (this.tab == TAB_HOME) {
-            refreshHomeIfIdle();
             return;
         }
         try {
@@ -3541,7 +3457,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         App.playing = channel;
         App.api = this.api;
         App.guide = this.guide;
-        try { this.prefs.addRecentChannel(HomeRows.key(channel)); } catch (Throwable t) { Quiet.ignored("MainActivity", t); }
         if (this.catalog != null && this.catalog.live != null) {
             App.live = this.catalog.live;
         }
@@ -4185,7 +4100,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         setStatus("Verbunden · " + catalog.live.size() + " Sender", false);
         refreshActive();
         showSettings(false);
-        setTab(catalog.live != null && !catalog.live.isEmpty() ? TAB_HOME : 0);
+        setTab(0);
         prefetchEpg();
         ensureLiveEpg(false);
         if (FeatureAccess.isUnlocked(this)) {
@@ -5018,7 +4933,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
             ensureNetEpg(false);
-            if (tab == TAB_HOME) refreshHomeIfIdle();
             UI.postDelayed(this, 60000L);
         }
     };
@@ -5035,7 +4949,6 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             updateEpgStatus();
             if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
-            if (tab == TAB_HOME) refreshHomeIfIdle();
             if (force) Toast.makeText(this, error == null ? "EPG aktualisiert" : error, Toast.LENGTH_LONG).show();
         });
         if (force && !started) Toast.makeText(this, "EPG-Aktualisierung läuft bereits", Toast.LENGTH_SHORT).show();

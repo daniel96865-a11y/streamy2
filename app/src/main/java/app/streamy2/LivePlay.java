@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.widget.Toast;
 import java.util.Date;
 
-/** Starts a live channel or an archived programme (shared by start screen and guide). */
+/** Starts a live channel or an archived programme from the programme guide. */
 final class LivePlay {
     private LivePlay() {
     }
@@ -28,7 +28,7 @@ final class LivePlay {
         return c != null && c.extraLiveUrl != null && !c.extraLiveUrl.isEmpty();
     }
 
-    /** Live playback of {@code channel}; records it for "Zuletzt geschaut". */
+    /** Live playback of {@code channel}. */
     static void live(Activity activity, Models.Channel channel, Models.Epg epg) {
         if (activity == null || channel == null || channel.header) return;
         Prefs prefs = new Prefs(activity);
@@ -38,7 +38,6 @@ final class LivePlay {
             return;
         }
         App.playing = channel;
-        prefs.addRecentChannel(HomeRows.key(channel));
         String sub = subtitle(epg != null ? epg : channel.epg);
         try {
             if (extra) {
@@ -65,7 +64,6 @@ final class LivePlay {
         if (activity == null || channel == null || listing == null) return;
         Prefs prefs = new Prefs(activity);
         App.playing = channel;
-        prefs.addRecentChannel(HomeRows.key(channel));
         try {
             PlayerActivity.openCatchup(activity, channel.hlsUrl, channel.tsUrl, channel.name,
                     "Archiv · " + Text.clean(listing.title), forceEngine(prefs, false),
