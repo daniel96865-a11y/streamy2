@@ -197,7 +197,18 @@ public class SplashAnimationTest {
         MainActivity a = c.get();
         leaveTouchMode(a);
         View sort = a.findViewById(R.id.chipSort);
-        assertTrue(sort.requestFocus());
+        StringBuilder d = new StringBuilder("DIAG touch=" + sort.isInTouchMode() + " shown=" + sort.isShown()
+                + " focusable=" + sort.isFocusable() + " fitm=" + sort.isFocusableInTouchMode() + " attached=" + sort.isAttachedToWindow()
+                + " enabled=" + sort.isEnabled() + " w=" + sort.getWidth() + " settings=" + a.findViewById(R.id.settingsPane).getVisibility()
+                + " listKids=" + ((ViewGroup) a.findViewById(R.id.list)).getChildCount() + " focus=" + a.getCurrentFocus());
+        for (View v = sort; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+            d.append(" | ").append(v.getClass().getSimpleName()).append(" vis=").append(v.getVisibility());
+            if (v instanceof ViewGroup) d.append(" df=").append(((ViewGroup) v).getDescendantFocusability());
+        }
+        System.out.println(d);
+        boolean ok = sort.requestFocus();
+        System.out.println("DIAG requestFocus=" + ok + " after=" + a.getCurrentFocus());
+        assertTrue(ok);
         a.intro.skip();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         shadowOf(Looper.getMainLooper()).idle();
