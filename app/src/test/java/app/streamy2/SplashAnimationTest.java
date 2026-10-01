@@ -208,7 +208,7 @@ public class SplashAnimationTest {
         System.out.println(d);
         boolean ok = sort.requestFocus();
         System.out.println("DIAG requestFocus=" + ok + " after=" + a.getCurrentFocus());
-        assertTrue(ok);
+        assertTrue(d.toString(), ok);
         a.intro.skip();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         shadowOf(Looper.getMainLooper()).idle();
