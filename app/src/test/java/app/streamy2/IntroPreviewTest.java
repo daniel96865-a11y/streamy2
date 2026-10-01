@@ -32,7 +32,7 @@ import org.robolectric.shadows.ShadowLooper;
 @Config(sdk = 34, application = Application.class)
 public class IntroPreviewTest {
     /** Set to true only to print preview frames into the test log. */
-    static final boolean PRINT = false;
+    static final boolean PRINT = true;
 
     @After public void reset() {
         Prefs p = new Prefs(RuntimeEnvironment.getApplication());
