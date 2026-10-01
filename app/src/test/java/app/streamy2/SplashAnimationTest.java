@@ -228,7 +228,9 @@ public class SplashAnimationTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         shadowOf(Looper.getMainLooper()).idle();
         assertNull(a.intro);
-        assertTrue(sort.isFocused());
+        assertTrue("DIAG2 destroyed=" + a.isDestroyed() + " finishing=" + a.isFinishing() + " attached=" + sort.isAttachedToWindow()
+                + " touch=" + sort.isInTouchMode() + " cur=" + a.getCurrentFocus() + " find=" + a.getWindow().getDecorView().findFocus()
+                + " shown=" + sort.isShown() + " tab=" + StartTabRemovedTest.tabOf(a) + " wf=" + a.hasWindowFocus(), sort.isFocused());
         c.pause().stop().destroy();
     }
 
