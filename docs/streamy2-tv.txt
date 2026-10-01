@@ -1,1 +1,1 @@
-{"versionCode":210,"versionName":"3.90","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.90.apk","changelog":"3.90: Neue Startanimation „Farbwellen“ in der Akzentfarbe mit weichem Übergang zur Startseite."}
+{"versionCode":211,"versionName":"3.91","apkUrl":"https://raw.githubusercontent.com/daniel96865-a11y/streamy2/main/docs/downloads/Streamy2-TV-3.91.apk","changelog":"3.91: Startseite entfernt, die App startet wieder in Live-TV; Programm-Zeitleiste über „Programm“ in Live-TV oder die Guide-Taste."}

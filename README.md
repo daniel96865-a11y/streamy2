@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.90"><img alt="Version" src="https://img.shields.io/badge/Version-3.90-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-210-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.91"><img alt="Version" src="https://img.shields.io/badge/Version-3.91-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-211-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.90
+## 📥 Download – Version 3.91
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.90 (Build 210) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-TV-3.90.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.90 (Build 210) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-Mobile-3.90.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.91 (Build 211) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.91/Streamy2-TV-3.91.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.91 (Build 211) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.91/Streamy2-Mobile-3.91.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-TV-3.90.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.91/Streamy2-TV-3.91.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -47,9 +47,8 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 
 - 📡 **Eigene Playlists** — Zugang per Server-Adresse, Benutzername und Passwort (Xtream-kompatibel)
 - 🗂️ **Mehrere Wiedergabelisten** — beliebig viele Playlists speichern, aktive auswählen, umbenennen, einzeln löschen und in den Einstellungen per „Playlist aktualisieren“ jederzeit frisch vom Server laden; eigener Senderlisten-Cache je Playlist
-- 🏠 **Startseite** — „Läuft gerade“ oben, Reihen „Zuletzt geschaut“, „Favoriten“ und „Läuft gerade“ mit Fortschritt sowie Kategorie-Chips
 - 📺 **Live-TV** — Senderlisten mit Kategorien, Sortierung, Suche und Direktwahl per Sendernummer auf der Fernbedienung
-- 🗓️ **EPG / Programmführer** — „Jetzt“ und „Danach“ direkt in der Senderliste, Fortschrittsbalken, einstellbares Aktualisierungsintervall (6/12/24 Std.), optional eigene XMLTV-Adresse; EPG-Quelle wählbar (Automatisch, vom Anbieter oder EPG aus dem Netz), Sendezeiten immer in deutscher Zeit
+- 🗓️ **EPG / Programmführer** — „Jetzt“ und „Danach“ direkt in der Senderliste, Fortschrittsbalken, einstellbares Aktualisierungsintervall (6/12/24 Std.), optional eigene XMLTV-Adresse; EPG-Quelle wählbar (Automatisch, vom Anbieter oder EPG aus dem Netz), Sendezeiten immer in deutscher Zeit; Programm als Zeitleiste über „Programm“ in Live-TV oder die Guide-Taste der Fernbedienung
 - ⏪ **Zurückblicken** — Sendungen nachholen und darin zurück-/vorspulen, sofern der Anbieter der Playlist das unterstützt
 - 🎬 **Filme & Serien** — Übersicht mit Postern, Staffeln und Episoden, Suche und wählbarer Spaltenanzahl
 - 🔍 **Suche** — über Sender, Filme und Serien; beim Wechsel von Bereich oder Kategorie oder mit Zurück wird sie beendet und die Tastatur ausgeblendet
@@ -76,6 +75,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.91** – Die Startseite (Tab „Start“) entfällt wieder: Nach der Startanimation öffnet die App direkt Live-TV, auf dem Fernseher mit dem Fokus auf dem ersten Sender. Das Programm als Zeitleiste öffnet sich über den neuen Knopf „Programm“ in Live-TV oder die Guide-Taste. Favoriten und „Zuletzt geschaut“ der Startseite entfallen. Startanimation „Farbwellen“, Zeitleiste und Design „Dunkel“ / „OLED-Schwarz“ bleiben.
 
 **3.90** – Neue Startanimation „Farbwellen“ auf TV und Handy: weiche, fließende Farbwellen in der gewählten Akzentfarbe (bei „OLED-Schwarz“ auf reinem Schwarz), schnelles Einblenden und weiches Überblenden in den ersten Bildschirm; bei längerem Laden fließen die Wellen weiter, mit dezentem Ladehinweis. Taste oder Tippen beendet sie sofort, bei ausgeschalteten System-Animationen erscheint ein ruhiger Farbverlauf. Der Logo-Startbildschirm entfällt. Mit gespeicherter Wiedergabeliste öffnet die App direkt die Startseite.
 
