@@ -115,10 +115,11 @@ public class TvStartupLoadTest {
         assertEquals(CHANNELS, list.getAdapter().getItemCount());
         assertEquals(0, focusedPosition(a));
 
-        // The user is already moving down while the rest still loads.
+        // The user is already moving down while the rest still loads (focus search like the D-pad).
         for (int k = 0; k < 4; k++) {
-            a.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN));
-            a.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_DOWN));
+            View f = a.getWindow().getDecorView().findFocus();
+            View next = f == null ? null : f.focusSearch(View.FOCUS_DOWN);
+            if (next != null) next.requestFocus();
             idle(20);
         }
         int pos = focusedPosition(a);
@@ -157,8 +158,12 @@ public class TvStartupLoadTest {
         idle(50);
         for (int round = 1; round <= 6; round++) {
             for (int k = 0; k < 5; k++) {
+                // Keys go through the activity (number keys, chrome, ...) and focus moves like the D-pad.
                 a.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_DOWN));
                 a.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_DOWN));
+                View f = a.getWindow().getDecorView().findFocus();
+                View next = f == null ? null : f.focusSearch(View.FOCUS_DOWN);
+                if (next != null) next.requestFocus();
             }
             setCatalog(a, bigCatalog(String.valueOf(round)));
             a.showFirstCatalog();
