@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.89"><img alt="Version" src="https://img.shields.io/badge/Version-3.89-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-209-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.90"><img alt="Version" src="https://img.shields.io/badge/Version-3.90-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-210-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.89
+## 📥 Download – Version 3.90
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.89 (Build 209) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.89/Streamy2-TV-3.89.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.89 (Build 209) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.89/Streamy2-Mobile-3.89.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.90 (Build 210) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-TV-3.90.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.90 (Build 210) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-Mobile-3.90.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.89/Streamy2-TV-3.89.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.90/Streamy2-TV-3.90.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -59,7 +59,7 @@ Auf dem Handy die Mobile-APK im Browser öffnen und die Installation aus dieser 
 - 👆 **Wischen zum Umschalten** — auf dem Handy im Live-TV nach oben/unten wischen, um den Sender zu wechseln (abschaltbar)
 - 🎮 **Für die Fernbedienung gemacht** — komplette Bedienung mit D-Pad, gut sichtbare Auswahl, alle Einstellungen erreichbar; im Player spulen Links/Rechts, bei eingeblendeter Steuerung wählen sie die Schaltflächen
 - 🔗 **Kopplung per PIN** — Playlist bequem vom Handy an den Fernseher senden (gleiches WLAN)
-- 🎨 **Darstellung** — mehrere Akzentfarben, die die ganze Oberfläche einfärben, dunkles Design, animierter Startbildschirm
+- 🎨 **Darstellung** — mehrere Akzentfarben, die die ganze Oberfläche einfärben, Design „Dunkel“ oder „OLED-Schwarz“, Startanimation „Farbwellen“ in der Akzentfarbe
 - 🩺 **Diagnose** — Wiedergabe-Diagnose und Player-Test direkt in den Einstellungen
 - 🔄 **In-App-Update** — TV und Mobile haben getrennte Update-Kanäle und prüfen selbst auf neue Versionen
 
@@ -76,6 +76,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.90** – Neue Startanimation „Farbwellen“ auf TV und Handy: weiche, fließende Farbwellen in der gewählten Akzentfarbe (bei „OLED-Schwarz“ auf reinem Schwarz), schnelles Einblenden und weiches Überblenden in den ersten Bildschirm; bei längerem Laden fließen die Wellen weiter, mit dezentem Ladehinweis. Taste oder Tippen beendet sie sofort, bei ausgeschalteten System-Animationen erscheint ein ruhiger Farbverlauf. Der Logo-Startbildschirm entfällt. Mit gespeicherter Wiedergabeliste öffnet die App direkt die Startseite.
 
 **3.89** – Neue Startseite (Tab „Start“): „Läuft gerade“ oben, Reihen „Zuletzt geschaut“, „Favoriten“ und „Läuft gerade“ mit Logo, Sendung und Fortschritt, Kategorie-Chips; leere Reihen werden ausgeblendet, Favoriten per Button oder langem Drücken. Programm als Zeitleiste mit Senderlogos, Halbstunden-Achse, roter „Jetzt“-Linie, Infobereich mit „Jetzt ansehen“ und „Von Anfang an“ (wo verfügbar) sowie Tagesauswahl; komplett mit der Fernbedienung bedienbar, auf dem Handy per Wischen. Neues Design „OLED-Schwarz“ unter Darstellung.
 
