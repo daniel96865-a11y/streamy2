@@ -174,9 +174,11 @@ public class TvStartupLoadTest {
                 View next = f == null ? null : f.focusSearch(View.FOCUS_DOWN);
                 if (next != null) next.requestFocus();
             }
+            int before = focusedPosition(a);
             setCatalog(a, bigCatalog(String.valueOf(round)));
             a.showFirstCatalog();
             idle(30);
+            assertEquals("round " + round + " focus=" + a.getWindow().getDecorView().findFocus(), before, focusedPosition(a));
         }
         assertTrue("focus still on a channel row", focusedPosition(a) > 0);
         c.pause().stop().destroy();
