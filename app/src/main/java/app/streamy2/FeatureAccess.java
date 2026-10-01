@@ -56,9 +56,13 @@ final class FeatureAccess {
     private FeatureAccess() {
     }
 
+    private static final java.util.regex.Pattern PIN8 = java.util.regex.Pattern.compile("\\d{8}");
+    private static final java.util.regex.Pattern NON_DIGIT = java.util.regex.Pattern.compile("[^0-9]");
+
     static boolean isUnlocked(Context context) {
-        String pin = storedPin(context);
-        return prefs(context).getBoolean(KEY_UNLOCKED, false) && pin.matches("\\d{8}");
+        // Called from list rendering on the UI thread: no regex compilation per call (3.92).
+        if (!prefs(context).getBoolean(KEY_UNLOCKED, false)) return false;
+        return PIN8.matcher(storedPin(context)).matches();
     }
 
     static boolean isRestrictedUrl(String url) {
@@ -333,7 +337,7 @@ final class FeatureAccess {
 
     private static String storedPin(Context context) {
         String value = prefs(context).getString(KEY_PIN, "");
-        return value == null ? "" : value.replaceAll("[^0-9]", "");
+        return value == null ? "" : NON_DIGIT.matcher(value).replaceAll("");
     }
 
     private static boolean isDefinitiveRevocation(Result result) {
