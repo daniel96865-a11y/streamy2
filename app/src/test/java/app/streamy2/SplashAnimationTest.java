@@ -41,6 +41,13 @@ public class SplashAnimationTest {
         }
     }
 
+    @org.junit.Before
+    public void pauseChoreographer() {
+        // Frames only run when the test advances the clock (otherwise Robolectric advances the
+        // clock itself on every frame of an endless animation).
+        org.robolectric.shadows.ShadowChoreographer.setPaused(true);
+    }
+
     @After
     public void reset() {
         setScale(1f);
