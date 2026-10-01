@@ -201,7 +201,29 @@ public class SplashAnimationTest {
         MainActivity a = c.get();
         leaveTouchMode(a);
         View sort = a.findViewById(R.id.chipSort);
-        assertTrue(sort.requestFocus());
+        StringBuilder d = new StringBuilder("DIAG ");
+        for (View t : new View[]{sort, a.findViewById(R.id.tabLive), ((ViewGroup) a.findViewById(R.id.list)).getChildAt(0)}) {
+            d.append(t.getClass().getSimpleName()).append(" touch=").append(t.isInTouchMode());
+            for (String mn : new String[]{"canTakeFocus", "hasAncestorThatBlocksDescendantFocus", "isLayoutValid"}) {
+                try {
+                    java.lang.reflect.Method m = View.class.getDeclaredMethod(mn);
+                    m.setAccessible(true);
+                    d.append(' ').append(mn).append('=').append(m.invoke(t));
+                } catch (Throwable e) { d.append(' ').append(mn).append("=?").append(e); }
+            }
+            d.append(" rf=").append(t.requestFocus()).append(" isF=").append(t.isFocused()).append(" ;; ");
+        }
+        for (View v = sort; v != null; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+            if (v instanceof ViewGroup) {
+                try {
+                    java.lang.reflect.Method m = ViewGroup.class.getDeclaredMethod("shouldBlockFocusForTouchscreen");
+                    m.setAccessible(true);
+                    d.append(v.getClass().getSimpleName()).append(" sb=").append(m.invoke(v)).append(' ');
+                } catch (Throwable e) { d.append("?"); }
+            }
+        }
+        d.append(" feat=").append(a.getPackageManager().hasSystemFeature("android.hardware.touchscreen")).append(" focus=").append(a.getCurrentFocus());
+        assertTrue(d.toString(), sort.requestFocus());
         a.intro.skip();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         shadowOf(Looper.getMainLooper()).idle();
