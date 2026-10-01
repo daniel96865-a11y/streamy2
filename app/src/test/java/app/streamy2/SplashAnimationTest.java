@@ -149,7 +149,7 @@ public class SplashAnimationTest {
     @Test
     public void remoteKeySkipsAndFocusLandsOnStartScreenOnTv() throws Exception {
         // Remote control: the TV window is not in touch mode.
-        org.robolectric.shadows.ShadowWindowManagerGlobal.setInTouchMode(false);
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
         ActivityController<MainActivity> c = launchWithIntro(true);
         MainActivity a = c.get();
         assertNotNull(a.intro);
