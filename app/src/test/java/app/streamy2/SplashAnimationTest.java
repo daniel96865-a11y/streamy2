@@ -107,7 +107,16 @@ public class SplashAnimationTest {
         ActivityController<MainActivity> c = launchWithIntro();
         MainActivity a = c.get();
         IntroOverlay o = overlayIn(a);
-        assertNotNull("overlay shown", o);
+        if (o == null) {
+            try {
+                IntroOverlay.show(a, null);
+                fail("show ok but intro missing; extra=" + a.getIntent().getExtras());
+            } catch (Throwable t) {
+                java.io.StringWriter sw = new java.io.StringWriter();
+                t.printStackTrace(new java.io.PrintWriter(sw));
+                fail(sw.toString().substring(0, Math.min(3000, sw.toString().length())));
+            }
+        }
         assertSame(o, a.intro);
         assertFalse(o.timing.reduced);
         assertEquals(Design.DARK_BG, o.background);
@@ -131,7 +140,11 @@ public class SplashAnimationTest {
         root.addView(o);
         o.start();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3600));
-        assertTrue(o.isShowing());
+        if (!o.isShowing()) {
+            java.io.StringWriter sw = new java.io.StringWriter();
+            o.finishTrace.printStackTrace(new java.io.PrintWriter(sw));
+            fail(sw.toString().substring(0, Math.min(3000, sw.toString().length())));
+        }
         assertTrue(o.dots.alpha > 0f);
         o.markReady();
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
