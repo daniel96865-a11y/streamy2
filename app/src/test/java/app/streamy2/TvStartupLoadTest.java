@@ -47,6 +47,15 @@ public class TvStartupLoadTest {
         c.setup();
         idle(50);
         leaveTouchMode(c.get());
+        // Saved playlist: the list is still empty until the cache arrives (no demo rows).
+        try {
+            setCatalog(c.get(), new Models.Catalog());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        c.get().renderList();
+        c.get().releaseSearchFocus();
+        idle(50);
         return c;
     }
 
@@ -205,8 +214,9 @@ public class TvStartupLoadTest {
         assertEquals(old, asc);
         List<Models.Channel> desc = new ArrayList<>(l);
         MainActivity.sortByName(desc, true);
-        assertEquals("zdf", desc.get(0).name);
-        assertNull(desc.get(desc.size() - 1).name);
+        List<Models.Channel> rev = new ArrayList<>(old);
+        java.util.Collections.reverse(rev);
+        assertEquals(rev, desc);
     }
 
     @Test
