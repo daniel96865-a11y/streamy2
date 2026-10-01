@@ -78,6 +78,19 @@ public class SplashAnimationTest {
         return c;
     }
 
+    /** Remote control: the window leaves touch mode (as after the first D-pad key on a TV). */
+    private static void leaveTouchMode(android.app.Activity a) {
+        try {
+            Object root = a.getWindow().getDecorView().getClass().getMethod("getViewRootImpl").invoke(a.getWindow().getDecorView());
+            java.lang.reflect.Method m = root.getClass().getDeclaredMethod("ensureTouchMode", boolean.class);
+            m.setAccessible(true);
+            m.invoke(root, false);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        assertFalse(a.getWindow().getDecorView().isInTouchMode());
+    }
+
     private static IntroOverlay overlayIn(MainActivity a) {
         ViewGroup content = a.findViewById(android.R.id.content);
         for (int i = 0; i < content.getChildCount(); i++) {
@@ -154,6 +167,7 @@ public class SplashAnimationTest {
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
         ActivityController<MainActivity> c = launchWithIntro(true);
         MainActivity a = c.get();
+        leaveTouchMode(a);
         assertNotNull(a.intro);
         // Keys during the animation only end it; they do not move focus underneath.
         assertTrue(a.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_DOWN)));
@@ -179,6 +193,7 @@ public class SplashAnimationTest {
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
         ActivityController<MainActivity> c = launchWithIntro(true);
         MainActivity a = c.get();
+        leaveTouchMode(a);
         View sort = a.findViewById(R.id.chipSort);
         assertTrue(sort.requestFocus());
         a.intro.skip();
