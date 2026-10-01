@@ -114,9 +114,9 @@ public class SplashAnimationTest {
         assertEquals(0xFF5B9DFF, o.palette[0]);
         // No playlist (demo): ready right away, ends after the minimum time with a fade-out.
         assertTrue(o.timing.isReady());
-        ShadowLooper.idleMainLooper(Duration.ofMillis(800));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(800));
         assertNotNull(overlayIn(a));
-        ShadowLooper.idleMainLooper(Duration.ofMillis(IntroTiming.MIN_HOLD_MS + IntroTiming.FADE_OUT_MS));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.MIN_HOLD_MS + IntroTiming.FADE_OUT_MS));
         shadowOf(Looper.getMainLooper()).idle();
         assertNull("overlay removed after the transition", overlayIn(a));
         assertNull(a.intro);
@@ -130,11 +130,11 @@ public class SplashAnimationTest {
         ViewGroup root = new android.widget.FrameLayout(app());
         root.addView(o);
         o.start();
-        ShadowLooper.idleMainLooper(Duration.ofMillis(3600));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(3600));
         assertTrue(o.isShowing());
         assertTrue(o.dots.alpha > 0f);
         o.markReady();
-        ShadowLooper.idleMainLooper(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         assertFalse(o.isShowing());
         assertEquals(0, root.getChildCount());
     }
@@ -145,7 +145,7 @@ public class SplashAnimationTest {
         MainActivity a = c.get();
         assertNotNull(a.intro);
         a.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_DOWN));
-        ShadowLooper.idleMainLooper(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
         assertNull(a.intro);
         View f = a.getCurrentFocus();
         assertNotNull("focus after the intro", f);
@@ -177,7 +177,7 @@ public class SplashAnimationTest {
         assertNotNull(o);
         assertTrue(o.timing.reduced);
         assertEquals(IntroTiming.STATIC_T, o.timing.seconds(o.timing.start + 5000), 0f);
-        ShadowLooper.idleMainLooper(Duration.ofMillis(IntroTiming.REDUCED_MIN_MS + 200));
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.REDUCED_MIN_MS + 200));
         assertNull(overlayIn(c.get()));
         c.pause().stop().destroy();
     }
