@@ -62,7 +62,7 @@ import java.util.function.ToIntFunction;
 import org.json.JSONObject;
 
 /* loaded from: classes.dex */
-public class MainActivity extends AppCompatActivity implements ChannelAdapter.Listener {
+public class MainActivity extends AppCompatActivity implements ChannelAdapter.Listener, HomeScreen.Listener {
     private LinearLayout accentRow;
     private TextView activeLabel;
     private TextView accessStatus;
@@ -82,6 +82,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private TextView bufIndHud;
     /** Accent id the current activity theme was built with (see AccentTheme). */
     private String appliedAccent;
+    private String appliedDesign;
+    private TextView tabHome;
+    private View homePane;
+    private HomeScreen homeScreen;
+    /** Tab index of the start screen (rows + hero). */
+    static final int TAB_HOME = 6;
     /** Set before recreate() after an accent change, so settings reopen at "Darstellung". */
     static boolean reopenLookAfterAccent;
     private TextView bufIndAlways;
@@ -220,6 +226,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     protected void onCreate(Bundle bundle) {
         View view;
         this.appliedAccent = AccentTheme.apply(this);
+        this.appliedDesign = Design.normalize(new Prefs(this).design());
         super.onCreate(bundle);
         setContentView(R.layout.activity_main);
         this.prefs = new Prefs(this);
@@ -232,6 +239,12 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.settingsPane = findViewById(R.id.settingsPane);
         this.chips = findViewById(R.id.chips);
         this.detailPane = findViewById(R.id.detailPane);
+        this.tabHome = (TextView) findViewById(R.id.tabHome);
+        this.homePane = findViewById(R.id.homePane);
+        View homeBody = findViewById(R.id.homeBody);
+        if (homeBody instanceof LinearLayout) {
+            this.homeScreen = new HomeScreen(this, (LinearLayout) homeBody, this);
+        }
         this.tabLive = (TextView) findViewById(R.id.tabLive);
         this.tabMovies = (TextView) findViewById(R.id.tabMovies);
         this.tabSeries = (TextView) findViewById(R.id.tabSeries);
@@ -390,6 +403,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 }
             }
         });
+        if (this.tabHome != null) {
+            this.tabHome.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    MainActivity.this.releaseSearchFocus();
+                    MainActivity.this.setTab(TAB_HOME);
+                }
+            });
+        }
         this.tabLive.setOnClickListener(new View.OnClickListener() { // from class: app.streamy2.MainActivity$$ExternalSyntheticLambda80
             @Override // android.view.View.OnClickListener
             public final void onClick(View view2) {
@@ -767,6 +788,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         bindFold(R.id.headLook, R.id.bodyLook, R.id.chevLook);
         installSettingsFocusEffects();
         buildAccentRow();
+        bindDesignChips();
         maybeReopenLookAfterAccent();
         this.search.addTextChangedListener(new TextWatcher() { // from class: app.streamy2.MainActivity.3
             @Override // android.text.TextWatcher
@@ -1335,6 +1357,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         View view2;
         View view3;
         BrowserController browserController2;
+        if (keyEvent.getAction() == KeyEvent.ACTION_DOWN && keyEvent.getKeyCode() == KeyEvent.KEYCODE_GUIDE
+                && this.settingsPane != null && this.settingsPane.getVisibility() != View.VISIBLE) {
+            onHomeGuide(this.tab == 0 && this.catId != null && !"all".equals(this.catId) ? this.catId : null);
+            return true;
+        }
         View view4;
         RecyclerView recyclerView2;
         RecyclerView recyclerView3;
@@ -1592,6 +1619,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                 recreate();
                 return;
             }
+            if (this.appliedDesign != null && this.prefs != null
+                    && !Design.normalize(this.prefs.design()).equals(this.appliedDesign)) {
+                recreate();
+                return;
+            }
         } catch (Throwable t) {
             Quiet.ignored("MainActivity", t);
         }
@@ -1608,6 +1640,9 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             }
             if (this.tab == 5) {
                 loadKino();
+            }
+            if (this.tab == TAB_HOME) {
+                renderHome();
             }
             if (this.adapter == null || this.tab != 0 || (recyclerView = this.list) == null) {
                 return;
@@ -2595,6 +2630,102 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         textView.setTextColor(z ? accent.onColor : getColor(R.color.fg));
     }
 
+    // --- Start screen (3.89) ---
+
+    private void showHome(boolean show) {
+        if (this.homePane != null) this.homePane.setVisibility(show ? View.VISIBLE : View.GONE);
+        if (!show) return;
+        if (this.search != null) this.search.setVisibility(View.GONE);
+        if (this.chips != null) this.chips.setVisibility(View.GONE);
+        if (this.list != null) this.list.setVisibility(View.GONE);
+        if (this.empty != null) this.empty.setVisibility(View.GONE);
+        if (this.btnRefreshMedia != null) this.btnRefreshMedia.setVisibility(View.GONE);
+    }
+
+    private void refreshHomeIfIdle() {
+        if (this.tab != TAB_HOME || this.homePane == null) return;
+        // Keep the remote focus where it is: only rebuild while nothing on the start screen is focused.
+        if (this.homePane.hasFocus()) return;
+        renderHome();
+    }
+
+    private void renderHome() {
+        if (this.homeScreen == null || this.prefs == null) return;
+        try {
+            Models.Catalog cat = this.catalog;
+            List<Models.Channel> live = cat != null ? cat.live : App.live;
+            List<Models.Category> cats = cat != null ? cat.liveCats : null;
+            boolean hadFocus = this.homePane != null && this.homePane.hasFocus();
+            long now = System.currentTimeMillis();
+            List<String> favs = this.prefs.favoriteChannels();
+            HomeRows.Home home = HomeRows.build(live, cats, this.prefs.recentChannels(), favs,
+                    HomeScreen.lookup(this.guide), now);
+            View first = this.homeScreen.render(home, favs, now);
+            if (first != null && (hadFocus || (Tv.isTv(this) && (getCurrentFocus() == null || !getCurrentFocus().isShown())))) {
+                first.requestFocus();
+            }
+        } catch (Throwable t) {
+            Quiet.ignored("MainActivity", t);
+        }
+    }
+
+    @Override public void onHomePlay(Models.Channel channel) {
+        if (channel == null) return;
+        onChannel(channel);
+    }
+
+    @Override public void onHomeGuide(String categoryId) {
+        App.guide = this.guide;
+        App.api = this.api;
+        if (this.catalog != null && this.catalog.live != null) App.live = this.catalog.live;
+        GuideActivity.open(this, categoryId);
+    }
+
+    @Override public void onHomeCategory(String categoryId) {
+        setTab(0);
+        this.catId = categoryId == null ? "all" : categoryId;
+        renderList();
+        RecyclerView rv = this.list;
+        if (rv != null) rv.scrollToPosition(0);
+    }
+
+    @Override public void onHomeFavoriteToggle(Models.Channel channel) {
+        if (channel == null) return;
+        boolean fav = this.prefs.toggleFavoriteChannel(HomeRows.key(channel));
+        Toast.makeText(this, fav ? "Zu Favoriten hinzugefügt" : "Aus Favoriten entfernt", Toast.LENGTH_SHORT).show();
+        renderHome();
+    }
+
+    private void bindDesignChips() {
+        final TextView dark = (TextView) findViewById(R.id.designDark);
+        final TextView oled = (TextView) findViewById(R.id.designOled);
+        if (dark == null || oled == null) return;
+        dark.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { MainActivity.this.pickDesign(Design.DARK); }
+        });
+        oled.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { MainActivity.this.pickDesign(Design.OLED); }
+        });
+        paintDesign();
+    }
+
+    private void paintDesign() {
+        Theme.Accent accent = Theme.get(this.prefs.accent());
+        boolean oled = Design.isOled(this.prefs.design());
+        paintChip((TextView) findViewById(R.id.designDark), !oled, accent);
+        paintChip((TextView) findViewById(R.id.designOled), oled, accent);
+    }
+
+    private void pickDesign(String id) {
+        String next = Design.normalize(id);
+        if (next.equals(Design.normalize(this.prefs.design()))) return;
+        this.prefs.setDesign(next);
+        paintDesign();
+        // Backgrounds and surfaces are resolved at inflation time: rebuild with the new design.
+        reopenLookAfterAccent = true;
+        recreate();
+    }
+
     private void setTab(int i) {
         if ((i == 4 || i == 5) && !FeatureAccess.isUnlocked(this)) {
             i = 0;
@@ -2610,9 +2741,16 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         this.catId = i == 4 ? "extra_live" : "all";
         paintTabs();
         if (i == 3) {
+            showHome(false);
             showBrowser(true);
+        } else if (i == TAB_HOME) {
+            showBrowser(false);
+            showHome(true);
+            ensureLiveEpg(false);
+            renderHome();
         } else {
             showBrowser(false);
+            showHome(false);
             if (i == 5) {
                 loadKino();
             }
@@ -2690,6 +2828,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     }
 
     private void paintTabs() {
+        colorTab(this.tabHome, this.tab == TAB_HOME);
         colorTab(this.tabLive, this.tab == 0);
         colorTab(this.tabMovies, this.tab == 1);
         colorTab(this.tabSeries, this.tab == 2);
@@ -2700,7 +2839,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         if (view == null) {
             return;
         }
-        if (this.tab == 3) {
+        if (this.tab == 3 || this.tab == TAB_HOME) {
             view.setVisibility(8);
             TextView textView = this.chipSort;
             if (textView != null) {
@@ -2732,6 +2871,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     public void renderList() {
         String str;
         if (this.tab == 3) {
+            return;
+        }
+        if (this.tab == TAB_HOME) {
+            refreshHomeIfIdle();
             return;
         }
         try {
@@ -3321,6 +3464,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         App.playing = channel;
         App.api = this.api;
         App.guide = this.guide;
+        try { this.prefs.addRecentChannel(HomeRows.key(channel)); } catch (Throwable t) { Quiet.ignored("MainActivity", t); }
         if (this.catalog != null && this.catalog.live != null) {
             App.live = this.catalog.live;
         }
@@ -3964,7 +4108,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         setStatus("Verbunden · " + catalog.live.size() + " Sender", false);
         refreshActive();
         showSettings(false);
-        setTab(0);
+        setTab(catalog.live != null && !catalog.live.isEmpty() ? TAB_HOME : 0);
         prefetchEpg();
         ensureLiveEpg(false);
         if (FeatureAccess.isUnlocked(this)) {
@@ -4794,6 +4938,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
             ensureNetEpg(false);
+            if (tab == TAB_HOME) refreshHomeIfIdle();
             UI.postDelayed(this, 60000L);
         }
     };
@@ -4810,6 +4955,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             updateEpgStatus();
             if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
+            if (tab == TAB_HOME) refreshHomeIfIdle();
             if (force) Toast.makeText(this, error == null ? "EPG aktualisiert" : error, Toast.LENGTH_LONG).show();
         });
         if (force && !started) Toast.makeText(this, "EPG-Aktualisierung läuft bereits", Toast.LENGTH_SHORT).show();
@@ -4894,6 +5040,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
         paintEpgInterval();
         paintAccentDots();
+        paintDesign();
         refreshActive();
     }
 

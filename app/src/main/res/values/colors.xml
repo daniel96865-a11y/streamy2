@@ -2,12 +2,12 @@
 <resources>
     <color name="accent">#5b9dff</color>
     <color name="accent_fg">#061428</color>
-    <color name="bg">#000000</color>
+    <color name="bg">#131419</color>
     <color name="black">#000000</color>
     <color name="brand">#5b9dff</color>
-    <color name="card">#1c1c1e</color>
+    <color name="card">#1e1f24</color>
     <color name="danger">#ff6b6b</color>
-    <color name="elevated">#2c2c2e</color>
+    <color name="elevated">#2c2d33</color>
     <color name="epg_track">#335b9dff</color>
     <color name="fg">#f5f5f7</color>
     <!-- Launcher icon background = header logo colour (default accent, fixed). -->
@@ -17,4 +17,11 @@
     <color name="subtle">#636366</color>
     <color name="transparent">#00000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Design OLED-Schwarz -->
+    <color name="oled_bg">#000000</color>
+    <color name="oled_surface">#050506</color>
+    <color name="oled_card">#0b0b0d</color>
+    <color name="oled_elevated">#18181b</color>
+    <color name="oled_live_bg">#1f1f23</color>
+    <color name="dark_surface">#18191e</color>
 </resources>

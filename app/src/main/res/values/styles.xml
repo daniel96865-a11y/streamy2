@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.Streamy" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="streamyBg">@color/bg</item>
+        <item name="streamySurface">@color/dark_surface</item>
+        <item name="streamyCard">@color/card</item>
+        <item name="streamyElevated">@color/elevated</item>
+        <item name="streamyLiveBg">@color/live_bg</item>
         <item name="android:colorBackground">@color/bg</item>
         <item name="android:textColorPrimary">@color/fg</item>
         <item name="android:textColorSecondary">@color/muted</item>
@@ -29,6 +34,20 @@
         <item name="streamyAccentSurfaceGlass">#CC26354D</item>
     </style>
 
+    <!-- Design „OLED-Schwarz“: pure black backgrounds, very dark surfaces; accent unchanged. -->
+    <style name="ThemeOverlay.Streamy.Design.Oled" parent="">
+        <item name="streamyBg">@color/oled_bg</item>
+        <item name="streamySurface">@color/oled_surface</item>
+        <item name="streamyCard">@color/oled_card</item>
+        <item name="streamyElevated">@color/oled_elevated</item>
+        <item name="streamyLiveBg">@color/oled_live_bg</item>
+        <item name="android:colorBackground">@color/oled_bg</item>
+        <item name="android:windowBackground">@color/oled_bg</item>
+        <item name="android:statusBarColor">@color/oled_bg</item>
+        <item name="android:navigationBarColor">@color/oled_bg</item>
+        <item name="colorPrimaryVariant">@color/oled_elevated</item>
+    </style>
+
     <style name="Theme.Streamy.Splash" parent="Theme.Streamy">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowActionModeOverlay">true</item>
@@ -40,7 +59,7 @@
     <style name="Theme.Streamy.Dialog" parent="Theme.MaterialComponents.Dialog.Alert">
         <item name="android:textColorPrimary">@color/fg</item>
         <item name="android:textColor">@color/fg</item>
-        <item name="android:background">@color/card</item>
+        <item name="android:background">?attr/streamyCard</item>
         <item name="android:listSelector">@drawable/bg_row</item>
         <item name="android:colorControlHighlight">?attr/streamyAccent</item>
         <item name="colorPrimary">?attr/streamyAccent</item>

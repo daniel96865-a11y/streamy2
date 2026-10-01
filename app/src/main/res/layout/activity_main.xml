@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:background="@color/bg"
+    android:background="?attr/streamyBg"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
     <androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -10,7 +10,7 @@
         android:layout_height="match_parent">
         <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/appBar"
-            android:background="@color/bg"
+            android:background="?attr/streamyBg"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:elevation="0dp"
@@ -73,6 +73,10 @@
                         android:paddingBottom="12dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
+                        <TextView
+                            android:id="@+id/tabHome"
+                            android:text="Start"
+                            style="@style/Tab"/>
                         <TextView
                             android:id="@+id/tabLive"
                             android:text="Live-TV"
@@ -229,9 +233,25 @@
                 android:layout_height="match_parent"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"/>
+            <androidx.core.widget.NestedScrollView
+                android:id="@+id/homePane"
+                android:background="?attr/streamyBg"
+                android:visibility="gone"
+                android:fillViewport="true"
+                android:clipChildren="false"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+                <LinearLayout
+                    android:id="@+id/homeBody"
+                    android:orientation="vertical"
+                    android:clipChildren="false"
+                    android:descendantFocusability="afterDescendants"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+            </androidx.core.widget.NestedScrollView>
             <FrameLayout
                 android:id="@+id/browserPane"
-                android:background="@color/bg"
+                android:background="?attr/streamyBg"
                 android:visibility="gone"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent">
@@ -385,7 +405,7 @@
     <LinearLayout
         android:orientation="vertical"
         android:id="@+id/settingsPane"
-        android:background="@color/bg"
+        android:background="?attr/streamyBg"
         android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -1913,6 +1933,51 @@
                                 android:paddingStart="18dp"
                                 android:paddingEnd="18dp"
                                 android:layout_marginStart="8dp"/>
+                        </LinearLayout>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Design"/>
+                        <TextView
+                            android:textSize="12sp"
+                            android:textColor="@color/muted"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:text="OLED-Schwarz nutzt reines Schwarz als Hintergrund und sehr dunkle Flächen. Die Akzentfarbe bleibt erhalten."/>
+                        <LinearLayout
+                            android:orientation="horizontal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="12dp">
+                            <TextView
+                                android:id="@+id/designDark"
+                                android:text="Dunkel"
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:paddingStart="18dp"
+                                android:paddingEnd="18dp"/>
+                            <TextView
+                                android:id="@+id/designOled"
+                                android:text="OLED-Schwarz"
+                                android:textColor="@color/fg"
+                                android:gravity="center"
+                                android:background="@drawable/bg_btn_sec"
+                                android:focusable="true"
+                                android:clickable="true"
+                                android:layout_width="wrap_content"
+                                android:layout_height="40dp"
+                                android:layout_marginStart="8dp"
+                                android:paddingStart="18dp"
+                                android:paddingEnd="18dp"/>
                         </LinearLayout>
                         <TextView
                             android:textSize="12sp"

@@ -370,6 +370,46 @@ public class Prefs {
         return this.p.getString(activeKey("format"), "hls");
     }
 
+    /** Design: "dark" (Dunkel, default) or "oled" (OLED-Schwarz). */
+    public String design() {
+        return Design.normalize(this.p.getString("design", Design.DARK));
+    }
+
+    public void setDesign(String value) {
+        this.p.edit().putString("design", Design.normalize(value)).apply();
+    }
+
+    /** Recently played live channels (ids, newest first), for the start screen. */
+    public java.util.List<String> recentChannels() {
+        return HomeRows.splitIds(this.p.getString("recentChannels", ""));
+    }
+
+    public void addRecentChannel(String id) {
+        this.p.edit().putString("recentChannels",
+                HomeRows.joinIds(HomeRows.pushRecent(recentChannels(), id, HomeRows.MAX_RECENT))).apply();
+    }
+
+    public void clearRecentChannels() {
+        this.p.edit().remove("recentChannels").apply();
+    }
+
+    /** Favourite live channels (ids, in the order they were added). */
+    public java.util.List<String> favoriteChannels() {
+        return HomeRows.splitIds(this.p.getString("favoriteChannels", ""));
+    }
+
+    public boolean isFavoriteChannel(String id) {
+        return id != null && favoriteChannels().contains(id);
+    }
+
+    /** Adds or removes a favourite; returns true if it is a favourite afterwards. */
+    public boolean toggleFavoriteChannel(String id) {
+        java.util.List<String> list = favoriteChannels();
+        boolean now = HomeRows.toggle(list, id);
+        this.p.edit().putString("favoriteChannels", HomeRows.joinIds(list)).apply();
+        return now;
+    }
+
     public String accent() {
         return this.p.getString("accent", "blue");
     }
