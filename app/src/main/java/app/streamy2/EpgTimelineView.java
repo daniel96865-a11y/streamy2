@@ -173,7 +173,7 @@ public class EpgTimelineView extends View {
     List<EpgGuide.Listing> row(int i) {
         if (i < 0 || i >= channels.size()) return Collections.emptyList();
         Models.Channel c = channels.get(i);
-        String key = i + "|" + HomeRows.key(c);
+        String key = i + "|" + GuideActions.key(c);
         List<EpgGuide.Listing> l = rows.get(key);
         if (l == null) {
             l = source == null ? null : source.listings(c);
@@ -601,7 +601,7 @@ public class EpgTimelineView extends View {
         }
         c.drawRoundRect(rect, radius, radius, fill);
         if (isNow && !focus) {
-            float p = HomeRows.progress(epgOf(it), now) / 100f;
+            float p = GuideActions.progress(epgOf(it), now) / 100f;
             fill.setColor(AccentTheme.withAlpha(accent, 180));
             c.drawRect(rect.left + 1, rect.bottom - dp(3), rect.left + 1 + (rect.width() - 2) * p, rect.bottom, fill);
         }

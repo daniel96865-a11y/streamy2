@@ -100,14 +100,6 @@ public class IntroPreviewTest {
             makeTv(c.get());
             c.setup();
             ShadowLooper.idleMainLooper();
-            try {
-                java.lang.reflect.Method m = MainActivity.class.getDeclaredMethod("setTab", int.class);
-                m.setAccessible(true);
-                m.invoke(c.get(), MainActivity.TAB_HOME);
-                ShadowLooper.idleMainLooper();
-            } catch (Throwable ignored) {
-                // keep the default first screen
-            }
             View root = c.get().getWindow().getDecorView();
             root.measure(View.MeasureSpec.makeMeasureSpec(960, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(540, View.MeasureSpec.EXACTLY));

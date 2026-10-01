@@ -149,27 +149,43 @@ public class SplashAnimationTest {
     /** Fire OS 7 level (API 28); Robolectric's API 34 window keeps no focus without real input. */
     @Config(sdk = 28)
     @Test
-    public void remoteKeySkipsAndFocusLandsOnStartScreenOnTv() throws Exception {
+    public void remoteKeySkipsAndFocusLandsOnLiveTvOnTv() throws Exception {
         // Remote control: the TV window is not in touch mode.
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
         ActivityController<MainActivity> c = launchWithIntro(true);
         MainActivity a = c.get();
         assertNotNull(a.intro);
-        // First screen with a playlist = Start screen (3.89 rows).
-        java.lang.reflect.Method setTab = MainActivity.class.getDeclaredMethod("setTab", int.class);
-        setTab.setAccessible(true);
-        setTab.invoke(a, MainActivity.TAB_HOME);
-        shadowOf(Looper.getMainLooper()).idle();
         // Keys during the animation only end it; they do not move focus underneath.
         assertTrue(a.dispatchKeyEvent(new android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_DPAD_DOWN)));
         assertNotNull(a.intro);
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
+        shadowOf(Looper.getMainLooper()).idle();
         assertNull(a.intro);
-        View home = a.findViewById(R.id.homePane);
-        assertEquals(View.VISIBLE, home.getVisibility());
-        assertNotNull(a.homeFirst);
-        assertTrue("focus on the first element of the Start screen: " + a.homeFirst, a.homeFirst.isFocused());
-        assertTrue("focus on the Start screen", home.hasFocus());
+        // 3.91: the first screen after the intro is Live-TV again (no Start tab).
+        assertEquals(0, StartTabRemovedTest.tabOf(a));
+        androidx.recyclerview.widget.RecyclerView list = a.findViewById(R.id.list);
+        assertEquals(View.VISIBLE, list.getVisibility());
+        assertTrue("demo channels in the list", list.getChildCount() > 0);
+        View focus = a.getCurrentFocus();
+        assertNotNull("remote focus after the intro", focus);
+        assertTrue("focus on the first channel: " + focus, list.getChildAt(0) == focus || list.getChildAt(0).hasFocus());
+        c.pause().stop().destroy();
+    }
+
+    /** Focus moved by the user before the intro ends is kept (no jump back to the first channel). */
+    @Config(sdk = 28)
+    @Test
+    public void currentFocusIsKeptAfterIntro() throws Exception {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false);
+        ActivityController<MainActivity> c = launchWithIntro(true);
+        MainActivity a = c.get();
+        View sort = a.findViewById(R.id.chipSort);
+        assertTrue(sort.requestFocus());
+        a.intro.skip();
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(IntroTiming.FADE_OUT_MS + 100));
+        shadowOf(Looper.getMainLooper()).idle();
+        assertNull(a.intro);
+        assertTrue(sort.isFocused());
         c.pause().stop().destroy();
     }
 
