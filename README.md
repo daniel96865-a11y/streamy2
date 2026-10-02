@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.92"><img alt="Version" src="https://img.shields.io/badge/Version-3.92-2684ff?style=for-the-badge"></a>
-  <img alt="Build" src="https://img.shields.io/badge/Build-212-111827?style=for-the-badge">
+  <a href="https://github.com/daniel96865-a11y/streamy2/releases/tag/v3.93"><img alt="Version" src="https://img.shields.io/badge/Version-3.93-2684ff?style=for-the-badge"></a>
+  <img alt="Build" src="https://img.shields.io/badge/Build-213-111827?style=for-the-badge">
   <img alt="Android" src="https://img.shields.io/badge/Android-7%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white">
 </p>
 
@@ -18,12 +18,12 @@
   <img src="assets/streamy2-banner.png" alt="Streamy 2 – TV und Mobile" width="100%">
 </p>
 
-## 📥 Download – Version 3.92
+## 📥 Download – Version 3.93
 
 | Gerät | Version | Download |
 |---|---:|---|
-| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.92 (Build 212) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.92/Streamy2-TV-3.92.apk)** |
-| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.92 (Build 212) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.92/Streamy2-Mobile-3.92.apk)** |
+| 📺 **Streamy 2 TV** — Android TV / Fire TV | 3.93 (Build 213) | **[TV-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.93/Streamy2-TV-3.93.apk)** |
+| 📱 **Streamy 2 Mobile** — Smartphone / Tablet | 3.93 (Build 213) | **[Mobile-APK herunterladen](https://github.com/daniel96865-a11y/streamy2/releases/download/v3.93/Streamy2-Mobile-3.93.apk)** |
 
 <p align="center">
   <a href="https://github.com/daniel96865-a11y/streamy2/releases/latest"><b>➡️ Neueste Release-Seite öffnen</b></a>
@@ -37,7 +37,7 @@ Bereits installierte Apps finden neue Versionen selbst: **Einstellungen → Nach
 2. **Einstellungen → Mein Fire TV → Entwickleroptionen → Apps unbekannter Herkunft installieren** → für *Downloader* erlauben.
    (Falls die Entwickleroptionen fehlen: *Einstellungen → Mein Fire TV → Info* öffnen und 7× auf den Gerätenamen klicken.)
 3. In Downloader diese Adresse eingeben:
-   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.92/Streamy2-TV-3.92.apk`
+   `https://github.com/daniel96865-a11y/streamy2/releases/download/v3.93/Streamy2-TV-3.93.apk`
 4. **Installieren** wählen, danach kann die APK-Datei gelöscht werden.
 
 Auf Android-TV-Geräten funktioniert es genauso, z. B. mit Downloader oder einem Dateimanager.
@@ -75,6 +75,8 @@ Beide Varianten werden aus demselben Quellcode gebaut, laufen ab Android 7 und u
 Sie können parallel installiert werden und erhalten ihre Updates unabhängig voneinander.
 
 ## 🆕 Letzte Änderungen
+
+**3.93** – Auf dem Handy wird das EPG aus dem Netz nach dem Start wieder geladen und in der Senderliste angezeigt. Neue Programmdaten aktualisieren nur die sichtbaren Zeilen, der Fokus bleibt erhalten.
 
 **3.92** – Auf dem TV springt der Fokus beim Nachladen der Senderliste nicht mehr weg, große Senderlisten werden schneller gefiltert und sortiert, und die App lässt sich direkt nach dem Start ohne Hänger bedienen. Die Programmdaten (EPG) werden beim Start etwas später aktualisiert.
 
