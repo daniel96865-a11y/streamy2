@@ -41,6 +41,49 @@ public class EpgGuide {
     public volatile String sourceMode = EpgSources.AUTO;
     /** Origin of the file currently being parsed (EpgRefresh runs on one IO thread). */
     private volatile boolean parsingWeb;
+    /**
+     * 3.94: when set (weak TV sticks), XMLTV programmes are only kept for channels of this
+     * list (exact/alias name match or XMLTV id). Big web feeds carry many hundreds of
+     * channels that are not in the playlist; their programmes no longer occupy the heap.
+     * Holds {normName, epgChannelId, id} per channel.
+     */
+    private volatile List<String[]> relevance;
+
+    /** Restrict the next parses to these channels (null = keep every channel). */
+    public void setRelevance(List<Models.Channel> channels) {
+        if (channels == null) {
+            this.relevance = null;
+            return;
+        }
+        ArrayList<String[]> out = new ArrayList<>();
+        for (Models.Channel c : new ArrayList<>(channels)) {
+            if (c == null || c.header) continue;
+            out.add(new String[]{normName(c.name), c.epgChannelId == null ? "" : norm(c.epgChannelId), c.id == null ? "" : norm(c.id)});
+        }
+        this.relevance = out.isEmpty() ? null : out;
+    }
+
+    boolean hasRelevance() { return this.relevance != null; }
+
+    /** XMLTV ids (normalized) that feed at least one channel of {@link #relevance}; null = all. */
+    private java.util.Set<String> relevantIds(Map<String, String> names) {
+        List<String[]> rel = this.relevance;
+        if (rel == null || names == null || names.isEmpty()) return null;
+        java.util.HashSet<String> ids = new java.util.HashSet<>();
+        for (String[] r : rel) {
+            String byName = r[0].isEmpty() ? null : findNameIdIn(names, r[0], false);
+            if (byName != null) ids.add(byName);
+            for (int k = 1; k <= 2; k++) {
+                String id = r[k];
+                if (id.isEmpty()) continue;
+                ids.add(id);
+                int at = id.indexOf('@');
+                if (at > 0) ids.add(id.substring(0, at));
+                if (id.startsWith("iptv:")) ids.add(id.substring(5));
+            }
+        }
+        return ids;
+    }
 
     /** Renamed / differently named channels: normalized name → EPG name. */
     private static final Map<String, String> RENAMES = new HashMap<>();
@@ -1092,6 +1135,9 @@ public class EpgGuide {
         int eventType = newPullParser.getEventType();
         String str2 = null;
         String str3 = null;
+        java.util.Set<String> relevantIds = null;
+        boolean relevanceReady = false;
+        int inWindow = 0;
         while (eventType != 1) {
             int i2 = 2;
             hashMap = hashMap3;
@@ -1114,12 +1160,21 @@ public class EpgGuide {
                             indexName(hashMap3, str3.substring(i, indexOf), norm(str3));
                         }
                     } else if ("programme".equals(name)) {
+                        if (!relevanceReady) {
+                            // XMLTV lists all <channel> entries before the programmes.
+                            relevanceReady = true;
+                            relevantIds = relevantIds(hashMap3);
+                        }
                         String attributeValue = newPullParser.getAttributeValue(str2, "channel");
                         hashMap = hashMap3;
                         long parseXmltvTime = parseXmltvTime(newPullParser.getAttributeValue(str2, "start"));
                         str = str3;
                         long parseXmltvTime2 = parseXmltvTime(newPullParser.getAttributeValue(str2, "stop"));
                         boolean z2 = attributeValue != null && parseXmltvTime > 0 && parseXmltvTime2 > parseXmltvTime && parseXmltvTime2 >= j && parseXmltvTime <= j2;
+                        if (z2) inWindow++;
+                        if (z2 && relevantIds != null && !relevantIds.contains(norm(attributeValue))) {
+                            z2 = false; // not in the playlist: skip without building a Listing
+                        }
                         String str4 = "";
                         int i3 = 1;
                         while (i3 > 0) {
@@ -1167,7 +1222,12 @@ public class EpgGuide {
             str2 = null;
         }
         HashMap hashMap4 = hashMap3;
-        if (hashMap2.isEmpty()) throw new Exception("XMLTV ohne Programme im Zeitfenster");
+        if (relevantIds != null) {
+            // Names of channels that are not in the playlist are not needed either.
+            final java.util.Set<String> keep = relevantIds;
+            hashMap4.values().removeIf(v -> !(v instanceof String) || !keep.contains(v));
+        }
+        if (hashMap2.isEmpty() && (relevantIds == null || inWindow == 0)) throw new Exception("XMLTV ohne Programme im Zeitfenster");
         boolean web = this.parsingWeb;
         java.util.Set<String> ids = web ? this.webIds : this.providerIds;
         Map<String, String> originNames = web ? this.webNames : this.providerNames;

@@ -36,6 +36,24 @@ final class EpgRefresh {
     /** Whether a request was folded into the running refresh (App.live may have changed). */
     private static boolean joined;
 
+    /** Set after an OutOfMemoryError: from now on parse only playlist channels, one web feed. */
+    static volatile boolean memoryTight;
+    /** A heavy refresh (download / XMLTV parse) was skipped while a stream played. */
+    static volatile boolean deferredWhilePlaying;
+    private static long lightApplyAt;
+    /** Channel list the relevance filter was built for (size + identity). */
+    private static long relevanceSig;
+
+    /** No download and no XMLTV parsing while the player runs (3.94, TV crash after minutes). */
+    static boolean heavyWorkAllowed(boolean playerOpen, boolean force) {
+        return force || !playerOpen;
+    }
+
+    private static long signature(List<Models.Channel> live) {
+        if (live == null) return 0L;
+        return ((long) System.identityHashCode(live) << 32) ^ live.size();
+    }
+
     /** Test hook: number of callers waiting for the running refresh. */
     static int waitingCount() { synchronized (WAITING) { return WAITING.size(); } }
 
@@ -92,7 +110,13 @@ final class EpgRefresh {
             catch (Throwable ignored) { Quiet.ignored("EpgRefresh", ignored); }
             String error = null;
             try { error = refresh(app, target, force); }
-            catch (Exception e) { error = "EPG-Aktualisierung fehlgeschlagen"; }
+            catch (OutOfMemoryError oom) {
+                // 3.94: an Error on this thread used to escape the executor and kill the whole
+                // app (also the running stream). Keep the app alive and parse less from now on.
+                memoryTight = true;
+                error = "EPG: zu wenig Arbeitsspeicher, gespeicherte Daten werden weiter genutzt";
+            }
+            catch (Throwable e) { error = "EPG-Aktualisierung fehlgeschlagen"; }
             finally {
                 final List<Completion> waiting = new ArrayList<>();
                 boolean rejoin;
@@ -135,10 +159,31 @@ final class EpgRefresh {
         String mode = EpgSources.normalize(prefs.epgSource());
         List<EpgSources.Source> plan = EpgSources.plan(mode, primary, EpgSources.hasBuiltin(App.live));
         String key = digest(mode + "|" + primary);
+        long now = System.currentTimeMillis();
+        if (!heavyWorkAllowed(App.playerOpen, force)) {
+            // The stream has priority: multi-MB XMLTV downloads/parses next to the decoder pushed
+            // weak sticks into low memory (app killed after a few minutes). Catch up afterwards.
+            deferredWhilePlaying = true;
+            if (guide.programmeCount > 0 && due(lightApplyAt, now, 10 * 60000L)) {
+                lightApplyAt = now;
+                guide.apply(App.live);
+            }
+            return null;
+        }
+        deferredWhilePlaying = false;
         if (!key.equals(sourceKey)) { guide.clear(); hydratedAt = 0; sourceKey = key; }
         guide.sourceMode = mode;
-        long now = System.currentTimeMillis();
-        boolean hydrate = guide.programmeCount == 0 || due(hydratedAt, now, hydrateIntervalMillis(App.playerOpen));
+        boolean tight = App.isLowRam() || memoryTight;
+        List<Models.Channel> live = App.live;
+        long sig = signature(live);
+        if (tight && live != null && !live.isEmpty()) {
+            guide.setRelevance(live);
+        } else {
+            guide.setRelevance(null);
+        }
+        boolean hydrate = guide.programmeCount == 0 || due(hydratedAt, now, hydrateIntervalMillis(App.playerOpen))
+                || (guide.hasRelevance() && sig != relevanceSig);
+        relevanceSig = sig;
         List<String> failures = new ArrayList<>();
         boolean downloaded = false;
         int fallbackLoaded = 0;
@@ -146,7 +191,7 @@ final class EpgRefresh {
             if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
             String url = source.url;
             boolean fallback = source.web;
-            if (fallback && fallbackLoaded > 0 && App.isLowRam()) break;
+            if (fallback && fallbackLoaded > 0 && tight) break;
             File cache = new File(context.getFilesDir(), "epg/" + digest(url) + ".xml");
             boolean fresh = cache.isFile() && !due(cache.lastModified(), now, intervalMillis(prefs.epgIntervalHours()));
             boolean loaded = false;

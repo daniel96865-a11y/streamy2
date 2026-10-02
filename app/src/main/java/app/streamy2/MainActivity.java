@@ -97,6 +97,10 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     private boolean dataRefresh;
     /** List had rows before the current renderList() (first fill vs. refresh). */
     private boolean listHadRows;
+    /** Between onResume and onPause (3.94). */
+    private boolean resumed;
+    /** Background data arrived while the player was in front (3.94). */
+    private boolean listRefreshPending;
     private TextView bufIndOff;
     private TextView swipeZapOn;
     private TextView swipeZapOff;
@@ -1622,6 +1626,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
     protected void onResume() {
         RecyclerView recyclerView;
         super.onResume();
+        this.resumed = true;
         try {
             if (this.appliedAccent != null && this.prefs != null
                     && !Theme.get(this.prefs.accent()).id.equals(this.appliedAccent)) {
@@ -1645,6 +1650,15 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             // Paused before the startup EPG ran (permission dialog, player opened): run it now.
             UI.removeCallbacks(this.startupEpg);
             UI.postDelayed(this.startupEpg, Math.min(1000L, startupEpgDelayMs()));
+        }
+        if (this.listRefreshPending) {
+            // Data arrived while a stream played: update the list now (focus is kept).
+            this.listRefreshPending = false;
+            UI.post(new Runnable() {
+                @Override public void run() {
+                    if (!isFinishing() && !isDestroyed() && (tab == 0 || tab == 4)) refreshListData();
+                }
+            });
         }
         UI.removeCallbacks(this.accessValidationTick);
         UI.post(this.accessValidationTick);
@@ -1722,6 +1736,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
      * and the remote focus stays where the user moved it instead of jumping to the first row.
      */
     void refreshListData() {
+        if (App.playerOpen && !this.resumed) {
+            // 3.94: no list work behind the running player; catch up in onResume.
+            this.listRefreshPending = true;
+            return;
+        }
         boolean prev = this.dataRefresh;
         this.dataRefresh = true;
         try {
@@ -1754,6 +1773,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     @Override // androidx.fragment.app.FragmentActivity, android.app.Activity
     protected void onPause() {
+        this.resumed = false;
         UI.removeCallbacks(epgTick);
         UI.removeCallbacks(this.startupEpg);
         UI.removeCallbacks(this.accessValidationTick);
@@ -4902,6 +4922,14 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     /** Build library lists off the UI thread, then publish all successful sections together. */
     private void loadLibrarySafely(XtreamApi source, Models.Catalog target) {
+        // 3.94: the film/series library (often several MB of JSON) is not loaded while a stream
+        // plays; wait until the player is closed (TV sticks ran out of memory).
+        long waitUntil = SystemClock.uptimeMillis() + 4L * 3600000L;
+        while (App.playerOpen && !isDestroyed() && SystemClock.uptimeMillis() < waitUntil) {
+            try { Thread.sleep(2000L); }
+            catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+        }
+        if (isDestroyed()) return;
         Models.Catalog library = new Models.Catalog();
         String warning = null;
         try { source.loadLibrary(library); }
@@ -5028,7 +5056,8 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (adapter != null) adapter.notifyEpg();
             loadVisibleEpg();
             ensureNetEpg(false);
-            UI.postDelayed(this, 60000L);
+            // A refresh skipped during playback is caught up right after the player closed.
+            UI.postDelayed(this, EpgRefresh.deferredWhilePlaying && !App.playerOpen ? 3000L : 60000L);
         }
     };
 
@@ -5039,6 +5068,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void ensureNetEpg(boolean force) {
         EpgRefresh.schedule(this);
+        if (!force && App.playerOpen && !this.resumed) {
+            // 3.94: startup/catalog callbacks behind the running player: no XMLTV work now,
+            // epgTick in onResume catches up.
+            return;
+        }
         boolean started = EpgRefresh.request(this, force, error -> {
             if (isFinishing() || isDestroyed()) return;
             updateEpgStatus();
@@ -5082,6 +5116,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
      * of the visible rows (notifyItemRangeChanged with payload) without touching the focus (3.93).
      */
     void onEpgArrived() {
+        if (App.playerOpen && !this.resumed) return; // rebind happens in onResume (epgTick)
         if (this.adapter != null) this.adapter.notifyEpg();
         loadVisibleEpg();
     }

@@ -57,6 +57,7 @@ public class StartupEpgTest {
     public void seedWebEpgCache() throws Exception {
         App.guide = null;
         App.live = null;
+        App.playerOpen = false;
         long now = System.currentTimeMillis();
         StringBuilder body = new StringBuilder();
         for (int i = 0; i < 30; i++) {
