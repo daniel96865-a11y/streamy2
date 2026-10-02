@@ -996,6 +996,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
                     MainActivity.this.loadExtraLive();
                     MainActivity.this.loadKino();
                     MainActivity.this.prefetchEpg();
+                    MainActivity.this.ensureLiveEpgSoon();
                 }
             });
         }
@@ -1638,8 +1639,13 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         UI.removeCallbacks(epgTick);
         // First start: give the remote and the first catalog a few seconds before the
         // multi-MB XMLTV hydration starts (allocations/GC on low-RAM sticks, 3.92).
-        UI.postDelayed(epgTick, this.epgTickStarted ? 1000L : STARTUP_EPG_DELAY_MS);
+        UI.postDelayed(epgTick, this.epgTickStarted ? 1000L : startupEpgDelayMs());
         this.epgTickStarted = true;
+        if (this.startupEpgPending) {
+            // Paused before the startup EPG ran (permission dialog, player opened): run it now.
+            UI.removeCallbacks(this.startupEpg);
+            UI.postDelayed(this.startupEpg, Math.min(1000L, startupEpgDelayMs()));
+        }
         UI.removeCallbacks(this.accessValidationTick);
         UI.post(this.accessValidationTick);
         this.resumeAt = SystemClock.uptimeMillis();
@@ -2931,8 +2937,11 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
             if (i2 == 0 || i2 == 4) {
                 List<Models.Channel> filterLive = filterLive();
                 if (this.dataRefresh && this.listHadRows && this.adapter.hasSameItems(filterLive)) {
-                    // Same channels in the same order (e.g. cache == network): no rebind, no focus move.
+                    // Same channels in the same order (e.g. cache == network): no full rebind, no focus move.
+                    // The channels may carry new EPG (Live Extra apply, background refresh): rebind the
+                    // visible rows' EPG line only (payload bind, 3.93).
                     this.empty.setVisibility(filterLive.isEmpty() ? 0 : 8);
+                    this.adapter.notifyEpg();
                     return;
                 }
                 int keepPos = this.dataRefresh && this.listHadRows && this.list != null ? listPosition(this.list.findFocus()) : -1;
@@ -5033,8 +5042,7 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
         boolean started = EpgRefresh.request(this, force, error -> {
             if (isFinishing() || isDestroyed()) return;
             updateEpgStatus();
-            if (adapter != null) adapter.notifyEpg();
-            loadVisibleEpg();
+            onEpgArrived();
             if (force) Toast.makeText(this, error == null ? "EPG aktualisiert" : error, Toast.LENGTH_LONG).show();
         });
         if (force && !started) Toast.makeText(this, "EPG-Aktualisierung läuft bereits", Toast.LENGTH_SHORT).show();
@@ -5043,20 +5051,39 @@ public class MainActivity extends AppCompatActivity implements ChannelAdapter.Li
 
     private void ensureExtraLiveEpg(boolean force) { ensureNetEpg(force); }
 
-    /** Delay after the first catalog before the XMLTV refresh/hydration starts (3.92). */
+    /** TV: delay after the first catalog before the XMLTV refresh/hydration starts (3.92). */
     static final long STARTUP_EPG_DELAY_MS = 4000L;
+    /** Phone: no remote to keep responsive; start the EPG right after the first frame (3.93). */
+    static final long MOBILE_STARTUP_EPG_DELAY_MS = 300L;
     private boolean epgTickStarted;
+    /** Startup EPG requested but not run yet (survives onPause, 3.93). */
+    private boolean startupEpgPending;
     private final Runnable startupEpg = new Runnable() {
         @Override public void run() {
             if (isFinishing() || isDestroyed()) return;
+            startupEpgPending = false;
             ensureLiveEpg(false);
         }
     };
 
+    long startupEpgDelayMs() {
+        return Tv.isTv(this) ? STARTUP_EPG_DELAY_MS : MOBILE_STARTUP_EPG_DELAY_MS;
+    }
+
     /** Startup: coalesce the XMLTV request and run it once the list is usable. */
     private void ensureLiveEpgSoon() {
+        this.startupEpgPending = true;
         UI.removeCallbacks(this.startupEpg);
-        UI.postDelayed(this.startupEpg, STARTUP_EPG_DELAY_MS);
+        UI.postDelayed(this.startupEpg, startupEpgDelayMs());
+    }
+
+    /**
+     * EPG data arrived (own request or a refresh that was already running): rebind the EPG line
+     * of the visible rows (notifyItemRangeChanged with payload) without touching the focus (3.93).
+     */
+    void onEpgArrived() {
+        if (this.adapter != null) this.adapter.notifyEpg();
+        loadVisibleEpg();
     }
     private void ensureLiveEpg(boolean force) { ensureNetEpg(force); }
 

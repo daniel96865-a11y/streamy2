@@ -27,6 +27,18 @@ final class EpgRefresh {
 
     interface Completion { void done(String error); }
 
+    /**
+     * 3.93: a request while another refresh runs (background job, Live Extra, tab switch) used
+     * to be dropped silently, so its caller never learned that the EPG arrived and the visible
+     * rows were not rebound. Such callers now wait for the running refresh instead.
+     */
+    private static final List<Completion> WAITING = new ArrayList<>();
+    /** Whether a request was folded into the running refresh (App.live may have changed). */
+    private static boolean joined;
+
+    /** Test hook: number of callers waiting for the running refresh. */
+    static int waitingCount() { synchronized (WAITING) { return WAITING.size(); } }
+
     static long intervalMillis(int hours) {
         return (hours == 6 || hours == 24 ? hours : 12) * 3600000L;
     }
@@ -57,7 +69,17 @@ final class EpgRefresh {
     }
 
     static boolean request(Context context, boolean force, Completion completion) {
-        if (!BUSY.compareAndSet(false, true)) return false;
+        if (!BUSY.compareAndSet(false, true)) {
+            synchronized (WAITING) {
+                if (BUSY.get()) {
+                    joined = true;
+                    if (completion != null) WAITING.add(completion);
+                    return false;
+                }
+            }
+            // The running refresh just finished: start a new one.
+            return request(context, force, completion);
+        }
         Context app = context.getApplicationContext();
         EpgGuide guide = App.guide;
         if (guide == null) App.guide = guide = new EpgGuide();
@@ -72,11 +94,33 @@ final class EpgRefresh {
             try { error = refresh(app, target, force); }
             catch (Exception e) { error = "EPG-Aktualisierung fehlgeschlagen"; }
             finally {
-                target.error = error;
-                target.loading = false;
-                BUSY.set(false);
+                final List<Completion> waiting = new ArrayList<>();
+                boolean rejoin;
+                synchronized (WAITING) {
+                    rejoin = joined;
+                    joined = false;
+                }
+                if (rejoin) {
+                    // Channels may have been replaced/merged while the refresh ran.
+                    try { target.apply(App.live); }
+                    catch (Throwable ignored) { Quiet.ignored("EpgRefresh", ignored); }
+                }
+                synchronized (WAITING) {
+                    target.error = error;
+                    target.loading = false;
+                    waiting.addAll(WAITING);
+                    WAITING.clear();
+                    joined = false;
+                    BUSY.set(false);
+                }
                 final String result = error;
-                if (completion != null) UI.post(() -> completion.done(result));
+                UI.post(() -> {
+                    if (completion != null) completion.done(result);
+                    for (Completion c : waiting) {
+                        try { c.done(result); }
+                        catch (Throwable t) { Quiet.ignored("EpgRefresh", t); }
+                    }
+                });
             }
         });
         return true;

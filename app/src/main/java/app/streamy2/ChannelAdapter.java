@@ -49,6 +49,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
         }
     };
     private int gridColumns = 1;
+    private int epgLayoutRetries;
     private static final int TYPE_ROW = 0;
     private static final int TYPE_POSTER = 1;
     private final SimpleDateFormat clock = EpgTime.format("HH:mm");
@@ -172,6 +173,7 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
     }
 
     public void notifyEpg() {
+        this.epgLayoutRetries = 0;
         this.epgUi.removeCallbacks(this.epgNotifyRun);
         this.epgUi.postDelayed(this.epgNotifyRun, 90);
     }
@@ -193,8 +195,12 @@ public class ChannelAdapter extends RecyclerView.Adapter<ChannelAdapter.VH> {
             int a = lm.findFirstVisibleItemPosition();
             int b = lm.findLastVisibleItemPosition();
             if (a < 0) {
+                // 3.93: EPG arrived before the first layout (phone start): rebind once the rows exist
+                // instead of dropping the update. Payload bind only, focus is not touched.
+                if (this.epgLayoutRetries++ < 20) this.epgUi.postDelayed(this.epgNotifyRun, 120);
                 return;
             }
+            this.epgLayoutRetries = 0;
             first = Math.max(0, a - 8);
             int last = Math.min(size - 1, Math.max(a, b) + 8);
             count = last - first + 1;
